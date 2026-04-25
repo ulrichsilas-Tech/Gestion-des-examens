@@ -1,0 +1,2118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExamPlatform — INE</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#1D4ED8;--blue-dark:#1e3a8a;--blue-light:#EFF6FF;
+  --green:#0F6E56;--green-light:#ECFDF5;
+  --red:#A32D2D;--red-light:#FEF2F2;
+  --amber:#B45309;--amber-light:#FFFBEB;
+  --gray:#374151;--gray-light:#F9FAFB;--gray-mid:#E5E7EB;
+  --text:#111827;--text-muted:#6B7280;
+  --radius:8px;--radius-lg:12px;--radius-xl:16px;
+  --shadow:0 1px 3px rgba(0,0,0,.1);--shadow-md:0 4px 6px rgba(0,0,0,.07);
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#F3F4F6;color:var(--text);min-height:100vh;visibility:hidden}
+.page{display:none}.page.active{display:block}
+.topbar{background:#fff;border-bottom:1px solid var(--gray-mid);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:var(--shadow)}
+.topbar-logo{font-size:16px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:8px}
+.topbar-logo span{background:var(--blue);color:#fff;border-radius:6px;padding:3px 8px;font-size:13px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);border:1px solid var(--gray-mid);background:#fff;color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--gray-light)}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}.btn-primary:hover{background:var(--blue-dark)}
+.btn-success{background:var(--green);color:#fff;border-color:var(--green)}.btn-success:hover{background:#085041}
+.btn-danger{background:var(--red);color:#fff;border-color:var(--red)}.btn-danger:hover{background:#791F1F}
+.btn-amber{background:var(--amber);color:#fff;border-color:var(--amber)}.btn-amber:hover{background:#92400E}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--text-muted)}.btn-ghost:hover{background:var(--gray-light);border-color:var(--gray-mid)}
+.btn-sm{padding:6px 12px;font-size:12px}.btn-lg{padding:12px 28px;font-size:15px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap}
+.field{margin-bottom:14px}
+label.lbl{display:block;font-size:13px;font-weight:500;color:var(--gray);margin-bottom:4px}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid var(--gray-mid);border-radius:var(--radius);font-size:14px;color:var(--text);background:#fff;outline:none;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1)}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:pointer;flex-shrink:0}
+textarea{resize:vertical;min-height:80px}
+.container{max-width:860px;margin:0 auto;padding:2rem 1rem}
+.container-wide{max-width:1100px;margin:0 auto;padding:1.5rem 1rem}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.sep{height:1px;background:var(--gray-mid);margin:20px 0}
+.card{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow)}
+.card-title{font-size:15px;font-weight:600;margin-bottom:12px}
+.section-title{font-size:18px;font-weight:600;margin-bottom:1.25rem}
+.tabs{display:flex;border-bottom:2px solid var(--gray-mid);margin-bottom:1.5rem}
+.tab-btn{padding:10px 18px;font-size:14px;font-weight:500;cursor:pointer;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:var(--gray-light);padding:9px 12px;text-align:left;font-weight:600;font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gray-mid)}
+.tbl td{padding:9px 12px;border-bottom:1px solid var(--gray-mid)}
+.tbl tr:hover td{background:#FAFAFA}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--gray-mid);border-radius:var(--radius-lg)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:#D1FAE5;color:#065F46}.badge-red{background:#FEE2E2;color:#991B1B}
+.badge-blue{background:#DBEAFE;color:#1E40AF}.badge-amber{background:#FEF3C7;color:#92400E}
+.badge-gray{background:#F3F4F6;color:#6B7280}.badge-purple{background:#EDE9FE;color:#5B21B6}
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:12px;display:flex;gap:8px;align-items:flex-start;line-height:1.5}
+.alert-info{background:var(--blue-light);border:1px solid #BFDBFE;color:#1E40AF}
+.alert-success{background:var(--green-light);border:1px solid #A7F3D0;color:#065F46}
+.alert-danger{background:var(--red-light);border:1px solid #FECACA;color:#991B1B}
+.alert-warning{background:var(--amber-light);border:1px solid #FDE68A;color:#92400E}
+.home-hero{text-align:center;padding:5rem 1rem 3rem}
+.home-hero h1{font-size:32px;font-weight:700;margin-bottom:.5rem;letter-spacing:-.5px}
+.home-hero p{color:var(--text-muted);font-size:16px;margin-bottom:3rem}
+.home-cards{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.home-card{width:240px;padding:2rem 1.5rem;text-align:center;background:#fff;border:1.5px solid var(--gray-mid);border-radius:var(--radius-xl);cursor:pointer;transition:all .2s;box-shadow:var(--shadow)}
+.home-card:hover{border-color:var(--blue);transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.home-card-icon{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 1rem}
+.home-card h3{font-size:17px;font-weight:600;margin-bottom:.4rem}
+.home-card p{font-size:13px;color:var(--text-muted)}
+.exam-header-box{border:2px solid var(--blue);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:20px}
+.exam-header-top{background:var(--blue);color:#fff;padding:12px 16px;display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+.exam-header-top .center{text-align:center;font-weight:700;font-size:15px;line-height:1.3}
+.exam-header-top .side{font-size:12px;line-height:1.5}
+.exam-header-top .right{text-align:right}
+.exam-header-body{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+.exam-header-row{font-size:13px;display:flex;gap:6px}
+.exam-header-row .key{color:var(--text-muted);white-space:nowrap}
+.exam-header-row .val{font-weight:600}
+.candidat-zone{background:var(--blue-light);border-top:1px solid #BFDBFE;padding:10px 16px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
+.consigne-banner{background:#FEF3C7;border:1.5px solid #F59E0B;border-radius:var(--radius);padding:12px 16px;font-size:13px;color:#78350F;margin-bottom:16px}
+.question-card{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);transition:border-color .2s}
+.question-card.answered{border-color:#10B981;border-left:4px solid #10B981}
+.q-title{font-size:14px;font-weight:600;margin-bottom:12px;line-height:1.5;display:flex;gap:6px}
+.q-num{background:var(--blue);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;white-space:nowrap;flex-shrink:0;align-self:flex-start;margin-top:1px}
+.choice-label{display:flex;align-items:flex-start;gap:10px;padding:7px 10px;border-radius:var(--radius);cursor:pointer;font-size:13px;transition:background .1s;line-height:1.4}
+.choice-label:hover{background:var(--gray-light)}
+.bottom-bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--gray-mid);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -4px 6px rgba(0,0,0,.05);z-index:40}
+.unanswered-count{font-size:14px;font-weight:600;color:var(--red)}
+.unanswered-ok{color:var(--green)}
+.timer-chip{font-size:14px;font-weight:700;padding:6px 14px;border-radius:20px;min-width:80px;text-align:center;transition:all .3s}
+.timer-safe{background:var(--green-light);color:var(--green);border:1px solid #A7F3D0}
+.timer-warn{background:var(--amber-light);color:var(--amber);border:1px solid #FDE68A}
+.timer-danger{background:var(--red-light);color:var(--red);border:1px solid #FECACA}
+.steps{display:flex;justify-content:center;align-items:center;gap:8px;margin-bottom:2rem}
+.step-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;border:2px solid var(--gray-mid);color:var(--text-muted);background:#fff;transition:all .2s}
+.step-dot.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.step-dot.done{background:var(--green);border-color:var(--green);color:#fff}
+.step-line{flex:1;height:2px;background:var(--gray-mid);max-width:60px;border-radius:1px}
+.result-score{font-size:64px;font-weight:700;color:var(--blue);line-height:1;text-align:center;padding:1rem 0}
+.stat-card{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px;text-align:center}
+.stat-card .stat-num{font-size:28px;font-weight:700;line-height:1;margin-bottom:4px}
+.stat-card .stat-label{font-size:12px;color:var(--text-muted);font-weight:500}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal-box{background:#fff;border-radius:var(--radius-xl);padding:24px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-title{font-size:17px;font-weight:600;margin-bottom:8px}
+.modal-body{font-size:14px;color:var(--text-muted);margin-bottom:20px;line-height:1.6;white-space:pre-line}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+#toast-container{position:fixed;bottom:80px;right:16px;z-index:300;display:flex;flex-direction:column;gap:8px}
+.toast{padding:10px 16px;border-radius:var(--radius-lg);font-size:13px;font-weight:500;box-shadow:var(--shadow-md);animation:slideIn .2s ease;display:flex;align-items:center;gap:8px;max-width:340px}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+.toast-success{background:var(--green-light);border:1px solid #A7F3D0;color:#065F46}
+.toast-error{background:var(--red-light);border:1px solid #FECACA;color:#991B1B}
+.toast-info{background:var(--blue-light);border:1px solid #BFDBFE;color:#1E40AF}
+.toast-warn{background:var(--amber-light);border:1px solid #FDE68A;color:#92400E}
+.suggestions{border:1px solid var(--gray-mid);border-radius:var(--radius);overflow:hidden;margin-top:4px;background:#fff;box-shadow:var(--shadow-md)}
+.suggestion-item{padding:9px 12px;cursor:pointer;font-size:13px;transition:background .1s;border-bottom:1px solid var(--gray-mid)}
+.suggestion-item:last-child{border-bottom:none}
+.suggestion-item:hover{background:var(--blue-light);color:var(--blue)}
+.action-card{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:20px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:8px}
+.action-card:hover{border-color:var(--blue);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.action-card-icon{font-size:28px}
+.action-card-title{font-size:14px;font-weight:600}
+.action-card-desc{font-size:12px;color:var(--text-muted);line-height:1.4}
+.qbuilder-item{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px}
+.setup-step{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:24px;margin-bottom:16px}
+.setup-step-num{width:32px;height:32px;background:var(--blue);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.setup-step-title{font-size:16px;font-weight:600}
+.code-block{background:#1e293b;color:#e2e8f0;border-radius:var(--radius);padding:16px;font-family:monospace;font-size:13px;line-height:1.6;overflow-x:auto;position:relative;margin:8px 0}
+.status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+.status-dot.green{background:#10B981}.status-dot.red{background:#EF4444}.status-dot.gray{background:#9CA3AF}
+.exam-status-banner{padding:10px 16px;border-radius:var(--radius);font-size:14px;font-weight:500;text-align:center;margin-bottom:16px}
+.exam-open{background:#D1FAE5;color:#065F46;border:1px solid #A7F3D0}
+.exam-closed{background:#FEE2E2;color:#991B1B;border:1px solid #FECACA}
+/* Stats résultats - 5 colonnes */
+.stats-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:1.5rem}
+@media(max-width:640px){
+  .grid-2,.grid-3,.grid-4,.stats-5{grid-template-columns:1fr}
+  .exam-header-top{grid-template-columns:1fr;text-align:center}
+  .candidat-zone{grid-template-columns:1fr}
+  .bottom-bar{flex-direction:column;gap:10px;align-items:stretch}
+  .home-card{width:100%;max-width:320px}
+}
+@media print{body::after{content:"Impression non autorisée.";display:block;font-size:24px;text-align:center;padding:4rem}}
+</style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- SETUP PAGE -->
+<div id="pg-setup" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> ExamPlatform — Configuration initiale</div>
+  </div>
+  <div class="container" style="max-width:720px">
+    <div style="margin:2rem 0 1.5rem">
+      <h2 style="font-size:22px;font-weight:700;margin-bottom:.4rem">⚙️ Configuration Supabase</h2>
+      <p style="color:var(--text-muted);font-size:14px">Connectez votre base de données. À faire une seule fois.</p>
+    </div>
+    <div class="setup-step">
+      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px">
+        <div class="setup-step-num">1</div>
+        <div><div class="setup-step-title">Créer un projet Supabase gratuit</div>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Allez sur <a href="https://supabase.com" target="_blank" style="color:var(--blue)">supabase.com</a> → New Project → région Europe West.</p>
+        </div>
+      </div>
+    </div>
+    <div class="setup-step">
+      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px">
+        <div class="setup-step-num">2</div>
+        <div style="width:100%">
+          <div class="setup-step-title">Créer les tables (SQL Editor)</div>
+          <p style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">Dans Supabase → SQL Editor → copiez-collez ce script :</p>
+          <div class="code-block" id="sql-block">
+-- Table configuration
+create table if not exists exam_config (
+  id text primary key default 'main',
+  ecole text, institut text, matiere text,
+  niveau text, annee text, date_exam text,
+  heure text, duree integer default 90,
+  session text, bareme integer default 20,
+  consigne text, pwd_admin text default 'admin123',
+  pwd_candidat text default '',
+  statut text default 'ferme',
+  created_at timestamptz default now()
+);
+create table if not exists candidats (
+  id uuid primary key default gen_random_uuid(),
+  matricule text unique not null,
+  nom text not null, prenom text,
+  date_naissance text, filiere text, email text,
+  created_at timestamptz default now()
+);
+create table if not exists questions (
+  id text primary key,
+  num integer, texte text, obligatoire boolean default true,
+  ordre integer default 0,
+  created_at timestamptz default now()
+);
+create table if not exists sous_questions (
+  id text primary key,
+  question_id text references questions(id) on delete cascade,
+  texte text, correcte boolean default false,
+  pts_v numeric default 0.5, pts_f numeric default -0.25,
+  ordre integer default 0
+);
+create table if not exists copies (
+  id uuid primary key default gen_random_uuid(),
+  matricule text references candidats(matricule),
+  reponses jsonb default '{}',
+  note_brute numeric default 0,
+  note_sur_bareme numeric default 0,
+  date_depot timestamptz default now(),
+  unique(matricule)
+);
+alter table exam_config enable row level security;
+alter table candidats enable row level security;
+alter table questions enable row level security;
+alter table sous_questions enable row level security;
+alter table copies enable row level security;
+create policy "public_read_config" on exam_config for select using (true);
+create policy "public_read_candidats" on candidats for select using (true);
+create policy "public_update_candidats" on candidats for update using (true) with check (true);
+create policy "public_read_questions" on questions for select using (true);
+create policy "public_read_sous_questions" on sous_questions for select using (true);
+create policy "public_insert_copies" on copies for insert with check (true);
+create policy "public_read_copies" on copies for select using (true);
+create policy "admin_all_config" on exam_config for all using (true);
+create policy "admin_all_candidats" on candidats for all using (true);
+create policy "admin_all_questions" on questions for all using (true);
+create policy "admin_all_sous_questions" on sous_questions for all using (true);
+create policy "admin_all_copies" on copies for all using (true);
+          </div>
+          <button class="btn btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
+        </div>
+      </div>
+    </div>
+    <div class="setup-step">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div class="setup-step-num">3</div>
+        <div style="width:100%">
+          <div class="setup-step-title">Entrez vos clés Supabase</div>
+          <p style="font-size:13px;color:var(--text-muted);margin:4px 0 12px">Settings → API → Project URL et Publishable key</p>
+          <div class="field"><label class="lbl">Project URL</label><input id="sb-url" placeholder="https://xxxxxxxxxxxx.supabase.co" type="url"></div>
+          <div class="field"><label class="lbl">Publishable Key (anon)</label><input id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
+          <div id="setup-err" class="alert alert-danger" style="display:none"></div>
+          <div id="setup-ok" class="alert alert-success" style="display:none">✓ Connexion réussie ! Redirection...</div>
+          <button class="btn btn-primary" onclick="testAndSaveSupabase()" id="btn-setup">🔌 Tester et connecter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ACCUEIL -->
+<div id="pg-home" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> ExamPlatform</div>
+  </div>
+  <div class="home-hero">
+    <h1>Bienvenue sur votre plateforme de gestion des examens</h1>
+    <p id="home-subtitle">Chargement de l'examen...</p>
+    <div id="home-exam-status" class="exam-status-banner" style="display:none;max-width:500px;margin:0 auto 2rem"></div>
+    <div class="home-cards">
+      <div class="home-card" onclick="enterComposition()">
+        <div class="home-card-icon" style="background:var(--blue-light)">📝</div>
+        <h3>Espace Composition</h3>
+        <p>Accédez à votre épreuve en ligne</p>
+        <br><span class="badge badge-blue">Étudiants</span>
+      </div>
+      <div class="home-card" onclick="goTo('pg-admin-login')">
+        <div class="home-card-icon" style="background:#F3E8FF">⚙️</div>
+        <h3>Espace Gestion</h3>
+        <p>Administration, résultats et exports</p>
+        <br><span class="badge badge-gray">Responsables</span>
+      </div>
+    </div>
+    <p style="margin-top:2rem;font-size:12px;color:var(--text-muted)" id="home-db-status"></p>
+  </div>
+</div>
+
+<!-- LOGIN ADMIN -->
+<div id="pg-admin-login" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> Espace Gestion</div>
+    <button class="btn btn-ghost btn-sm" onclick="goTo('pg-home')">← Accueil</button>
+  </div>
+  <div class="container">
+    <div style="max-width:380px;margin:4rem auto">
+      <div class="card">
+        <div class="card-title" style="font-size:17px">🔐 Connexion Responsable</div>
+        <div id="admin-err" class="alert alert-danger" style="display:none"></div>
+        <div class="field"><label class="lbl">Mot de passe</label>
+          <input type="password" id="admin-pwd" onkeydown="if(event.key==='Enter')doAdminLogin()">
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="doAdminLogin()">Connexion</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN DASHBOARD -->
+<div id="pg-admin" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> Gestion</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="badge badge-purple">👤 Responsable</span>
+      <button class="btn btn-ghost btn-sm" onclick="adminLogout()">Déconnexion</button>
+    </div>
+  </div>
+  <div class="container-wide">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(this,'tab-config')">⚙️ Configuration</button>
+      <button class="tab-btn" onclick="switchTab(this,'tab-epreuve')">📋 Épreuve</button>
+      <button class="tab-btn" onclick="switchTab(this,'tab-candidats')">👥 Étudiants</button>
+      <button class="tab-btn" onclick="switchTab(this,'tab-resultats')">📊 Résultats</button>
+      <button class="tab-btn" onclick="switchTab(this,'tab-exports')">📤 Exports</button>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="tab-config" class="admin-tab">
+      <div class="section-title">Informations de l'examen</div>
+      <div class="card" style="margin-bottom:20px;background:linear-gradient(135deg,#EFF6FF,#DBEAFE)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px">🔴 Statut de l'examen</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-success" onclick="setExamStatut('ouvert')">▶ Ouvrir l'examen</button>
+          <button class="btn btn-danger" onclick="setExamStatut('ferme')">⏹ Fermer l'examen</button>
+          <span id="current-statut" class="badge badge-gray" style="align-self:center;font-size:13px;padding:6px 14px"></span>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <div class="field"><label class="lbl">Établissement</label><input id="c-ecole"></div>
+          <div class="field"><label class="lbl">Institut / Département</label><input id="c-institut"></div>
+          <div class="field"><label class="lbl">Matière</label><input id="c-matiere"></div>
+          <div class="field"><label class="lbl">Niveau / Classe</label><input id="c-niveau"></div>
+          <div class="field"><label class="lbl">Année académique</label><input id="c-annee"></div>
+        </div>
+        <div>
+          <div class="field"><label class="lbl">Date de l'épreuve</label><input id="c-date" type="date"></div>
+          <div class="field"><label class="lbl">Heure début</label><input id="c-heure" type="time" value="08:00"></div>
+          <div class="field"><label class="lbl">Durée (minutes)</label><input id="c-duree" type="number" value="90"></div>
+          <div class="field"><label class="lbl">Session</label>
+            <select id="c-session"><option>Normale</option><option>Rattrapage</option><option>Spéciale</option></select>
+          </div>
+          <div class="field"><label class="lbl">Barème total</label><input id="c-bareme" type="number" value="20"></div>
+        </div>
+      </div>
+      <div class="field"><label class="lbl">Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
+      <div class="sep"></div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:12px">🔐 Sécurité</div>
+      <div class="grid-2">
+        <div class="field"><label class="lbl">Mot de passe Gestion</label><input id="c-pwd-admin" type="password"></div>
+        <div class="field"><label class="lbl">Code d'accès candidats (optionnel)</label><input id="c-pwd-candidat" type="password" placeholder="Vide = pas de code"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveConfig()">💾 Enregistrer</button>
+        <button class="btn" onclick="loadConfigForm()">↺ Recharger</button>
+      </div>
+    </div>
+
+    <!-- ÉPREUVE -->
+    <div id="tab-epreuve" class="admin-tab" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
+        <div class="section-title" style="margin:0">Questions & Sous-questions</div>
+        <div class="btn-group">
+          <button class="btn btn-sm" onclick="document.getElementById('q-excel-input').click()">📥 Importer Excel</button>
+          <input type="file" id="q-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="parseQuestionsExcel(this)">
+          <button class="btn btn-sm" onclick="downloadQuestionsTemplate()">⬇ Modèle Excel</button>
+          <button class="btn btn-primary btn-sm" onclick="addQuestion()">+ Ajouter</button>
+        </div>
+      </div>
+      <div class="alert alert-info" style="font-size:12px">Colonnes Excel : <strong>NumQ, TexteQ, ChoixA, ChoixB, ChoixC, ChoixD, Correct (ex: A ou A,C), PtsV, PtsF</strong></div>
+      <div id="questions-builder"></div>
+      <div class="btn-group" style="margin-top:1rem">
+        <button class="btn btn-success" onclick="saveQuestions()">💾 Enregistrer l'épreuve</button>
+      </div>
+    </div>
+
+    <!-- ÉTUDIANTS -->
+    <div id="tab-candidats" class="admin-tab" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
+        <div class="section-title" style="margin:0">Liste des étudiants</div>
+        <div class="btn-group">
+          <button class="btn btn-sm" onclick="document.getElementById('cand-excel-input').click()">📥 Importer Excel</button>
+          <input type="file" id="cand-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="parseCandidatsExcel(this)">
+          <button class="btn btn-sm" onclick="downloadCandidatsTemplate()">⬇ Modèle Excel</button>
+        </div>
+      </div>
+      <div class="alert alert-info" style="font-size:12px">Colonnes : <strong>Matricule, Nom, Prénom, DateNaissance, Filière (EHA / GTE / HYAS), Email</strong></div>
+      <!-- Filtre par filière -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-sm active-filiere" id="fil-btn-all" onclick="filterFiliere('all',this)">Toutes les filières</button>
+        <button class="btn btn-sm" id="fil-btn-EHA" onclick="filterFiliere('EHA',this)">EHA</button>
+        <button class="btn btn-sm" id="fil-btn-GTE" onclick="filterFiliere('GTE',this)">GTE</button>
+        <button class="btn btn-sm" id="fil-btn-HYAS" onclick="filterFiliere('HYAS',this)">HYAS</button>
+      </div>
+      <div id="candidats-table-wrap"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+
+    <!-- RÉSULTATS -->
+    <div id="tab-resultats" class="admin-tab" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
+        <div class="section-title" style="margin:0">Résultats en temps réel</div>
+        <div class="btn-group">
+          <button class="btn btn-sm" onclick="loadResultats()">🔄 Actualiser</button>
+          <button class="btn btn-primary btn-sm" onclick="exportResultatsExcel()">📊 Export Excel</button>
+        </div>
+      </div>
+      <!-- Filtre filière résultats -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-sm" id="res-fil-all" onclick="filterResultats('all',this)" style="background:var(--blue);color:#fff;border-color:var(--blue)">Toutes</button>
+        <button class="btn btn-sm" id="res-fil-EHA" onclick="filterResultats('EHA',this)">EHA</button>
+        <button class="btn btn-sm" id="res-fil-GTE" onclick="filterResultats('GTE',this)">GTE</button>
+        <button class="btn btn-sm" id="res-fil-HYAS" onclick="filterResultats('HYAS',this)">HYAS</button>
+      </div>
+      <div id="stats-grid" class="stats-5" style="margin-bottom:1.5rem"></div>
+      <div id="results-matrix-wrap"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+
+    <!-- EXPORTS -->
+    <div id="tab-exports" class="admin-tab" style="display:none">
+      <div class="section-title">Génération des documents</div>
+      <div class="alert alert-info" style="margin-bottom:1.5rem;font-size:13px">
+        📁 Les copies individuelles sont téléchargées en <strong>ZIP</strong>. Les relevés de notes sont générés <strong>par filière</strong> (EHA, GTE, HYAS).
+      </div>
+
+      <!-- Import Notes CC -->
+      <div class="card" style="margin-bottom:1.5rem;border-left:4px solid var(--amber)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:10px">📥 Notes CC (Contrôle Continu — 40%)</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Importez un fichier Excel avec les notes d'exposé/interrogation pour remplir automatiquement la colonne CC dans les relevés.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="downloadModeleCC()">⬇ Télécharger modèle CC</button>
+          <button class="btn btn-amber btn-sm" onclick="document.getElementById('cc-input').click()">📥 Importer notes CC</button>
+          <input type="file" id="cc-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importNotesCC(this)">
+          <span id="cc-import-status" style="font-size:12px;color:var(--text-muted)">Aucune note CC chargée</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:2rem">
+        <div class="action-card" onclick="genCopiesComposees()">
+          <div class="action-card-icon">📄</div>
+          <div class="action-card-title">Copies composées (ZIP)</div>
+          <div class="action-card-desc">Un PDF par étudiant — NOM_PRENOM_FILIERE_MOIS_ANNEE</div>
+        </div>
+        <div class="action-card" onclick="genCopiesCorrigees()">
+          <div class="action-card-icon">✅</div>
+          <div class="action-card-title">Copies corrigées (ZIP)</div>
+          <div class="action-card-desc">Un PDF corrigé par étudiant avec notes par choix</div>
+        </div>
+        <div class="action-card" onclick="genReleveExcelParFiliere()">
+          <div class="action-card-icon">📋</div>
+          <div class="action-card-title">Relevés Excel (INE)</div>
+          <div class="action-card-desc">3 fichiers Excel format INE — un par filière</div>
+        </div>
+        <div class="action-card" onclick="genRelevePDFParFiliere()">
+          <div class="action-card-icon">📑</div>
+          <div class="action-card-title">Relevés PDF</div>
+          <div class="action-card-desc">3 fichiers PDF format INE — un par filière</div>
+        </div>
+        <div class="action-card" onclick="previewMails()">
+          <div class="action-card-icon">📧</div>
+          <div class="action-card-title">Aperçu notifications</div>
+          <div class="action-card-desc">Contenu des mails à envoyer</div>
+        </div>
+      </div>
+      <div id="export-feedback"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CANDIDAT LOGIN -->
+<div id="pg-candidat-login" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> Composition</div>
+    <button class="btn btn-ghost btn-sm" onclick="goTo('pg-home')">← Accueil</button>
+  </div>
+  <div class="container">
+    <div style="max-width:460px;margin:2rem auto">
+      <div class="steps">
+        <div><div class="step-dot active">1</div></div>
+        <div class="step-line"></div>
+        <div><div class="step-dot" id="s2">2</div></div>
+        <div class="step-line"></div>
+        <div><div class="step-dot" id="s3">3</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Identification de l'étudiant</div>
+        <div id="cand-code-zone" style="display:none" class="field">
+          <label class="lbl">Code d'accès à l'examen</label>
+          <input type="password" id="cand-code-input" placeholder="Code fourni par le responsable">
+        </div>
+        <div id="cand-err" class="alert alert-danger" style="display:none"></div>
+        <div class="field">
+          <label class="lbl">Nom de famille *</label>
+          <input id="cand-nom" placeholder="Saisir votre nom..." oninput="onNomInput(this.value)" autocomplete="off" style="text-transform:uppercase">
+          <div id="nom-suggestions"></div>
+        </div>
+        <div id="cand-preview" style="display:none">
+          <div class="alert alert-success">✓ Étudiant trouvé. Vérifiez vos informations avant de valider.</div>
+          <div style="background:var(--gray-light);border-radius:var(--radius);padding:14px;margin-bottom:14px">
+            <table style="width:100%;font-size:13px;border-collapse:collapse">
+              <tr><td style="color:var(--text-muted);padding:3px 0;width:130px">Matricule</td><td id="pv-mat" style="font-weight:600"></td></tr>
+              <tr><td style="color:var(--text-muted);padding:3px 0">Nom complet</td><td id="pv-nom" style="font-weight:600"></td></tr>
+              <tr><td style="color:var(--text-muted);padding:3px 0">Date naissance</td><td id="pv-ddn"></td></tr>
+              <tr><td style="color:var(--text-muted);padding:3px 0">Filière</td><td id="pv-fil"></td></tr>
+              <tr><td style="color:var(--text-muted);padding:3px 0">Email</td><td id="pv-mail" style="color:var(--blue)"></td></tr>
+            </table>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%" id="btn-valider-id" onclick="validerIdentite()" disabled>Valider et accéder à l'épreuve →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ÉPREUVE -->
+<div id="pg-epreuve" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> Composition en cours</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="candidat-chip" class="badge badge-blue"></span>
+      <div id="timer-chip" class="timer-chip timer-safe">--:--</div>
+    </div>
+  </div>
+  <div class="container">
+    <div id="ep-header"></div>
+    <div class="consigne-banner" id="ep-consigne"></div>
+    <div class="alert alert-info" style="font-size:13px;margin-bottom:16px">⚠ <strong>Toutes les questions sont obligatoires.</strong> Sans réponse cochée = 0 point automatique.</div>
+    <div id="ep-questions"></div>
+  </div>
+  <div class="bottom-bar">
+    <div id="counter-display" class="unanswered-count"></div>
+    <button class="btn btn-success btn-lg" onclick="confirmerDepot()">✓ Valider et déposer ma copie</button>
+  </div>
+</div>
+
+<!-- RÉSULTAT -->
+<div id="pg-resultat" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> ExamPlatform</div>
+  </div>
+  <div class="container">
+    <div style="max-width:500px;margin:2rem auto">
+      <div class="card" style="text-align:center">
+        <div class="steps" style="margin-bottom:1rem">
+          <div><div class="step-dot done">✓</div></div>
+          <div class="step-line"></div>
+          <div><div class="step-dot done">✓</div></div>
+          <div class="step-line"></div>
+          <div><div class="step-dot done">✓</div></div>
+        </div>
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:.25rem">Copie déposée avec succès ✓</p>
+        <div class="result-score" id="res-note">—</div>
+        <div id="res-mention" style="font-size:18px;font-weight:600;margin-top:.4rem"></div>
+        <p id="res-detail" style="font-size:13px;color:var(--text-muted);margin-top:.25rem"></p>
+        <div class="sep"></div>
+        <div class="alert alert-info" style="text-align:left;font-size:13px;line-height:1.6">
+          <strong>Note :</strong> Si vous avez des observations concernant votre correction, veuillez les mentionner en réponse au mail de notification que vous recevrez.
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:10px">Un mail de confirmation vous sera envoyé à l'adresse enregistrée.</p>
+        <div class="sep"></div>
+        <button class="btn btn-primary" onclick="goTo('pg-home')" style="width:100%">🏠 Retour à l'accueil</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="anticheat-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:2rem">
+  <div style="background:#fff;border-radius:16px;padding:2rem;max-width:440px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="font-size:48px;margin-bottom:1rem">⚠️</div>
+    <div style="font-size:20px;font-weight:700;color:#991B1B;margin-bottom:.5rem">Avertissement Anti-Triche</div>
+    <div style="font-size:14px;color:#6B7280;margin-bottom:1rem" id="ac-raison"></div>
+    <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px;margin-bottom:1.5rem">
+      <p style="font-size:14px;color:#991B1B;font-weight:600;margin-bottom:4px">Avertissement <span id="ac-num"></span> / 3</p>
+      <p style="font-size:13px;color:#7F1D1D">Il vous reste <strong><span id="ac-restants"></span> avertissement(s)</strong> avant la soumission automatique de votre copie.</p>
+    </div>
+    <p style="font-size:12px;color:#6B7280;margin-bottom:1.5rem">Restez sur cette page pendant toute la durée de l'examen. Ne changez pas d'onglet, ne minimisez pas la fenêtre.</p>
+    <button class="btn btn-primary" style="width:100%" onclick="fermerAvertissement()">Je comprends — Reprendre l'examen</button>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Confirmation</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-success" id="modal-ok">Confirmer</button>
+    </div>
+  </div>
+</div>
+<div id="modal-notif" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeModalNotif()">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-title">📧 Aperçu notifications mail</div>
+    <div id="notif-content" style="max-height:400px;overflow-y:auto;font-size:12px;background:var(--gray-light);border-radius:var(--radius);padding:14px;margin-bottom:16px;white-space:pre-wrap;font-family:monospace;line-height:1.6"></div>
+    <button class="btn btn-primary" onclick="closeModalNotif()">Fermer</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// SUPABASE CLIENT
+// ════════════════════════════════════════
+let SB_URL = localStorage.getItem('sb_url') || '';
+let SB_KEY = localStorage.getItem('sb_key') || '';
+
+async function sbFetch(path, opts = {}) {
+  const url = SB_URL + '/rest/v1/' + path;
+  const res = await fetch(url, {
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...(opts.headers || {})
+    },
+    method: opts.method || 'GET',
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.details || 'Erreur Supabase '+res.status);
+  }
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('json') && res.status !== 204) return res.json();
+  return null;
+}
+
+const DB = {
+  select: (table, query='') => sbFetch(table + (query ? '?'+query : '')),
+  insert: (table, data) => sbFetch(table, { method:'POST', body: Array.isArray(data)?data:[data] }),
+  update: (table, match, data) => sbFetch(table+'?'+match, { method:'PATCH', body: data, prefer:'return=representation' }),
+  upsert: (table, data, conflict='id') => sbFetch(table+'?on_conflict='+conflict, { method:'POST', body: Array.isArray(data)?data:[data], prefer:'resolution=merge-duplicates,return=representation' }),
+  delete: (table, query) => sbFetch(table+'?'+query, { method:'DELETE', prefer:'' }),
+};
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+let CFG = {};
+let QUESTIONS = [];
+let CANDIDATS = [];
+let COPIES = [];
+let currentCandidat = null;
+let repCand = {};
+let timerInt = null;
+let timerSec = 0;
+let adminAuth = false;
+let currentFiliereFilter = 'all';
+let currentResFiliereFilter = 'all';
+
+const FILIERES = ['EHA', 'GTE', 'HYAS'];
+const FILIERE_OPTIONS = {
+  'EHA': 'Eau, Hygiène et Assainissement',
+  'GTE': "Gestion et Traitement de l'Eau",
+  'HYAS': 'Hydraulique et Assainissement'
+};
+
+// ════════════════════════════════════════
+// SETUP
+// ════════════════════════════════════════
+async function testAndSaveSupabase() {
+  const url = document.getElementById('sb-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('sb-key').value.trim();
+  const err = document.getElementById('setup-err');
+  const ok = document.getElementById('setup-ok');
+  const btn = document.getElementById('btn-setup');
+  err.style.display = 'none'; ok.style.display = 'none';
+  btn.disabled = true; btn.textContent = '⏳ Test en cours...';
+  try {
+    SB_URL = url; SB_KEY = key;
+    await sbFetch('exam_config?id=eq.main&select=id');
+    localStorage.setItem('sb_url', url);
+    localStorage.setItem('sb_key', key);
+    ok.style.display = 'flex';
+    setTimeout(async () => { await initApp(); goTo('pg-home'); }, 1500);
+  } catch(e) {
+    err.textContent = '❌ Connexion échouée : ' + e.message;
+    err.style.display = 'flex';
+    btn.disabled = false; btn.textContent = '🔌 Tester et connecter';
+  }
+}
+
+function copySQL() {
+  const txt = document.getElementById('sql-block').innerText;
+  navigator.clipboard.writeText(txt).then(() => toast('SQL copié !','success'));
+}
+
+// ════════════════════════════════════════
+// INIT APP
+// ════════════════════════════════════════
+async function initApp() {
+  try {
+    await loadConfig();
+    await loadCandidats();
+    await loadQuestions();
+    const statut = CFG.statut || 'ferme';
+    const statusEl = document.getElementById('home-exam-status');
+    const subtitle = document.getElementById('home-subtitle');
+    subtitle.textContent = CFG.matiere ? CFG.matiere + ' — ' + (CFG.annee||'') : 'Examen universitaire';
+    statusEl.style.display = 'block';
+    if (statut === 'ouvert') {
+      statusEl.className = 'exam-status-banner exam-open';
+      statusEl.textContent = '✅ Examen ouvert — Les étudiants peuvent composer';
+    } else {
+      statusEl.className = 'exam-status-banner exam-closed';
+      statusEl.textContent = '🔒 Examen fermé — Accès étudiants désactivé';
+    }
+    document.getElementById('home-db-status').innerHTML = `<span class="status-dot green"></span>Connecté à Supabase — ${CANDIDATS.length} étudiants — ${QUESTIONS.length} questions`;
+  } catch(e) {
+    document.getElementById('home-db-status').innerHTML = `<span class="status-dot red"></span>Erreur: ${e.message}`;
+  }
+}
+
+async function loadConfig() {
+  const rows = await DB.select('exam_config', 'id=eq.main');
+  if (rows && rows.length) CFG = rows[0];
+  else {
+    await DB.upsert('exam_config', { id:'main', ecole:'', institut:'', matiere:'', niveau:'', annee:'', date_exam:'', heure:'08:00', duree:90, session:'Normale', bareme:20, consigne:'', pwd_admin:'admin123', pwd_candidat:'', statut:'ferme' });
+    CFG = { id:'main', statut:'ferme', pwd_admin:'admin123', pwd_candidat:'', bareme:20, duree:90 };
+  }
+}
+
+async function loadCandidats() {
+  CANDIDATS = await DB.select('candidats', 'order=nom.asc') || [];
+}
+
+async function loadQuestions() {
+  const qs = await DB.select('questions', 'order=ordre.asc') || [];
+  const sqs = await DB.select('sous_questions', 'order=ordre.asc') || [];
+  QUESTIONS = qs.map(q => ({
+    ...q,
+    sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
+  }));
+}
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+function goTo(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function switchTab(btn, tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.admin-tab').forEach(t => t.style.display='none');
+  btn.classList.add('active');
+  document.getElementById(tabId).style.display = 'block';
+  if (tabId==='tab-candidats') renderCandidatsTable();
+  if (tabId==='tab-resultats') loadResultats();
+  if (tabId==='tab-epreuve') renderQBuilder();
+}
+
+// ════════════════════════════════════════
+// ADMIN
+// ════════════════════════════════════════
+async function doAdminLogin() {
+  const pwd = document.getElementById('admin-pwd').value;
+  await loadConfig();
+  if (pwd === (CFG.pwd_admin || 'admin123')) {
+    document.getElementById('admin-err').style.display = 'none';
+    document.getElementById('admin-pwd').value = '';
+    adminAuth = true;
+    loadConfigForm();
+    goTo('pg-admin');
+    renderCandidatsTable();
+  } else {
+    document.getElementById('admin-err').textContent = 'Mot de passe incorrect.';
+    document.getElementById('admin-err').style.display = 'flex';
+  }
+}
+
+function adminLogout() { adminAuth = false; goTo('pg-home'); }
+
+function loadConfigForm() {
+  const map = { ecole:'c-ecole', institut:'c-institut', matiere:'c-matiere', niveau:'c-niveau',
+    annee:'c-annee', date_exam:'c-date', heure:'c-heure', duree:'c-duree', session:'c-session',
+    bareme:'c-bareme', consigne:'c-consigne', pwd_admin:'c-pwd-admin', pwd_candidat:'c-pwd-candidat' };
+  Object.entries(map).forEach(([k,id]) => { const el=document.getElementById(id); if(el&&CFG[k]!=null) el.value=CFG[k]; });
+  const statEl = document.getElementById('current-statut');
+  if (statEl) {
+    statEl.textContent = CFG.statut === 'ouvert' ? '🟢 Examen OUVERT' : '🔴 Examen FERMÉ';
+    statEl.className = CFG.statut === 'ouvert' ? 'badge badge-green' : 'badge badge-red';
+    statEl.style.cssText += ';font-size:13px;padding:6px 14px';
+  }
+}
+
+async function saveConfig() {
+  const data = {
+    ecole: v('c-ecole'), institut: v('c-institut'), matiere: v('c-matiere'),
+    niveau: v('c-niveau'), annee: v('c-annee'), date_exam: v('c-date'),
+    heure: v('c-heure'), duree: parseInt(v('c-duree'))||90,
+    session: v('c-session'), bareme: parseInt(v('c-bareme'))||20,
+    consigne: v('c-consigne'),
+    pwd_admin: v('c-pwd-admin')||'admin123',
+    pwd_candidat: v('c-pwd-candidat'),
+    statut: CFG.statut || 'ferme'
+  };
+  try {
+    await DB.upsert('exam_config', { id:'main', ...data });
+    Object.assign(CFG, data);
+    toast('Configuration enregistrée', 'success');
+  } catch(e) { toast('Erreur: '+e.message, 'error'); }
+}
+
+async function setExamStatut(statut) {
+  try {
+    await DB.update('exam_config', 'id=eq.main', { statut });
+    CFG.statut = statut;
+    loadConfigForm();
+    toast(statut==='ouvert' ? '✅ Examen ouvert' : '🔒 Examen fermé', statut==='ouvert'?'success':'warn');
+  } catch(e) { toast('Erreur: '+e.message, 'error'); }
+}
+
+// ════════════════════════════════════════
+// QUESTIONS BUILDER
+// ════════════════════════════════════════
+function renderQBuilder() {
+  const cont = document.getElementById('questions-builder');
+  if (!QUESTIONS.length) { cont.innerHTML = '<div class="alert alert-warning">Aucune question. Ajoutez ou importez depuis Excel.</div>'; return; }
+  cont.innerHTML = QUESTIONS.map((q,qi) => `
+    <div class="qbuilder-item">
+      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px">
+        <div style="flex:1"><label class="lbl">Q${q.num}</label>
+          <input type="text" value="${escH(q.texte||'')}" onchange="QUESTIONS[${qi}].texte=this.value" style="font-weight:500"></div>
+        <button class="btn btn-danger btn-sm" onclick="removeQuestion(${qi})">✕</button>
+      </div>
+      <div style="padding-left:12px;border-left:3px solid var(--gray-mid)">
+        ${(q.sousQuestions||[]).map((sq,si) => `
+          <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+            <span style="font-size:12px;color:var(--text-muted);width:20px">${sq.id?sq.id.slice(-1):'?'}.</span>
+            <input type="text" value="${escH(sq.texte||'')}" onchange="QUESTIONS[${qi}].sousQuestions[${si}].texte=this.value" style="font-size:13px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;white-space:nowrap;padding:4px 10px;border-radius:6px;background:${sq.correcte?'#D1FAE5':'#F3F4F6'};color:${sq.correcte?'#065F46':'#6B7280'}">
+              <input type="checkbox" ${sq.correcte?'checked':''} onchange="QUESTIONS[${qi}].sousQuestions[${si}].correcte=this.checked;renderQBuilder()"> ${sq.correcte?'✓ Correcte':'✗ Incorrecte'}
+            </label>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function addQuestion() {
+  const num = QUESTIONS.length + 1;
+  const id = 'Q' + num;
+  QUESTIONS.push({ id, num, texte:'Nouvelle question '+num, obligatoire:true, ordre:num-1,
+    sousQuestions: ['A','B','C','D'].map((l,i) => ({id:id+l,question_id:id,texte:l+'. Option '+l,correcte:i===0,pts_v:0.25,pts_f:-0.25,ordre:i}))
+  });
+  renderQBuilder();
+}
+
+function removeQuestion(qi) {
+  openModal('Supprimer', 'Supprimer la question Q'+QUESTIONS[qi].num+' ?', async () => {
+    const qId = QUESTIONS[qi].id;
+    try { await DB.delete('questions','id=eq.'+qId); } catch(e) {}
+    QUESTIONS.splice(qi,1);
+    QUESTIONS.forEach((q,i) => { q.num=i+1; q.ordre=i; });
+    renderQBuilder(); closeModal();
+  });
+}
+
+async function saveQuestions() {
+  try {
+    // Supprimer sous_questions en premier (contrainte FK)
+    await DB.delete('sous_questions', 'id=like.Q*').catch(()=>{});
+    await DB.delete('questions', 'id=like.Q*').catch(()=>{});
+    // Insérer questions puis leurs sous-questions
+    for (const q of QUESTIONS) {
+      await DB.upsert('questions', { id:q.id, num:q.num, texte:q.texte, obligatoire:q.obligatoire!==false, ordre:q.ordre||q.num-1 });
+      for (const sq of (q.sousQuestions||[])) {
+        await DB.upsert('sous_questions', { id:sq.id, question_id:q.id, texte:sq.texte, correcte:!!sq.correcte, pts_v:sq.pts_v??0.25, pts_f:sq.pts_f??-0.25, ordre:sq.ordre||0 });
+      }
+    }
+    toast('Épreuve enregistrée ('+QUESTIONS.length+' questions)', 'success');
+  } catch(e) { toast('Erreur: '+e.message, 'error'); }
+}
+
+async function parseQuestionsExcel(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'binary'});
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      QUESTIONS = data.map((row,i) => {
+        const qId = 'Q'+(i+1);
+        const corrects = String(row['Correct']||'A').toUpperCase().split(/[,\/\s]+/);
+        return { id:qId, num:i+1, texte:String(row['TexteQ']||'Question '+(i+1)), obligatoire:true, ordre:i,
+          sousQuestions: ['A','B','C','D'].map((l,j) => ({
+            id:qId+l, question_id:qId,
+            texte:l+'. '+String(row['Choix'+l]||''),
+            correcte:corrects.includes(l),
+            pts_v:parseFloat(String(row['PtsV']||'0.25').replace(',','.'))||0.25,
+            pts_f:parseFloat(String(row['PtsF']||'-0.25').replace(',','.'))||-0.25,
+            ordre:j
+          }))};
+      });
+      renderQBuilder();
+      toast(QUESTIONS.length+' questions importées — Cliquez "Enregistrer" pour sauvegarder', 'info');
+    } catch(e) { toast('Erreur: '+e.message, 'error'); }
+  };
+  reader.readAsBinaryString(file); input.value='';
+}
+
+function downloadQuestionsTemplate() {
+  const ws = XLSX.utils.json_to_sheet([{NumQ:1,TexteQ:'Exemple de question ?',ChoixA:'Réponse A',ChoixB:'Réponse B',ChoixC:'Réponse C',ChoixD:'Réponse D',Correct:'A,C',PtsV:0.25,PtsF:-0.25}]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Questions');
+  XLSX.writeFile(wb,'modele_questions.xlsx');
+}
+
+// ════════════════════════════════════════
+// ÉTUDIANTS
+// ════════════════════════════════════════
+function filterFiliere(f, btn) {
+  currentFiliereFilter = f;
+  document.querySelectorAll('[id^="fil-btn-"]').forEach(b => {
+    b.style.background=''; b.style.color=''; b.style.borderColor='';
+  });
+  btn.style.background = 'var(--blue)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--blue)';
+  renderCandidatsTable();
+}
+
+async function renderCandidatsTable() {
+  await loadCandidats();
+  const copies = await DB.select('copies','select=matricule').catch(()=>[]) || [];
+  const deposes = new Set(copies.map(c=>c.matricule));
+  const wrap = document.getElementById('candidats-table-wrap');
+  if (!CANDIDATS.length) { wrap.innerHTML='<div class="alert alert-warning">Aucun étudiant importé.</div>'; return; }
+
+  // Compteurs par filière — affichés en haut
+  const totalAll = CANDIDATS.length;
+  const cntEHA = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()==='EHA').length;
+  const cntGTE = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()==='GTE').length;
+  const cntHYAS = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()==='HYAS').length;
+
+  let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#1E40AF">
+      Total : ${totalAll} étudiant(s)
+    </div>
+    <div style="background:#DBEAFE;border:1px solid #93C5FD;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:500;color:#1D4ED8">
+      EHA : ${cntEHA}
+    </div>
+    <div style="background:#D1FAE5;border:1px solid #6EE7B7;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:500;color:#065F46">
+      GTE : ${cntGTE}
+    </div>
+    <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:500;color:#92400E">
+      HYAS : ${cntHYAS}
+    </div>
+  </div>`;
+
+  const filtered = currentFiliereFilter === 'all' ? CANDIDATS : CANDIDATS.filter(c => (c.filiere||'').toUpperCase() === currentFiliereFilter);
+  if (!filtered.length) { wrap.innerHTML=html+`<div class="alert alert-warning">Aucun étudiant dans la filière ${currentFiliereFilter}.</div>`; return; }
+
+  html+=`<div class="tbl-wrap"><table class="tbl"><thead><tr>
+    <th>Matricule</th><th>Nom</th><th>Prénom</th><th>Filière</th><th>Email</th><th>Statut</th><th>Action</th>
+  </tr></thead><tbody>`;
+  filtered.forEach(c => {
+    const ok = deposes.has(c.matricule);
+    const fil = c.filiere || '';
+    const filBadge = fil === 'EHA' ? 'badge-blue' : fil === 'GTE' ? 'badge-green' : fil === 'HYAS' ? 'badge-amber' : 'badge-gray';
+    html+=`<tr><td><code style="font-size:11px">${c.matricule}</code></td>
+      <td><strong>${c.nom}</strong></td><td>${c.prenom||''}</td>
+      <td><span class="badge ${filBadge}">${fil||'—'}</span></td>
+      <td style="font-size:12px;color:var(--blue)">${c.email||''}</td>
+      <td>${ok?'<span class="badge badge-green">Copie déposée</span>':'<span class="badge badge-gray">En attente</span>'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteCandidat('${c.matricule}')">✕</button></td></tr>`;
+  });
+  html+='</tbody></table></div>';
+  html+=`<p style="font-size:12px;color:var(--text-muted);margin-top:8px">${filtered.length} étudiant(s) affiché(s) ${currentFiliereFilter!=='all'?'— Filière '+currentFiliereFilter:''}</p>`;
+  wrap.innerHTML=html;
+}
+
+async function parseCandidatsExcel(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const wb = XLSX.read(e.target.result,{type:'binary'});
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      const rows = data.map(r => ({
+        matricule:String(r['Matricule']||r['matricule']||'').trim(),
+        nom:String(r['Nom']||r['nom']||'').toUpperCase().trim(),
+        prenom:String(r['Prénom']||r['Prenom']||r['prenom']||'').trim(),
+        date_naissance:'',
+        filiere:String(r['Filière']||r['Filiere']||r['filiere']||'').trim().toUpperCase(),
+        email:String(r['Email']||r['email']||'').trim()
+      })).filter(c=>c.matricule&&c.nom);
+
+      // Dédoublonner par matricule (garder le dernier)
+      const seen = new Map();
+      rows.forEach(r => seen.set(r.matricule, r));
+      const unique = Array.from(seen.values());
+
+      // Envoyer un par un pour éviter le conflit ON CONFLICT
+      let count = 0;
+      for (const row of unique) {
+        try {
+          await DB.upsert('candidats', row, 'matricule');
+          count++;
+        } catch(err) {
+          console.warn('Skip matricule '+row.matricule+':', err.message);
+        }
+      }
+      await renderCandidatsTable();
+      CANDIDATS = await DB.select('candidats','order=nom.asc') || [];
+      toast(count+' étudiants importés en base', 'success');
+      if (count < unique.length) toast((unique.length-count)+' ligne(s) ignorée(s) (doublon)', 'warn');
+    } catch(e) { toast('Erreur: '+e.message,'error'); }
+  };
+  reader.readAsBinaryString(file); input.value='';
+}
+
+async function deleteCandidat(mat) {
+  openModal('Supprimer', 'Supprimer l\'étudiant '+mat+' ?', async () => {
+    await DB.delete('candidats','matricule=eq.'+mat).catch(()=>{});
+    closeModal(); renderCandidatsTable();
+  });
+}
+
+function downloadCandidatsTemplate() {
+  const ws = XLSX.utils.json_to_sheet([
+    {Matricule:'ETU001',Nom:'DUPONT',Prénom:'Jean',Filière:'EHA',Email:'jean@ine.bj'},
+    {Matricule:'ETU002',Nom:'MARTIN',Prénom:'Marie',Filière:'GTE',Email:'marie@ine.bj'},
+    {Matricule:'ETU003',Nom:'KOSSOU',Prénom:'Paul',Filière:'HYAS',Email:'paul@ine.bj'},
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Étudiants');
+  XLSX.writeFile(wb,'modele_etudiants.xlsx');
+}
+
+// ════════════════════════════════════════
+// COMPOSITION — LOGIN
+// ════════════════════════════════════════
+async function enterComposition() {
+  await loadConfig();
+  if (CFG.statut !== 'ouvert') {
+    openModal('Examen fermé', "L'examen n'est pas encore ouvert ou est terminé.\nContactez votre responsable.", ()=>closeModal(), null, 'OK');
+    document.getElementById('modal-ok').onclick = closeModal;
+    return;
+  }
+  await loadCandidats();
+  await loadQuestions();
+  const candCodeZone = document.getElementById('cand-code-zone');
+  candCodeZone.style.display = (CFG.pwd_candidat && CFG.pwd_candidat.trim()) ? 'block' : 'none';
+  currentCandidat = null;
+  document.getElementById('cand-nom').value = '';
+  document.getElementById('nom-suggestions').innerHTML = '';
+  document.getElementById('cand-preview').style.display = 'none';
+  document.getElementById('btn-valider-id').disabled = true;
+  document.getElementById('cand-err').style.display = 'none';
+  goTo('pg-candidat-login');
+}
+
+function onNomInput(val) {
+  val = val.trim().toUpperCase();
+  const sug = document.getElementById('nom-suggestions');
+  currentCandidat = null;
+  document.getElementById('btn-valider-id').disabled = true;
+  document.getElementById('cand-preview').style.display = 'none';
+  sug.innerHTML = '';
+  if (val.length < 2) return;
+  const found = CANDIDATS.filter(c => c.nom.toUpperCase().startsWith(val));
+  if (!found.length) { sug.innerHTML='<div class="alert alert-danger" style="margin-top:6px">Aucun étudiant trouvé.</div>'; return; }
+  sug.innerHTML='<div class="suggestions">'+found.map(c=>
+    `<div class="suggestion-item" onclick="selectCandidat('${c.matricule}')"><strong>${c.nom} ${c.prenom||''}</strong> — ${c.matricule} — <span class="badge badge-gray" style="font-size:10px">${c.filiere||''}</span></div>`
+  ).join('')+'</div>';
+}
+
+function selectCandidat(mat) {
+  const c = CANDIDATS.find(x=>x.matricule===mat); if(!c) return;
+  currentCandidat = c;
+  document.getElementById('nom-suggestions').innerHTML = '';
+  document.getElementById('cand-nom').value = c.nom;
+  document.getElementById('pv-mat').textContent = c.matricule;
+  document.getElementById('pv-nom').textContent = c.nom+' '+(c.prenom||'');
+  document.getElementById('pv-ddn').textContent = c.date_naissance||'—';
+  document.getElementById('pv-fil').textContent = c.filiere||'—';
+  document.getElementById('pv-mail').textContent = c.email||'—';
+  document.getElementById('cand-preview').style.display = 'block';
+  document.getElementById('btn-valider-id').disabled = false;
+}
+
+async function validerIdentite() {
+  if (!currentCandidat) return;
+  const err = document.getElementById('cand-err');
+  if (CFG.pwd_candidat && CFG.pwd_candidat.trim()) {
+    const code = document.getElementById('cand-code-input').value;
+    if (code !== CFG.pwd_candidat) {
+      err.textContent = 'Code d\'accès incorrect.'; err.style.display='flex'; return;
+    }
+  }
+  try {
+    const existing = await DB.select('copies','matricule=eq.'+currentCandidat.matricule);
+    if (existing && existing.length) {
+      err.textContent = 'Vous avez déjà déposé votre copie pour cet examen.';
+      err.style.display = 'flex'; return;
+    }
+  } catch(e) {}
+  err.style.display = 'none';
+  repCand = {};
+  buildEpreuve();
+  activerAntiTriche();
+  goTo('pg-epreuve');
+}
+
+// ════════════════════════════════════════
+// ÉPREUVE
+// ════════════════════════════════════════
+function buildEpreuve() {
+  const c = currentCandidat;
+  document.getElementById('candidat-chip').textContent = c.nom+' '+(c.prenom||'');
+  document.getElementById('ep-consigne').innerHTML = '<strong>📌 Consigne :</strong> '+escH(CFG.consigne||'');
+  document.getElementById('ep-header').innerHTML = buildExamHeader(c);
+  let html = '';
+  QUESTIONS.forEach((q,qi) => {
+    html+=`<div class="question-card" id="qcard-${q.id}">
+      <div class="q-title"><span class="q-num">Q${q.num}</span><span>${escH(q.texte||'')}</span><span style="color:var(--red);font-size:12px">*</span></div>
+      <div>${(q.sousQuestions||[]).map(sq=>`
+        <label class="choice-label">
+          <input type="checkbox" id="cb-${sq.id}" onchange="onChoice('${sq.id}','${q.id}',this.checked)">
+          <span>${escH(sq.texte||'')}</span>
+        </label>`).join('')}
+      </div></div>`;
+  });
+  document.getElementById('ep-questions').innerHTML = html;
+  updateCounter();
+  startTimer(parseInt(CFG.duree||90)*60);
+}
+
+function buildExamHeader(c) {
+  return `<div class="exam-header-box">
+    <div class="exam-header-top">
+      <div class="side">${escH(CFG.ecole||'')}</div>
+      <div class="center">${escH(CFG.matiere||'').toUpperCase()}<br><span style="font-size:12px;font-weight:400">${escH(CFG.session||'')} — ${escH(CFG.annee||'')}</span></div>
+      <div class="side right">${escH(CFG.institut||'')}</div>
+    </div>
+    <div class="exam-header-body">
+      <div class="exam-header-row"><span class="key">Niveau :</span><span class="val">${escH(CFG.niveau||'')}</span></div>
+      <div class="exam-header-row"><span class="key">Date :</span><span class="val">${formatDate(CFG.date_exam)}</span></div>
+      <div class="exam-header-row"><span class="key">Heure :</span><span class="val">${escH(CFG.heure||'')}</span></div>
+      <div class="exam-header-row"><span class="key">Durée :</span><span class="val">${CFG.duree||90} min</span></div>
+    </div>
+    <div class="candidat-zone">
+      <div class="exam-header-row"><span class="key">Nom :</span><span class="val">${escH(c.nom)} ${escH(c.prenom||'')}</span></div>
+      <div class="exam-header-row"><span class="key">Matricule :</span><span class="val">${escH(c.matricule)}</span></div>
+      <div class="exam-header-row"><span class="key">Filière :</span><span class="val">${escH(c.filiere||'')}</span></div>
+      <div class="exam-header-row"><span class="key">Date naiss. :</span><span class="val">${escH(c.date_naissance||'—')}</span></div>
+    </div>
+  </div>`;
+}
+
+function onChoice(sqId, qId, checked) {
+  if (!repCand[qId]) repCand[qId] = {};
+  repCand[qId][sqId] = checked;
+  const card = document.getElementById('qcard-'+qId);
+  card.classList.toggle('answered', Object.values(repCand[qId]).some(v=>v));
+  updateCounter();
+}
+
+function updateCounter() {
+  const total = QUESTIONS.length;
+  const answered = QUESTIONS.filter(q=>Object.values(repCand[q.id]||{}).some(v=>v)).length;
+  const ua = total-answered;
+  const el = document.getElementById('counter-display');
+  el.className = ua===0 ? 'unanswered-ok' : 'unanswered-count';
+  el.textContent = ua===0 ? `✓ Toutes les ${total} questions répondues` : `⚠ ${ua} question(s) sans réponse`;
+}
+
+function startTimer(totalSec) {
+  timerSec = totalSec;
+  const totalDuree = totalSec; // garder le total pour calculer le pourcentage
+  if (timerInt) clearInterval(timerInt);
+  const chip = document.getElementById('timer-chip');
+  const tick = () => {
+    const m = Math.floor(timerSec/60).toString().padStart(2,'0');
+    const s = (timerSec%60).toString().padStart(2,'0');
+    chip.textContent = `⏱ ${m}:${s}`;
+    // Vert > 50% du temps restant | Jaune entre 20% et 50% | Rouge < 20%
+    const pct = timerSec / totalDuree;
+    chip.className = 'timer-chip '+(pct>0.5?'timer-safe':pct>0.2?'timer-warn':'timer-danger');
+    if (timerSec<=0) { clearInterval(timerInt); deposerCopie(); }
+    timerSec--;
+  };
+  tick(); timerInt = setInterval(tick, 1000);
+}
+
+function confirmerDepot() {
+  const ua = QUESTIONS.filter(q=>!Object.values(repCand[q.id]||{}).some(v=>v)).length;
+  openModal('Déposer la copie',
+    (ua>0?`⚠ ${ua} question(s) non répondue(s) vaudront 0 point.\n\n`:'')+'Confirmer le dépôt ? Action irréversible.',
+    deposerCopie);
+}
+
+async function deposerCopie() {
+  closeModal();
+  desactiverAntiTriche();
+  if (timerInt) { clearInterval(timerInt); timerInt=null; }
+  const { noteFinale, noteParQuestion } = calculerNote();
+  const sur20 = parseFloat(noteFinale.toFixed(2));
+  try {
+    await DB.insert('copies', {
+      matricule: currentCandidat.matricule,
+      reponses: repCand,
+      note_brute: sur20,
+      note_sur_bareme: sur20
+    });
+    document.getElementById('res-note').innerHTML = `${sur20.toFixed(2)}<span style="font-size:32px;color:var(--text-muted);font-weight:400">/${CFG.bareme||20}</span>`;
+    document.getElementById('res-mention').textContent = getMention(sur20);
+    document.getElementById('res-detail').textContent = '';
+    goTo('pg-resultat');
+  } catch(e) {
+    if (e.message.includes('unique') || e.message.includes('duplicate')) {
+      toast('Copie déjà déposée pour cet étudiant.', 'warn');
+      goTo('pg-home');
+    } else { toast('Erreur dépôt: '+e.message, 'error'); }
+  }
+}
+
+function calculerNote() {
+  /*
+    Règles par sous-question :
+    1. Vraie  + cochée     → +0.25
+    2. Fausse + non cochée → +0.25
+    3. Vraie  + non cochée → 0
+    4. Fausse + cochée     → 0
+
+    Règle spéciale : si l'étudiant ne coche RIEN sur une question → score question = 0
+    Score question = min(1, somme des sous-questions)
+    Note finale = somme des scores de toutes les questions
+    Puis ramenée sur le barème (ex: /20)
+  */
+  const nbQuestions = QUESTIONS.length;
+  if (!nbQuestions) return { noteFinale: 0, noteParQuestion: {} };
+
+  const ptsParQuestion = 1; // chaque question vaut 1 point
+  const ptsSousQuestion = 0.25; // chaque sous-question vaut 0.25
+  const noteParQuestion = {};
+  let totalBrut = 0;
+
+  QUESTIONS.forEach(q => {
+    const rq = repCand[q.id] || {};
+    const aucunCoche = !Object.values(rq).some(v => v);
+
+    if (aucunCoche) {
+      // Règle spéciale : rien coché → 0 pour toute la question
+      noteParQuestion[q.id] = 0;
+      return;
+    }
+
+    let scoreQ = 0;
+    (q.sousQuestions || []).forEach(sq => {
+      const checked = rq[sq.id] || false;
+      if (sq.correcte && checked)    scoreQ += ptsSousQuestion; // Vraie + cochée
+      if (!sq.correcte && !checked)  scoreQ += ptsSousQuestion; // Fausse + non cochée
+      // Vraie + non cochée → 0
+      // Fausse + cochée   → 0
+    });
+
+    // Plafonner à 1 point max par question, minimum 0
+    noteParQuestion[q.id] = Math.min(ptsParQuestion, Math.max(0, scoreQ));
+    totalBrut += noteParQuestion[q.id];
+  });
+
+  // Ramener sur le barème configuré (ex: /20)
+  const bareme = parseInt(CFG.bareme) || 20;
+  const noteFinale = nbQuestions > 0
+    ? (totalBrut / nbQuestions) * bareme
+    : 0;
+
+  return { noteFinale: Math.max(0, noteFinale), noteParQuestion };
+}
+
+function getMention(n) {
+  if (n >= 12) return '✅ Module validé';
+  return '❌ Module non validé';
+}
+
+// ════════════════════════════════════════
+// RÉSULTATS
+// ════════════════════════════════════════
+function filterResultats(f, btn) {
+  currentResFiliereFilter = f;
+  ['all','EHA','GTE','HYAS'].forEach(x => {
+    const b = document.getElementById('res-fil-'+x);
+    if (b) { b.style.background=''; b.style.color=''; b.style.borderColor=''; }
+  });
+  btn.style.background = 'var(--blue)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--blue)';
+  renderResultatsTable();
+}
+
+async function loadResultats() {
+  try {
+    COPIES = await DB.select('copies','order=date_depot.asc') || [];
+    await loadCandidats();
+    await loadQuestions();
+    renderResultatsTable();
+  } catch(e) { toast('Erreur chargement résultats: '+e.message,'error'); }
+}
+
+function renderResultatsTable() {
+  const filteredCopies = currentResFiliereFilter === 'all' ? COPIES :
+    COPIES.filter(cop => {
+      const cand = CANDIDATS.find(c => c.matricule === cop.matricule);
+      return cand && (cand.filiere||'').toUpperCase() === currentResFiliereFilter;
+    });
+
+  const filteredCandidats = currentResFiliereFilter === 'all' ? CANDIDATS :
+    CANDIDATS.filter(c => (c.filiere||'').toUpperCase() === currentResFiliereFilter);
+
+  const notes = filteredCopies.map(c=>c.note_sur_bareme||0);
+  const moy = notes.length?(notes.reduce((a,b)=>a+b,0)/notes.length):0;
+  const valides = notes.filter(n=>n>=12).length;
+  const maxNote = notes.length ? Math.max(...notes) : 0;
+  const minNote = notes.length ? Math.min(...notes) : 0;
+
+  document.getElementById('stats-grid').innerHTML=`
+    <div class="stat-card"><div class="stat-num" style="color:var(--blue)">${filteredCandidats.length}</div><div class="stat-label">Inscrits</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--green)">${filteredCopies.length}</div><div class="stat-label">Copies déposées</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--amber)">${moy.toFixed(2)}</div><div class="stat-label">Moyenne /${CFG.bareme||20}</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--green)">${maxNote.toFixed(2)}</div><div class="stat-label">Note la plus haute</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--red)">${minNote.toFixed(2)}</div><div class="stat-label">Note la plus basse</div></div>`;
+
+  if (!filteredCopies.length) {
+    document.getElementById('results-matrix-wrap').innerHTML='<div class="alert alert-warning">Aucune copie déposée.</div>'; return;
+  }
+  // Tableau simplifié : Matricule, Étudiant, Filière, Note, Mention
+  let html=`<div class="tbl-wrap"><table class="tbl"><thead><tr>
+    <th>Matricule</th><th>Étudiant</th><th>Filière</th>
+    <th style="text-align:center">Note /${CFG.bareme||20}</th>
+    <th style="text-align:center">Mention</th>
+  </tr></thead><tbody>`;
+  filteredCopies.forEach(cop=>{
+    const cand=CANDIDATS.find(c=>c.matricule===cop.matricule)||{};
+    const note = cop.note_sur_bareme||0;
+    const mention = getMention(note);
+    const mentionClass = note >= 12 ? 'badge-green' : 'badge-red';
+    const fil = cand.filiere || '';
+    const filBadge = fil==='EHA'?'badge-blue':fil==='GTE'?'badge-green':fil==='HYAS'?'badge-amber':'badge-gray';
+    html+=`<tr>
+      <td><code style="font-size:12px">${cop.matricule}</code></td>
+      <td><strong>${cand.nom||'?'}</strong> ${cand.prenom||''}</td>
+      <td><span class="badge ${filBadge}">${fil||'—'}</span></td>
+      <td style="text-align:center;font-weight:700;font-size:15px;color:var(--blue)">${note.toFixed(2)}</td>
+      <td style="text-align:center"><span class="badge ${mentionClass}" style="font-size:12px;padding:4px 10px">${mention.replace(/^[^\s]+\s/,'')}</span></td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  document.getElementById('results-matrix-wrap').innerHTML=html;
+}
+
+// ════════════════════════════════════════
+// EXPORTS
+// ════════════════════════════════════════
+async function ensureData() {
+  if (!COPIES.length) COPIES = await DB.select('copies','order=date_depot.asc').catch(()=>[]) || [];
+  if (!CANDIDATS.length) await loadCandidats();
+  if (!QUESTIONS.length) await loadQuestions();
+}
+
+function getNomFichier(cand) {
+  const mois = getMonthFr();
+  const annee = new Date().getFullYear();
+  const nom = (cand.nom||'').replace(/\s+/g,'_').toUpperCase();
+  const prenom = (cand.prenom||'').replace(/\s+/g,'_');
+  const filiere = (cand.filiere||'').toUpperCase();
+  return `${nom}_${prenom}_${filiere}_${mois}_${annee}`;
+}
+
+function getMonthFr() {
+  const months = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  return months[new Date().getMonth()];
+}
+
+async function exportResultatsExcel() {
+  await ensureData();
+  if(!COPIES.length){toast('Aucune copie','warn');return;}
+  let allSQ=[];
+  QUESTIONS.forEach(q=>q.sousQuestions.forEach(sq=>allSQ.push({qId:q.id,sqId:sq.id,qNum:q.num,sqL:sq.id.slice(-1),correcte:sq.correcte})));
+  const rows=COPIES.map((cop,i)=>{
+    const cand=CANDIDATS.find(c=>c.matricule===cop.matricule)||{};
+    const rep=cop.reponses||{};
+    const row={'N°':i+1,Matricule:cop.matricule,Nom:cand.nom||'',Prénom:cand.prenom||'',Filière:cand.filiere||'',
+      'Note brute':parseFloat((cop.note_brute||0).toFixed(2)),[`/${CFG.bareme||20}`]:parseFloat((cop.note_sur_bareme||0).toFixed(2)),
+      Mention:getMention(cop.note_sur_bareme||0).replace(/^[^\s]+\s/,'')};
+    allSQ.forEach(s=>{const rq=rep[s.qId]||{};const hasAny=Object.values(rq).some(v=>v);row[`Q${s.qNum}${s.sqL}`]=hasAny?(rq[s.sqId]?(s.correcte?'V':'F'):'—'):'NR';});
+    return row;
+  });
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Résultats');
+  XLSX.writeFile(wb,`resultats_${CFG.matiere||'examen'}.xlsx`);
+  toast('Export Excel téléchargé','success');
+}
+
+// ── RELEVÉ EXCEL FORMAT INE PAR FILIÈRE → ZIP ──
+// ── ÉTAT NOTES CC IMPORTÉES ──
+let NOTES_CC = {};
+
+async function genReleveExcelParFiliere() {
+  await ensureData();
+  if(!COPIES.length){toast('Aucune copie','warn');return;}
+  if(typeof JSZip==='undefined'){toast('JSZip non chargé, réessayez','error');return;}
+  toast('Génération du ZIP relevés Excel...','info');
+  const zip = new JSZip();
+  let nbFilieres = 0;
+  for (const filiere of FILIERES) {
+    const candsFil = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()===filiere);
+    if (!candsFil.length) continue;
+    const copiesFil = COPIES.filter(cop=>candsFil.some(c=>c.matricule===cop.matricule));
+    if (!copiesFil.length) continue;
+    const xlsxBytes = buildReleveExcelINE(filiere, candsFil, copiesFil, NOTES_CC);
+    const fname = `Notes_${CFG.niveau||'Master1'}_${filiere}_${getMonthFr()}_${new Date().getFullYear()}.xlsx`;
+    zip.file(fname, xlsxBytes);
+    nbFilieres++;
+  }
+  if (!nbFilieres) { toast('Aucune copie par filière trouvée','warn'); return; }
+  const content = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = `Releves_Excel_${CFG.matiere||'examen'}_${getMonthFr()}_${new Date().getFullYear()}.zip`;
+  a.click();
+  toast(`ZIP téléchargé — ${nbFilieres} fichier(s) inclus`,'success');
+}
+
+function importNotesCC(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'binary'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, {defval:''});
+      let count = 0;
+      data.forEach(row => {
+        const mat = String(row['Matricule']||row['matricule']||row['MATRICULE']||'').trim();
+        const cc = row['Notes CC (40%)']||row['Notes CC']||row['CC']||row['NoteCC']||row['note_cc']||row['Note CC']||'';
+        if (mat && cc !== '') {
+          NOTES_CC[mat] = parseFloat(String(cc).replace(',','.'));
+          count++;
+        }
+      });
+      toast(`${count} notes CC importées avec succès`, 'success');
+      const statusEl = document.getElementById('cc-import-status');
+      if (statusEl) statusEl.innerHTML = `<span style="color:var(--green)">✓ ${count} notes CC chargées — prêt pour génération</span>`;
+      input.value='';
+    } catch(e) { toast('Erreur import CC: '+e.message,'error'); }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function downloadModeleCC() {
+  // Générer un modèle Excel avec les matricules déjà remplis pour faciliter la saisie CC
+  const rows = CANDIDATS.map(c => ({
+    'Matricule': c.matricule,
+    'Nom': c.nom,
+    'Prénom': c.prenom||'',
+    'Filière': c.filiere||'',
+    'Notes CC (40%)': ''
+  }));
+  if (!rows.length) { toast('Importez d\'abord les étudiants','warn'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:20},{wch:25},{wch:8},{wch:16}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Notes CC');
+  XLSX.writeFile(wb, `modele_notes_CC_${CFG.matiere||'examen'}.xlsx`);
+  toast('Modèle CC téléchargé','success');
+}
+
+function buildReleveExcelINE(filiere, candsFil, copiesFil, notesCC) {
+  // notesCC = { matricule: valeurCC } importé depuis fichier Excel CC
+  const wb = XLSX.utils.book_new();
+  const optionLabel = FILIERE_OPTIONS[filiere] || filiere;
+
+  // ── Styles (pixel-perfect selon fichier référence INE)
+  const thin = { style: 'thin' };
+  const styleEntete = {
+    font: { bold: true, sz: 12, name: 'Calibri' },
+    alignment: { horizontal: 'center' }
+  };
+  const styleL11 = {
+    font: { bold: true, sz: 11, name: 'Calibri' },
+    fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF00' } },
+    alignment: { horizontal: 'center' },
+    border: { bottom: thin }
+  };
+  const styleHeader = {
+    font: { bold: true, sz: 11, name: 'Calibri', color: { rgb: 'FF000000' } },
+    fill: { patternType: 'solid', fgColor: { rgb: 'FF66CCFF' } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: { top: thin, bottom: thin, left: thin, right: thin }
+  };
+  const styleData = {
+    font: { bold: false, sz: 11, name: 'Calibri', color: { rgb: 'FF000000' } },
+    alignment: { horizontal: 'left' },
+    border: { top: thin, bottom: thin, left: thin, right: thin }
+  };
+  const styleFormule = {
+    font: { bold: false, sz: 11, name: 'Calibri' },
+    alignment: { horizontal: 'left' },
+    border: { top: thin, bottom: thin, left: thin, right: thin }
+  };
+
+  // ── Créer le worksheet vide
+  const ws = {};
+  ws['!ref'] = 'A1:F'+(12 + copiesFil.length + 6);
+
+  // Helper pour écrire une cellule
+  function setCell(addr, type, value, style, formula) {
+    ws[addr] = formula ? { t:'n', f: formula, s: style } : { t: type, v: value, s: style };
+    if (type === 's' && value === '') ws[addr].t = 's';
+  }
+
+  // ── Lignes entête (L1-L8) : texte centré gras Calibri 12
+  const entetes = [
+    `INSTITUT NATIONAL DE L'EAU`,
+    `Département de Génie de l'Eau et Assainissement`,
+    `Option : ${optionLabel}`,
+    ` Année académique : ${CFG.annee||''}`,
+    `Année d'étude : ${CFG.niveau||''}`,
+    `ECUE (Intitulé de la Matière) : ${CFG.matiere||''}`,
+    `Session (Normale, rattrapage, reprise): ${CFG.session||'Normale'}`,
+    `Nom de l'Enseignant : `
+  ];
+  entetes.forEach((txt, i) => setCell(`A${i+1}`, 's', txt, styleEntete));
+
+  // ── L9, L10 vides
+  // (rien à écrire)
+
+  // ── L11 : Fiche de report des notes
+  setCell('A11', 's', 'Fiche de report des notes ', styleL11);
+
+  // ── L12 : En-têtes colonnes (fond bleu #66CCFF)
+  const headers = ['Matricule','Nom','Prénom','Notes CC (40%)','Note EX (60%)','Moyenne'];
+  const cols = ['A','B','C','D','E','F'];
+  headers.forEach((h, i) => setCell(`${cols[i]}12`, 's', h, styleHeader));
+
+  // ── Données étudiants (L13+)
+  const dataStart = 13;
+  copiesFil.forEach((cop, i) => {
+    const cand = candsFil.find(c=>c.matricule===cop.matricule)||{};
+    const r = dataStart + i;
+    const noteEX = parseFloat((cop.note_sur_bareme||0).toFixed(2));
+    const noteCC = (notesCC && notesCC[cop.matricule] !== undefined) ? notesCC[cop.matricule] : '';
+
+    setCell(`A${r}`, 'n', Number(cop.matricule)||cop.matricule, styleData);
+    ws[`A${r}`] = { t: typeof cop.matricule === 'number' ? 'n' : 's', v: cop.matricule, s: styleData };
+    setCell(`B${r}`, 's', cand.nom||'', styleData);
+    setCell(`C${r}`, 's', cand.prenom||'', styleData);
+    // CC : note exposé importée ou vide
+    if (noteCC !== '') {
+      ws[`D${r}`] = { t: 'n', v: parseFloat(noteCC), s: styleData };
+    } else {
+      ws[`D${r}`] = { t: 's', v: '', s: styleData };
+    }
+    // EX : note issue de la plateforme
+    ws[`E${r}`] = { t: 'n', v: noteEX, s: styleData };
+    // Moyenne : formule identique au fichier référence
+    ws[`F${r}`] = { t: 'n', f: `IF(OR(D${r}="malade",E${r}="malade"),"malade",D${r}*0.4+E${r}*0.6)`, s: styleFormule };
+  });
+
+  // ── 3 lignes vides + signature (L43-L47 dans le référence, adaptées ici)
+  const sigRow = dataStart + copiesFil.length + 3;
+  ws[`C${sigRow}`] = { t:'s', v:'Signature', s:{ font:{sz:11,name:'Calibri'} } };
+  ws[`C${sigRow+1}`] = { t:'s', v:"Nom et Prénoms de l'Enseignant", s:{ font:{sz:11,name:'Calibri'} } };
+
+  // ── Largeurs colonnes (identiques au fichier référence)
+  ws['!cols'] = [
+    {wch:11.43},{wch:25.71},{wch:35.43},{wch:15.43},{wch:14.43},{wch:13.0}
+  ];
+
+  // ── Hauteurs lignes (identiques au fichier référence)
+  ws['!rows'] = [];
+  [15.75,15.75,15.75,15.75,16.15,15.75,15.75,15.75].forEach((h,i) => {
+    ws['!rows'][i] = { hpt: h };
+  });
+  ws['!rows'][10] = { hpt: 16.15 }; // L11
+
+  // ── Fusions (identiques au fichier référence)
+  ws['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:5}},
+    {s:{r:1,c:0},e:{r:1,c:5}},
+    {s:{r:2,c:0},e:{r:2,c:5}},
+    {s:{r:3,c:0},e:{r:3,c:5}},
+    {s:{r:4,c:0},e:{r:4,c:5}},
+    {s:{r:5,c:0},e:{r:5,c:5}},
+    {s:{r:6,c:0},e:{r:6,c:5}},
+    {s:{r:7,c:0},e:{r:7,c:5}},
+    {s:{r:10,c:0},e:{r:10,c:5}}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, filiere.substring(0,31));
+  return XLSX.write(wb, {bookType:'xlsx', type:'array'});
+}
+
+// ── RELEVÉ PDF FORMAT INE PAR FILIÈRE → UN SEUL PDF MULTI-PAGES ──
+async function genRelevePDFParFiliere() {
+  await ensureData();
+  if(!COPIES.length){toast('Aucune copie','warn');return;}
+  toast('Génération du PDF relevés...','info');
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({format:'a4', unit:'mm', orientation:'portrait'});
+  let firstPage = true;
+  let nbFilieres = 0;
+  for (const filiere of FILIERES) {
+    const candsFil = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()===filiere);
+    if (!candsFil.length) continue;
+    const copiesFil = COPIES.filter(cop=>candsFil.some(c=>c.matricule===cop.matricule));
+    if (!copiesFil.length) continue;
+    if (!firstPage) doc.addPage();
+    buildRelevePDFINEPage(doc, filiere, candsFil, copiesFil);
+    firstPage = false;
+    nbFilieres++;
+  }
+  if (!nbFilieres) { toast('Aucune copie par filière trouvée','warn'); return; }
+  doc.save(`Releves_PDF_${CFG.matiere||'examen'}_${getMonthFr()}_${new Date().getFullYear()}.pdf`);
+  toast(`PDF téléchargé — ${nbFilieres} filière(s) incluse(s)`,'success');
+}
+
+function buildRelevePDFINEPage(doc, filiere, candsFil, copiesFil) {
+  const W=210, M=14;
+  const optionLabel = FILIERE_OPTIONS[filiere] || filiere;
+
+  doc.setFontSize(12); doc.setFont(undefined,'bold');
+  doc.text("INSTITUT NATIONAL DE L'EAU", W/2, 18, {align:'center'});
+  doc.setFontSize(10); doc.setFont(undefined,'normal');
+  doc.text("Département de Génie de l'Eau et Assainissement", W/2, 24, {align:'center'});
+  doc.text(`Option : ${optionLabel}`, W/2, 30, {align:'center'});
+  doc.text(`Année académique : ${CFG.annee||''}`, W/2, 36, {align:'center'});
+  doc.text(`Année d'étude : ${CFG.niveau||''}`, W/2, 42, {align:'center'});
+  doc.text(`ECUE : ${CFG.matiere||''}`, W/2, 48, {align:'center'});
+  doc.text(`Session : ${CFG.session||'Normale'}`, W/2, 54, {align:'center'});
+  doc.setFontSize(11); doc.setFont(undefined,'bold');
+  doc.text('Fiche de report des notes', W/2, 64, {align:'center'});
+
+  const rows = copiesFil.map(cop => {
+    const cand = candsFil.find(c=>c.matricule===cop.matricule)||{};
+    const note = parseFloat((cop.note_sur_bareme||0).toFixed(2));
+    return [String(cop.matricule), cand.nom||'', cand.prenom||'', '', note.toFixed(2), note.toFixed(2)];
+  });
+
+  doc.autoTable({
+    startY: 70,
+    head:[['Matricule','Nom','Prénom','Notes CC (40%)','Note EX (60%)','Moyenne']],
+    body: rows,
+    theme: 'grid',
+    headStyles:{fillColor:[29,78,216],textColor:255,fontStyle:'bold',fontSize:9},
+    bodyStyles:{fontSize:9},
+    alternateRowStyles:{fillColor:[239,246,255]},
+    columnStyles:{
+      0:{cellWidth:28},1:{cellWidth:42},2:{cellWidth:50},
+      3:{cellWidth:24,halign:'center'},4:{cellWidth:24,halign:'center'},
+      5:{cellWidth:22,halign:'center',fontStyle:'bold'}
+    },
+    margin:{left:M,right:M}
+  });
+
+  const finalY = doc.lastAutoTable.finalY + 20;
+  doc.setFontSize(9); doc.setFont(undefined,'normal');
+  doc.text('Signature :', M+80, finalY);
+  doc.text("Nom et Prénoms de l'Enseignant :", M+80, finalY+6);
+}
+
+// ── COPIES COMPOSÉES — ZIP ──
+async function genCopiesComposees() {
+  await ensureData();
+  if(!COPIES.length){toast('Aucune copie','warn');return;}
+  if(typeof JSZip==='undefined'){toast('JSZip non chargé, réessayez','error');return;}
+  toast('Génération du ZIP copies composées...','info');
+  const zip = new JSZip();
+  const {jsPDF} = window.jspdf;
+  for (const cop of COPIES) {
+    const doc = new jsPDF({format:'a4',unit:'mm'});
+    buildPDFCopie(doc, cop, false);
+    const cand = CANDIDATS.find(c=>c.matricule===cop.matricule)||{nom:'INCONNU',prenom:'',filiere:''};
+    const fname = getNomFichier(cand)+'.pdf';
+    const pdfBytes = doc.output('arraybuffer');
+    zip.file(fname, pdfBytes);
+  }
+  const content = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = `copies_composees_${CFG.matiere||'examen'}_${getMonthFr()}.zip`;
+  a.click();
+  toast('ZIP copies composées téléchargé','success');
+}
+
+// ── COPIES CORRIGÉES — ZIP ──
+async function genCopiesCorrigees() {
+  await ensureData();
+  if(!COPIES.length){toast('Aucune copie','warn');return;}
+  if(typeof JSZip==='undefined'){toast('JSZip non chargé, réessayez','error');return;}
+  toast('Génération du ZIP copies corrigées...','info');
+  const zip = new JSZip();
+  const {jsPDF} = window.jspdf;
+  for (const cop of COPIES) {
+    const doc = new jsPDF({format:'a4',unit:'mm'});
+    buildPDFCopie(doc, cop, true);
+    const cand = CANDIDATS.find(c=>c.matricule===cop.matricule)||{nom:'INCONNU',prenom:'',filiere:''};
+    const fname = getNomFichier(cand)+'.pdf';
+    const pdfBytes = doc.output('arraybuffer');
+    zip.file(fname, pdfBytes);
+  }
+  const content = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = `copies_corrigees_${CFG.matiere||'examen'}_${getMonthFr()}.zip`;
+  a.click();
+  toast('ZIP copies corrigées téléchargé','success');
+}
+
+function buildPDFCopie(doc, cop, corriger) {
+  const cand = CANDIDATS.find(c=>c.matricule===cop.matricule)||{nom:'?',prenom:'',matricule:cop.matricule,filiere:''};
+  const W=210, M=14;
+  let y = M;
+
+  // Fonction pour nettoyer les caractères non supportés par jsPDF
+  function cleanText(str) {
+    if (!str) return '';
+    return str
+      .replace(/[\u2018\u2019]/g,"'")
+      .replace(/[\u201C\u201D]/g,'"')
+      .replace(/\u2013|\u2014/g,'-')
+      .replace(/\u00B0/g,' deg')
+      .replace(/\u00E9/g,'e').replace(/\u00E8/g,'e').replace(/\u00EA/g,'e').replace(/\u00EB/g,'e')
+      .replace(/\u00E0/g,'a').replace(/\u00E2/g,'a').replace(/\u00E4/g,'a')
+      .replace(/\u00EE/g,'i').replace(/\u00EF/g,'i')
+      .replace(/\u00F4/g,'o').replace(/\u00F6/g,'o')
+      .replace(/\u00F9/g,'u').replace(/\u00FB/g,'u').replace(/\u00FC/g,'u')
+      .replace(/\u00E7/g,'c')
+      .replace(/\u00C9/g,'E').replace(/\u00C8/g,'E').replace(/\u00CA/g,'E')
+      .replace(/\u00C0/g,'A').replace(/\u00C2/g,'A')
+      .replace(/\u00CE/g,'I').replace(/\u00D4/g,'O')
+      .replace(/\u00D9/g,'U').replace(/\u00DB/g,'U')
+      .replace(/\u00C7/g,'C')
+      .replace(/[^\x00-\x7E]/g,'?');
+  }
+
+  // ── En-tête bleu
+  doc.setFillColor(29,78,216);
+  doc.rect(M, y, W-2*M, 22, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(7.5); doc.setFont(undefined,'normal');
+  doc.text(CFG.ecole||'', M+2, y+7);
+  doc.text(CFG.institut||'', W-M-2, y+7, {align:'right'});
+  doc.setFontSize(13); doc.setFont(undefined,'bold');
+  doc.text((CFG.matiere||'').toUpperCase(), W/2, y+13, {align:'center'});
+  doc.setFontSize(8); doc.setFont(undefined,'normal');
+  doc.text((CFG.session||'')+' — '+(CFG.annee||''), W/2, y+19, {align:'center'});
+  y += 25;
+
+  // ── Infos examen (ligne fine)
+  doc.setTextColor(0,0,0); doc.setFontSize(8); doc.setFont(undefined,'normal');
+  doc.text('Niveau : '+(CFG.niveau||''), M, y);
+  doc.text('Date : '+formatDate(CFG.date_exam)+'   Durée : '+(CFG.duree||90)+' min', W-M, y, {align:'right'});
+  y += 4;
+  doc.setDrawColor(29,78,216); doc.setLineWidth(0.5);
+  doc.line(M, y, W-M, y); doc.setLineWidth(0.2); y += 4;
+
+  // ── Bloc étudiant
+  doc.setFillColor(239,246,255);
+  doc.rect(M, y, W-2*M, corriger?18:12, 'F');
+  doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(0,0,0);
+  doc.text('Nom : '+cand.nom+' '+(cand.prenom||''), M+3, y+6);
+  doc.text('Matricule : '+cand.matricule, W/2+5, y+6);
+  doc.setFont(undefined,'normal'); doc.setFontSize(8);
+  doc.text('Filière : '+(cand.filiere||'—'), M+3, y+12);
+  if (corriger) {
+    doc.setFont(undefined,'bold'); doc.setFontSize(13); doc.setTextColor(163,45,45);
+    doc.text((cop.note_sur_bareme||0).toFixed(2)+'/'+(CFG.bareme||20), W-M-3, y+10, {align:'right'});
+    doc.setFontSize(8);
+    doc.text(getMention(cop.note_sur_bareme||0).replace(/^[^\s]+\s/,''), W-M-3, y+16, {align:'right'});
+    doc.setTextColor(0,0,0);
+  }
+  y += corriger?21:15;
+
+  // ── Consigne
+  if (CFG.consigne) {
+    const consigneLines = doc.splitTextToSize('Consigne : '+(CFG.consigne||''), W-2*M-6);
+    const ch = consigneLines.length*4+6;
+    doc.setFillColor(255,251,235); doc.setDrawColor(245,158,11); doc.setLineWidth(0.4);
+    doc.rect(M, y, W-2*M, ch, 'FD');
+    doc.setFontSize(7.5); doc.setTextColor(120,88,0); doc.setFont(undefined,'normal');
+    doc.text(consigneLines, M+3, y+5);
+    doc.setTextColor(0,0,0); doc.setDrawColor(180,180,180); doc.setLineWidth(0.2);
+    y += ch+4;
+  }
+
+  // ── Questions : dessin manuel (pas de caractères Unicode)
+  const PTS_SQ = 0.25;
+  const PAGE_H = 285, FOOTER_H = 10;
+  const availH = PAGE_H - FOOTER_H;
+
+  function drawFooter() {
+    doc.setFontSize(7); doc.setTextColor(150,150,150);
+    doc.setDrawColor(200,200,200); doc.setLineWidth(0.2);
+    doc.line(M, 287, W-M, 287);
+    doc.text((CFG.matiere||'')+' — '+(CFG.annee||'')+' — '+cand.matricule+' — '+(cand.filiere||''), W/2, 291, {align:'center'});
+    doc.setTextColor(0,0,0);
+  }
+
+  function drawCheckBox(x, cy, checked) {
+    // Dessiner une case à cocher proprement sans Unicode
+    doc.setDrawColor(100,100,100); doc.setLineWidth(0.3);
+    doc.setFillColor(255,255,255);
+    doc.rect(x, cy-3.2, 4.5, 4.5, 'FD');
+    if (checked) {
+      doc.setDrawColor(29,78,216); doc.setLineWidth(0.7);
+      // Crochet : ligne gauche-bas puis bas-droite-haut
+      doc.line(x+0.7, cy-0.5, x+1.8, cy+0.8);
+      doc.line(x+1.8, cy+0.8, x+4.0, cy-2.5);
+      doc.setLineWidth(0.3); doc.setDrawColor(100,100,100);
+    }
+  }
+
+  QUESTIONS.forEach(q => {
+    const rep = cop.reponses||{};
+    const rq = rep[q.id]||{};
+    const aucunCoche = !Object.values(rq).some(v=>v);
+
+    // Calcul score question pour copie corrigée
+    let scoreQ = 0;
+    if (!aucunCoche) {
+      (q.sousQuestions||[]).forEach(sq => {
+        const checked = rq[sq.id]||false;
+        if (sq.correcte && checked)   scoreQ += PTS_SQ;
+        if (!sq.correcte && !checked) scoreQ += PTS_SQ;
+      });
+      scoreQ = Math.min(1, Math.max(0, scoreQ));
+    }
+
+    // Calculer hauteur nécessaire pour cette question
+    const qLines = doc.splitTextToSize('Q'+q.num+'. '+cleanText(q.texte||''), W-2*M-8);
+    const qH = 5 + qLines.length * 4 + 2;
+    const sqH = (q.sousQuestions||[]).length * 7 + 3;
+    const totalH = qH + sqH + (corriger ? 6 : 0);
+
+    // Saut de page si nécessaire
+    if (y + totalH > availH) {
+      drawFooter();
+      doc.addPage();
+      y = M;
+    }
+
+    // ── Titre question (fond gris clair)
+    const titleH = qLines.length * 4 + 6;
+    doc.setFillColor(235,240,250);
+    doc.rect(M, y, W-2*M, titleH, 'F');
+    doc.setFontSize(8.5); doc.setFont(undefined,'bold'); doc.setTextColor(20,40,100);
+    doc.text(qLines, M+3, y+5);
+    y += titleH;
+
+    // ── Sous-questions
+    (q.sousQuestions||[]).forEach(sq => {
+      const checked = rq[sq.id]||false;
+      // Case à cocher dessinée
+      drawCheckBox(M+3, y+3.5, checked);
+      // Texte option (avec retour à la ligne automatique)
+      doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(0,0,0);
+      const sqMaxW = corriger ? W-2*M-32 : W-2*M-14;
+      const sqLines = doc.splitTextToSize(cleanText(sq.texte||''), sqMaxW);
+      doc.text(sqLines, M+10, y+3.5);
+      y += Math.max(6, sqLines.length * 4 + 2);
+    });
+
+    // ── Score question (copie corrigée uniquement) en rouge
+    if (corriger) {
+      const scoreStr = scoreQ.toFixed(2)+' / 1 pt';
+      doc.setFontSize(8.5); doc.setFont(undefined,'bold');
+      doc.setTextColor(163,45,45);
+      doc.text('Points Q'+q.num+' : '+scoreStr, W-M-2, y, {align:'right'});
+      doc.setTextColor(0,0,0); doc.setFont(undefined,'normal');
+      y += 6;
+    }
+
+    // Ligne séparatrice entre questions
+    doc.setDrawColor(220,220,220); doc.setLineWidth(0.2);
+    doc.line(M, y, W-M, y);
+    y += 3;
+  });
+
+  drawFooter();
+}
+
+async function previewMails() {
+  await ensureData();
+  if(!COPIES.length){toast('Aucune copie','warn');return;}
+  let txt='';
+  COPIES.forEach(cop=>{
+    const cand=CANDIDATS.find(c=>c.matricule===cop.matricule)||{nom:'?',prenom:'',email:''};
+    txt+=`══════════════════════════════════════════
+À: ${cand.email||'(email non renseigné)'}
+Objet: [Résultats] ${CFG.matiere||'Examen'} — ${CFG.session||''} ${CFG.annee||''}
+
+Madame/Monsieur ${cand.prenom||''} ${cand.nom||''},
+
+Vous avez composé à l'examen de ${CFG.matiere||"l'examen"} du ${formatDate(CFG.date_exam)}.
+
+Votre note obtenue : ${(cop.note_sur_bareme||0).toFixed(2)} / ${CFG.bareme||20}
+Mention : ${getMention(cop.note_sur_bareme||0).replace(/^[^\s]+\s/,'')}
+
+Si vous avez des observations, veuillez les mentionner en réponse à ce mail.
+
+Cordialement,
+${CFG.ecole||''}
+${CFG.institut||''}
+
+══════════════════════════════════════════\n\n`;
+  });
+  document.getElementById('notif-content').textContent=txt;
+  document.getElementById('modal-notif').style.display='flex';
+}
+
+// ════════════════════════════════════════
+// UTILITAIRES
+// ════════════════════════════════════════
+function openModal(title,body,onOk,cancelLbl,okLbl){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').textContent=body;
+  document.getElementById('modal-ok').textContent=okLbl||'Confirmer';
+  document.getElementById('modal-ok').onclick=onOk;
+  document.getElementById('modal').style.display='flex';
+}
+function closeModal(){document.getElementById('modal').style.display='none';}
+function closeModalNotif(){document.getElementById('modal-notif').style.display='none';}
+
+function toast(msg,type='success'){
+  const el=document.createElement('div');
+  el.className='toast toast-'+type; el.textContent=msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .4s';},2800);
+  setTimeout(()=>el.remove(),3300);
+}
+
+function v(id){const el=document.getElementById(id);return el?el.value.trim():'';}
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function formatDate(d){if(!d)return'—';try{const p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];}catch(e){return d;}}
+
+document.addEventListener('contextmenu',e=>{if(!adminAuth)e.preventDefault();});
+document.addEventListener('keydown',e=>{
+  if(!adminAuth&&(e.ctrlKey||e.metaKey)&&['s','p','c','a','u'].includes(e.key.toLowerCase()))e.preventDefault();
+  if(e.key==='Escape'){closeModal();closeModalNotif();}
+});
+
+// ════════════════════════════════════════
+// ANTI-TRICHE
+// ════════════════════════════════════════
+let anticheatWarnings = 0;
+const MAX_WARNINGS = 3;
+let anticheatActive = false;
+
+function activerAntiTriche() {
+  anticheatActive = true;
+  anticheatWarnings = 0;
+
+  // 1. Bloquer Ctrl+Tab, Alt+Tab, F5, F12, Ctrl+W etc.
+  document.addEventListener('keydown', anticheatKeydown, true);
+
+  // 2. Détecter changement d'onglet / minimisation
+  document.addEventListener('visibilitychange', anticheatVisibility);
+
+  // 3. Détecter perte de focus (alt+tab vers autre app)
+  window.addEventListener('blur', anticheatBlur);
+
+  // 4. Bloquer clic droit
+  document.addEventListener('contextmenu', e => { if(anticheatActive) e.preventDefault(); }, true);
+
+  // 5. Bloquer sélection de texte
+  document.addEventListener('selectstart', e => { if(anticheatActive) e.preventDefault(); }, true);
+
+  // 6. Mode plein écran recommandé
+  requestFullscreenSilent();
+
+  // 7. Détecter sortie du plein écran
+  document.addEventListener('fullscreenchange', anticheatFullscreen);
+  document.addEventListener('webkitfullscreenchange', anticheatFullscreen);
+}
+
+function desactiverAntiTriche() {
+  anticheatActive = false;
+  document.removeEventListener('keydown', anticheatKeydown, true);
+  document.removeEventListener('visibilitychange', anticheatVisibility);
+  window.removeEventListener('blur', anticheatBlur);
+  document.removeEventListener('fullscreenchange', anticheatFullscreen);
+  document.removeEventListener('webkitfullscreenchange', anticheatFullscreen);
+  exitFullscreen();
+}
+
+function anticheatKeydown(e) {
+  if (!anticheatActive) return;
+  // Bloquer toutes les touches de navigation / outils dev
+  const blocked = [
+    e.key === 'F5',
+    e.key === 'F12',
+    e.key === 'F11',
+    e.ctrlKey && e.key === 'r',
+    e.ctrlKey && e.key === 't',  // nouvel onglet
+    e.ctrlKey && e.key === 'w',  // fermer onglet
+    e.ctrlKey && e.key === 'n',  // nouvelle fenêtre
+    e.ctrlKey && e.key === 'l',  // barre d'adresse
+    e.ctrlKey && e.shiftKey && e.key === 'i', // devtools
+    e.ctrlKey && e.shiftKey && e.key === 'j',
+    e.ctrlKey && e.shiftKey && e.key === 'c',
+    e.altKey && e.key === 'F4',
+    e.metaKey && e.key === 'Tab',
+  ];
+  if (blocked.some(Boolean)) {
+    e.preventDefault(); e.stopPropagation();
+  }
+}
+
+let blurTimeout = null;
+function anticheatBlur() {
+  if (!anticheatActive) return;
+  // Délai de 500ms pour éviter les faux positifs (clic sur scrollbar etc.)
+  blurTimeout = setTimeout(() => {
+    if (!anticheatActive) return;
+    signalerTriche('Sortie de la page détectée');
+  }, 500);
+}
+
+window.addEventListener('focus', () => {
+  if (blurTimeout) clearTimeout(blurTimeout);
+});
+
+function anticheatVisibility() {
+  if (!anticheatActive) return;
+  if (document.hidden) {
+    signalerTriche('Changement d\'onglet détecté');
+  }
+}
+
+function anticheatFullscreen() {
+  if (!anticheatActive) return;
+  const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!isFS) {
+    signalerTriche('Sortie du mode plein écran');
+    // Réessayer le plein écran
+    setTimeout(requestFullscreenSilent, 1000);
+  }
+}
+
+function signalerTriche(raison) {
+  anticheatWarnings++;
+  const restants = MAX_WARNINGS - anticheatWarnings;
+  if (anticheatWarnings >= MAX_WARNINGS) {
+    // Soumettre automatiquement la copie
+    toast('⚠️ Soumission automatique : ' + raison, 'warn');
+    setTimeout(deposerCopie, 2000);
+  } else {
+    // Afficher avertissement
+    showAvertissement(raison, anticheatWarnings, restants);
+  }
+}
+
+function showAvertissement(raison, num, restants) {
+  const overlay = document.getElementById('anticheat-overlay');
+  document.getElementById('ac-raison').textContent = raison;
+  document.getElementById('ac-num').textContent = num;
+  document.getElementById('ac-restants').textContent = restants;
+  overlay.style.display = 'flex';
+  // Reprendre le plein écran quand l'étudiant revient
+  requestFullscreenSilent();
+}
+
+function fermerAvertissement() {
+  document.getElementById('anticheat-overlay').style.display = 'none';
+  requestFullscreenSilent();
+}
+
+function requestFullscreenSilent() {
+  try {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } catch(e) {}
+}
+
+function exitFullscreen() {
+  try {
+    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════
+// DÉMARRAGE
+// ════════════════════════════════════════
+(async function start(){
+  if(SB_URL&&SB_KEY){
+    try{
+      await initApp();
+      goTo('pg-home');
+    } catch(e){
+      goTo('pg-setup');
+    }
+  } else {
+    goTo('pg-setup');
+  }
+  document.body.style.visibility='visible';
+})();
+</script>
+
+<style>
+@media print{body *{visibility:hidden!important}body::after{visibility:visible!important;display:block;content:"Impression non autorisée sur cette plateforme.";font-size:24px;text-align:center;padding:5rem;color:#333}}
+</style>
+</body>
+</html>
