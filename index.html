@@ -611,8 +611,8 @@ create policy "admin_all_copies" on copies for all using (true);
 // ════════════════════════════════════════
 // SUPABASE CLIENT
 // ════════════════════════════════════════
-let SB_URL = localStorage.getItem('sb_url') || '';
-let SB_KEY = localStorage.getItem('sb_key') || '';
+let SB_URL = localStorage.getItem('sb_url') || 'https://ucnxauigwhuiaxdgpwrt.supabase.co';
+let SB_KEY = localStorage.getItem('sb_key') || 'sb_publishable_dYPeHWDgdzmhTrbxTKZjJw_vHbHKeLf';
 
 async function sbFetch(path, opts = {}) {
   const url = SB_URL + '/rest/v1/' + path;
