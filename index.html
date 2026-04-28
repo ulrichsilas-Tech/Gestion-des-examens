@@ -670,16 +670,16 @@ create policy "admin_all_copies" on copies for all using (true);
 
 <!-- MODAL -->
 <div id="anticheat-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:2rem">
-  <div style="background:#fff;border-radius:16px;padding:2rem;max-width:440px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
-    <div style="font-size:48px;margin-bottom:1rem">⚠️</div>
-    <div style="font-size:20px;font-weight:700;color:#991B1B;margin-bottom:.5rem">Avertissement Anti-Triche</div>
-    <div style="font-size:14px;color:#6B7280;margin-bottom:1rem" id="ac-raison"></div>
-    <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px;margin-bottom:1.5rem">
-      <p style="font-size:14px;color:#991B1B;font-weight:600;margin-bottom:4px">Avertissement <span id="ac-num"></span> / 3</p>
-      <p style="font-size:13px;color:#7F1D1D">Il vous reste <strong><span id="ac-restants"></span> avertissement(s)</strong> avant la soumission automatique de votre copie.</p>
-    </div>
-    <p style="font-size:12px;color:#6B7280;margin-bottom:1.5rem">Restez sur cette page pendant toute la durée de l'examen. Ne changez pas d'onglet, ne minimisez pas la fenêtre.</p>
-    <button class="btn btn-primary" style="width:100%" onclick="fermerAvertissement()">Je comprends — Reprendre l'examen</button>
+  <div style="background:#fff;border-radius:16px;padding:2rem;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="font-size:48px;margin-bottom:1rem">⛔</div>
+    <div style="font-size:20px;font-weight:700;color:#991B1B;margin-bottom:.75rem">Sortie du plein écran détectée</div>
+    <p style="font-size:14px;color:#6B7280;margin-bottom:1.5rem;line-height:1.6">
+      Vous devez rester en plein écran pendant toute la durée de l'examen.<br>
+      Cliquez sur le bouton ci-dessous pour reprendre.
+    </p>
+    <button class="btn btn-primary" style="width:100%;padding:12px" onclick="fermerAvertissement()">
+      🖥️ Reprendre l'examen en plein écran
+    </button>
   </div>
 </div>
 
@@ -828,6 +828,14 @@ async function loadConfig() {
 
 async function loadCandidats() {
   CANDIDATS = await DB.select('candidats', 'order=nom.asc') || [];
+  // Insérer le candidat TEST s'il n'existe pas
+  if (!CANDIDATS.find(c => c.matricule === 'TEST')) {
+    await DB.upsert('candidats', {
+      matricule: 'TEST', nom: 'COMPTE', prenom: 'Test',
+      filiere: 'TEST', email: 'test@plateforme.local'
+    }, 'matricule').catch(()=>{});
+    CANDIDATS = await DB.select('candidats', 'order=nom.asc') || [];
+  }
 }
 
 async function loadQuestions() {
@@ -1137,10 +1145,14 @@ async function parseQuestionsExcel(input) {
 }
 
 function downloadQuestionsTemplate() {
-  const ws = XLSX.utils.json_to_sheet([{NumQ:1,TexteQ:'Exemple de question ?',ChoixA:'Réponse A',ChoixB:'Réponse B',ChoixC:'Réponse C',ChoixD:'Réponse D',Correct:'A,C',PtsV:0.25,PtsF:-0.25}]);
+  const ws = XLSX.utils.json_to_sheet([
+    {NumQ:1, TexteQ:'Exemple de question ?', ChoixA:'Réponse A', ChoixB:'Réponse B', ChoixC:'Réponse C', ChoixD:'Réponse D', Correct:'A,C'},
+    {NumQ:2, TexteQ:'Deuxième exemple ?',    ChoixA:'Option 1',  ChoixB:'Option 2',  ChoixC:'Option 3',  ChoixD:'Option 4',  Correct:'B'},
+  ]);
+  ws['!cols'] = [{wch:6},{wch:40},{wch:20},{wch:20},{wch:20},{wch:20},{wch:12}];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Questions');
-  XLSX.writeFile(wb,'modele_questions.xlsx');
+  XLSX.utils.book_append_sheet(wb, ws, 'Questions');
+  XLSX.writeFile(wb, 'modele_questions.xlsx');
 }
 
 // ════════════════════════════════════════
@@ -1160,13 +1172,15 @@ async function renderCandidatsTable() {
   const copies = await DB.select('copies','select=matricule').catch(()=>[]) || [];
   const deposes = new Set(copies.map(c=>c.matricule));
   const wrap = document.getElementById('candidats-table-wrap');
-  if (!CANDIDATS.length) { wrap.innerHTML='<div class="alert alert-warning">Aucun étudiant importé.</div>'; return; }
+  // Exclure compte TEST
+  const candidatsAffich = CANDIDATS.filter(c => c.matricule !== 'TEST');
+  if (!candidatsAffich.length) { wrap.innerHTML='<div class="alert alert-warning">Aucun étudiant importé.</div>'; return; }
 
   // Compteurs par filière — affichés en haut
-  const totalAll = CANDIDATS.length;
-  const cntEHA = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()==='EHA').length;
-  const cntGTE = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()==='GTE').length;
-  const cntHYAS = CANDIDATS.filter(c=>(c.filiere||'').toUpperCase()==='HYAS').length;
+  const totalAll = candidatsAffich.length;
+  const cntEHA = candidatsAffich.filter(c=>(c.filiere||'').toUpperCase()==='EHA').length;
+  const cntGTE = candidatsAffich.filter(c=>(c.filiere||'').toUpperCase()==='GTE').length;
+  const cntHYAS = candidatsAffich.filter(c=>(c.filiere||'').toUpperCase()==='HYAS').length;
 
   let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
     <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#1E40AF">
@@ -1183,7 +1197,7 @@ async function renderCandidatsTable() {
     </div>
   </div>`;
 
-  const filtered = currentFiliereFilter === 'all' ? CANDIDATS : CANDIDATS.filter(c => (c.filiere||'').toUpperCase() === currentFiliereFilter);
+  const filtered = currentFiliereFilter === 'all' ? candidatsAffich : candidatsAffich.filter(c => (c.filiere||'').toUpperCase() === currentFiliereFilter);
   if (!filtered.length) { wrap.innerHTML=html+`<div class="alert alert-warning">Aucun étudiant dans la filière ${currentFiliereFilter}.</div>`; return; }
 
   html+=`<div class="tbl-wrap"><table class="tbl"><thead><tr>
@@ -1318,6 +1332,8 @@ function selectCandidat(mat) {
 async function validerIdentite() {
   if (!currentCandidat) return;
   const err = document.getElementById('cand-err');
+  const isTest = currentCandidat.matricule === 'TEST';
+
   if (CFG.pwd_candidat && CFG.pwd_candidat.trim()) {
     const code = document.getElementById('cand-code-input').value;
     if (code !== CFG.pwd_candidat) {
@@ -1327,8 +1343,13 @@ async function validerIdentite() {
   try {
     const existing = await DB.select('copies','matricule=eq.'+currentCandidat.matricule);
     if (existing && existing.length) {
-      err.textContent = 'Vous avez déjà déposé votre copie pour cet examen.';
-      err.style.display = 'flex'; return;
+      if (isTest) {
+        await DB.delete('copies', 'matricule=eq.TEST');
+        toast('Mode TEST — ancienne copie supprimée automatiquement', 'info');
+      } else {
+        err.textContent = 'Vous avez déjà déposé votre copie pour cet examen.';
+        err.style.display = 'flex'; return;
+      }
     }
   } catch(e) {}
   err.style.display = 'none';
@@ -1528,7 +1549,8 @@ function filterResultats(f, btn) {
     if (b) { b.style.background=''; b.style.color=''; b.style.borderColor=''; }
   });
   btn.style.background = 'var(--blue)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--blue)';
-  renderResultatsTable();
+  if (COPIES.length) renderResultatsTable();
+  else loadResultats();
 }
 
 async function loadResultats() {
@@ -1541,14 +1563,18 @@ async function loadResultats() {
 }
 
 function renderResultatsTable() {
-  const filteredCopies = currentResFiliereFilter === 'all' ? COPIES :
-    COPIES.filter(cop => {
-      const cand = CANDIDATS.find(c => c.matricule === cop.matricule);
+  // Exclure le compte TEST
+  const copiesReelles = COPIES.filter(cop => cop.matricule !== 'TEST');
+  const candidatsReels = CANDIDATS.filter(c => c.matricule !== 'TEST');
+
+  const filteredCopies = currentResFiliereFilter === 'all' ? copiesReelles :
+    copiesReelles.filter(cop => {
+      const cand = candidatsReels.find(c => c.matricule === cop.matricule);
       return cand && (cand.filiere||'').toUpperCase() === currentResFiliereFilter;
     });
 
-  const filteredCandidats = currentResFiliereFilter === 'all' ? CANDIDATS :
-    CANDIDATS.filter(c => (c.filiere||'').toUpperCase() === currentResFiliereFilter);
+  const filteredCandidats = currentResFiliereFilter === 'all' ? candidatsReels :
+    candidatsReels.filter(c => (c.filiere||'').toUpperCase() === currentResFiliereFilter);
 
   const notes = filteredCopies.map(c=>c.note_sur_bareme||0);
   const moy = notes.length?(notes.reduce((a,b)=>a+b,0)/notes.length):0;
@@ -2274,103 +2300,33 @@ document.addEventListener('keydown',e=>{
 });
 
 // ════════════════════════════════════════
-// ANTI-TRICHE
 // ════════════════════════════════════════
-let anticheatWarnings = 0;
-const MAX_WARNINGS = 3;
+// ANTI-TRICHE — Plein écran uniquement
+// ════════════════════════════════════════
 let anticheatActive = false;
 
 function activerAntiTriche() {
   anticheatActive = true;
-  anticheatWarnings = 0;
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  // Bloquer raccourcis clavier (desktop uniquement)
-  if (!isMobile) {
-    document.addEventListener('keydown', anticheatKeydown, true);
-    // Plein écran (desktop uniquement — trop instable sur mobile)
-    requestFullscreenSilent();
-    document.addEventListener('fullscreenchange', anticheatFullscreen);
-    document.addEventListener('webkitfullscreenchange', anticheatFullscreen);
-    // Perte de focus desktop
-    window.addEventListener('blur', anticheatBlur);
-  }
-
-  // Détection changement d'onglet (marche bien sur mobile ET desktop)
-  document.addEventListener('visibilitychange', anticheatVisibility);
-
-  // Bloquer clic droit et sélection
-  document.addEventListener('contextmenu', e => { if(anticheatActive) e.preventDefault(); }, true);
-  document.addEventListener('selectstart', e => { if(anticheatActive) e.preventDefault(); }, true);
+  requestFullscreenSilent();
+  document.addEventListener('fullscreenchange', anticheatFullscreen);
+  document.addEventListener('webkitfullscreenchange', anticheatFullscreen);
+  // Bloquer F11 (sortie plein écran clavier)
+  document.addEventListener('keydown', anticheatKeydown, true);
 }
 
 function desactiverAntiTriche() {
   anticheatActive = false;
-  document.removeEventListener('keydown', anticheatKeydown, true);
-  document.removeEventListener('visibilitychange', anticheatVisibility);
-  window.removeEventListener('blur', anticheatBlur);
   document.removeEventListener('fullscreenchange', anticheatFullscreen);
   document.removeEventListener('webkitfullscreenchange', anticheatFullscreen);
+  document.removeEventListener('keydown', anticheatKeydown, true);
   exitFullscreen();
 }
 
 function anticheatKeydown(e) {
   if (!anticheatActive) return;
-  // Bloquer toutes les touches de navigation / outils dev
-  const blocked = [
-    e.key === 'F5',
-    e.key === 'F12',
-    e.key === 'F11',
-    e.ctrlKey && e.key === 'r',
-    e.ctrlKey && e.key === 't',  // nouvel onglet
-    e.ctrlKey && e.key === 'w',  // fermer onglet
-    e.ctrlKey && e.key === 'n',  // nouvelle fenêtre
-    e.ctrlKey && e.key === 'l',  // barre d'adresse
-    e.ctrlKey && e.shiftKey && e.key === 'i', // devtools
-    e.ctrlKey && e.shiftKey && e.key === 'j',
-    e.ctrlKey && e.shiftKey && e.key === 'c',
-    e.altKey && e.key === 'F4',
-    e.metaKey && e.key === 'Tab',
-  ];
-  if (blocked.some(Boolean)) {
+  // Bloquer uniquement les touches qui quittent le plein écran
+  if (e.key === 'F11' || e.key === 'Escape') {
     e.preventDefault(); e.stopPropagation();
-  }
-}
-
-let blurTimeout = null;
-let visibilityTimer = null;
-let visibilityStart = null;
-const SEUIL_TRICHE_MS = 4000; // absence > 4 secondes = triche
-
-function anticheatBlur() {
-  if (!anticheatActive) return;
-  blurTimeout = setTimeout(() => {
-    if (!anticheatActive) return;
-    signalerTriche('Sortie de la page détectée');
-  }, SEUIL_TRICHE_MS);
-}
-
-window.addEventListener('focus', () => {
-  if (blurTimeout) { clearTimeout(blurTimeout); blurTimeout = null; }
-});
-
-function anticheatVisibility() {
-  if (!anticheatActive) return;
-  if (document.hidden) {
-    // L'étudiant quitte — démarrer le chrono
-    visibilityStart = Date.now();
-    visibilityTimer = setTimeout(() => {
-      if (!anticheatActive) return;
-      signalerTriche('Changement d\'onglet détecté');
-    }, SEUIL_TRICHE_MS);
-  } else {
-    // L'étudiant revient — annuler si c'était court
-    if (visibilityTimer) {
-      clearTimeout(visibilityTimer);
-      visibilityTimer = null;
-    }
-    // Si la durée était inférieure au seuil → pas d'avertissement (notification)
-    // Si supérieure → l'avertissement a déjà été déclenché par le timeout
   }
 }
 
@@ -2378,33 +2334,14 @@ function anticheatFullscreen() {
   if (!anticheatActive) return;
   const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
   if (!isFS) {
-    signalerTriche('Sortie du mode plein écran');
-    // Réessayer le plein écran
-    setTimeout(requestFullscreenSilent, 1000);
+    // Afficher l'overlay et reforcer le plein écran
+    showAvertissement();
+    setTimeout(requestFullscreenSilent, 800);
   }
 }
 
-function signalerTriche(raison) {
-  anticheatWarnings++;
-  const restants = MAX_WARNINGS - anticheatWarnings;
-  if (anticheatWarnings >= MAX_WARNINGS) {
-    // Soumettre automatiquement la copie
-    toast('⚠️ Soumission automatique : ' + raison, 'warn');
-    setTimeout(deposerCopie, 2000);
-  } else {
-    // Afficher avertissement
-    showAvertissement(raison, anticheatWarnings, restants);
-  }
-}
-
-function showAvertissement(raison, num, restants) {
-  const overlay = document.getElementById('anticheat-overlay');
-  document.getElementById('ac-raison').textContent = raison;
-  document.getElementById('ac-num').textContent = num;
-  document.getElementById('ac-restants').textContent = restants;
-  overlay.style.display = 'flex';
-  // Reprendre le plein écran quand l'étudiant revient
-  requestFullscreenSilent();
+function showAvertissement() {
+  document.getElementById('anticheat-overlay').style.display = 'flex';
 }
 
 function fermerAvertissement() {
@@ -2426,6 +2363,7 @@ function exitFullscreen() {
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
   } catch(e) {}
 }
+
 
 // ════════════════════════════════════════
 // DÉMARRAGE
