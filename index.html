@@ -131,6 +131,20 @@ textarea{resize:vertical;min-height:80px}
 .action-card-title{font-size:14px;font-weight:600}
 .action-card-desc{font-size:12px;color:var(--text-muted);line-height:1.4}
 .qbuilder-item{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px}
+.q-image-wrap{margin:10px 0 14px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--gray-mid);background:var(--gray-light);text-align:center}
+.q-image-wrap img{max-width:100%;max-height:400px;object-fit:contain;display:block;margin:0 auto}
+.q-image-caption{font-size:11px;color:var(--text-muted);padding:4px 8px;background:var(--gray-light);border-top:1px solid var(--gray-mid)}
+.img-upload-zone{border:2px dashed var(--gray-mid);border-radius:var(--radius);padding:16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--gray-light)}
+.img-upload-zone:hover{border-color:var(--blue);background:var(--blue-light)}
+.img-upload-zone.has-image{border-color:var(--green);background:var(--green-light)}
+.img-upload-zone input[type=file]{display:none}
+.q-html-content{margin:10px 0 14px;padding:12px;background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius);overflow-x:auto}
+.q-html-content table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px}
+.q-html-content table caption{font-weight:700;font-size:13px;text-align:left;padding:4px 0 6px;color:var(--blue)}
+.q-html-content th{background:#1D4ED8;color:#fff;padding:7px 10px;text-align:left;font-size:12px}
+.q-html-content td{padding:7px 10px;border-bottom:1px solid var(--gray-mid);font-size:12px}
+.q-html-content tr:nth-child(even) td{background:#F8FAFF}
+.q-html-content tr:hover td{background:#EFF6FF}
 .setup-step{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:24px;margin-bottom:16px}
 .setup-step-num{width:32px;height:32px;background:var(--blue);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
 .setup-step-title{font-size:16px;font-weight:600}
@@ -441,7 +455,10 @@ create policy "admin_all_copies" on copies for all using (true);
           <button class="btn btn-primary btn-sm" onclick="addQuestion()">+ Ajouter</button>
         </div>
       </div>
-      <div class="alert alert-info" style="font-size:12px">Colonnes Excel : <strong>NumQ, TexteQ, ChoixA, ChoixB, ChoixC, ChoixD, Correct (ex: A ou A,C), PtsV, PtsF</strong></div>
+      <div class="alert alert-info" style="font-size:12px">
+  Colonnes Excel : <strong>NumQ, TexteQ, ChoixA, ChoixB, ChoixC, ChoixD, Correct (ex: A ou A,C)</strong> — Les images s'ajoutent via le bouton 🖼️ sur chaque question.
+</div>
+
       <div id="questions-builder"></div>
       <div class="btn-group" style="margin-top:1rem">
         <button class="btn btn-success" onclick="saveQuestions()">💾 Enregistrer l'épreuve</button>
@@ -626,13 +643,29 @@ create policy "admin_all_copies" on copies for all using (true);
         <p id="res-detail" style="font-size:13px;color:var(--text-muted);margin-top:.25rem"></p>
         <div class="sep"></div>
         <div class="alert alert-info" style="text-align:left;font-size:13px;line-height:1.6">
-          <strong>Note:</strong>Sous réserve de conformité avec la version papier.</div>
+          <strong>Note :</strong> Sous réserve de conformité avec la version papier.
+        </div>
         <p style="font-size:12px;color:var(--text-muted);margin-top:10px">Un mail de confirmation vous sera envoyé à l'adresse enregistrée.</p>
         <div class="sep"></div>
         <button class="btn btn-primary" onclick="goTo('pg-home')" style="width:100%">🏠 Retour à l'accueil</button>
       </div>
     </div>
   </div>
+</div>
+
+<!-- MODAL AGRANDISSEMENT IMAGE -->
+<div id="img-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:500;align-items:center;justify-content:center;padding:1rem;flex-direction:column;gap:12px"
+  onclick="closeImageModal()">
+  <div style="background:#fff;border-radius:12px;overflow:hidden;max-width:95vw;max-height:90vh;position:relative">
+    <div style="background:var(--blue);color:#fff;padding:8px 16px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center">
+      <span id="img-modal-title">Image</span>
+      <button onclick="closeImageModal()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px">✕</button>
+    </div>
+    <div style="overflow:auto;max-height:80vh;padding:8px;text-align:center">
+      <img id="img-modal-src" src="" style="max-width:90vw;height:auto;display:block;margin:0 auto">
+    </div>
+  </div>
+  <p style="color:#fff;font-size:12px;opacity:.7">Cliquez n'importe où pour fermer</p>
 </div>
 
 <!-- MODAL -->
@@ -802,6 +835,8 @@ async function loadQuestions() {
   const sqs = await DB.select('sous_questions', 'order=ordre.asc') || [];
   QUESTIONS = qs.map(q => ({
     ...q,
+    image_url: q.image_url || '',
+    html_content: q.html_content || '',
     sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
   }));
 }
@@ -893,23 +928,128 @@ function renderQBuilder() {
   const cont = document.getElementById('questions-builder');
   if (!QUESTIONS.length) { cont.innerHTML = '<div class="alert alert-warning">Aucune question. Ajoutez ou importez depuis Excel.</div>'; return; }
   cont.innerHTML = QUESTIONS.map((q,qi) => `
-    <div class="qbuilder-item">
-      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px">
-        <div style="flex:1"><label class="lbl">Q${q.num}</label>
-          <input type="text" value="${escH(q.texte||'')}" onchange="QUESTIONS[${qi}].texte=this.value" style="font-weight:500"></div>
-        <button class="btn btn-danger btn-sm" onclick="removeQuestion(${qi})">✕</button>
+    <div class="qbuilder-item" id="qb-${qi}">
+      <!-- Ligne titre + actions -->
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px">
+        <div style="background:var(--blue);color:#fff;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;margin-top:6px">Q${q.num}</div>
+        <div style="flex:1">
+          <input type="text" value="${escH(q.texte||'')}" onchange="QUESTIONS[${qi}].texte=this.value"
+            style="font-weight:500;font-size:14px;border:1px solid var(--gray-mid);border-radius:6px;padding:7px 10px;width:100%">
+        </div>
+        <button class="btn btn-sm" title="Ajouter/modifier une image" onclick="triggerImageUpload(${qi})"
+          style="background:${q.image_url?'var(--green-light)':'var(--blue-light)'};border-color:${q.image_url?'var(--green)':'var(--blue)'};color:${q.image_url?'var(--green)':'var(--blue)'};flex-shrink:0">
+          🖼️ ${q.image_url?'Image ✓':'+ Image'}
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="removeQuestion(${qi})" style="flex-shrink:0">✕</button>
       </div>
-      <div style="padding-left:12px;border-left:3px solid var(--gray-mid)">
+
+      <!-- Zone image (si présente) -->
+      ${q.image_url ? `
+      <div class="q-image-wrap" style="margin-bottom:12px">
+        <img src="${q.image_url}" alt="Image Q${q.num}" onerror="this.parentElement.innerHTML='<div style=padding:10px;color:red;font-size:12px>Image non chargée</div>'">
+        <div class="q-image-caption" style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px">
+          <span>📎 Image attachée à Q${q.num}</span>
+          <button class="btn btn-sm" style="padding:2px 8px;font-size:11px;color:var(--red);border-color:var(--red)"
+            onclick="removeQuestionImage(${qi})">✕ Supprimer</button>
+        </div>
+      </div>` : ''}
+
+      <!-- Sous-questions -->
+      <div style="padding-left:12px;border-left:3px solid var(--blue-light)">
         ${(q.sousQuestions||[]).map((sq,si) => `
-          <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
-            <span style="font-size:12px;color:var(--text-muted);width:20px">${sq.id?sq.id.slice(-1):'?'}.</span>
-            <input type="text" value="${escH(sq.texte||'')}" onchange="QUESTIONS[${qi}].sousQuestions[${si}].texte=this.value" style="font-size:13px">
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;white-space:nowrap;padding:4px 10px;border-radius:6px;background:${sq.correcte?'#D1FAE5':'#F3F4F6'};color:${sq.correcte?'#065F46':'#6B7280'}">
-              <input type="checkbox" ${sq.correcte?'checked':''} onchange="QUESTIONS[${qi}].sousQuestions[${si}].correcte=this.checked;renderQBuilder()"> ${sq.correcte?'✓ Correcte':'✗ Incorrecte'}
+          <div style="display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;margin-bottom:7px">
+            <span style="font-size:13px;font-weight:600;color:var(--text-muted)">${sq.id?sq.id.slice(-1):'?'}.</span>
+            <input type="text" value="${escH(sq.texte||'')}" onchange="QUESTIONS[${qi}].sousQuestions[${si}].texte=this.value"
+              style="font-size:13px;border:1px solid var(--gray-mid);border-radius:6px;padding:6px 10px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;white-space:nowrap;
+              padding:5px 12px;border-radius:6px;min-width:110px;justify-content:center;
+              background:${sq.correcte?'#D1FAE5':'#F3F4F6'};color:${sq.correcte?'#065F46':'#6B7280'};
+              border:1px solid ${sq.correcte?'#A7F3D0':'var(--gray-mid)'}">
+              <input type="checkbox" ${sq.correcte?'checked':''} onchange="QUESTIONS[${qi}].sousQuestions[${si}].correcte=this.checked;renderQBuilder()">
+              ${sq.correcte?'✓ Correcte':'✗ Incorrecte'}
             </label>
           </div>`).join('')}
       </div>
+
+      <!-- Input file caché pour cette question -->
+      <input type="file" id="img-input-${qi}" accept="image/*" style="display:none"
+        onchange="handleImageUpload(${qi}, this)">
     </div>`).join('');
+}
+
+
+
+function triggerImageUpload(qi) {
+  document.getElementById('img-input-'+qi).click();
+}
+
+function removeQuestionImage(qi) {
+  QUESTIONS[qi].image_url = '';
+  renderQBuilder();
+}
+
+async function handleImageUpload(qi, input) {
+  const file = input.files[0]; if (!file) return;
+
+  // Vérifications
+  if (file.size > 2 * 1024 * 1024) { toast('Image trop lourde (max 2MB)', 'warn'); return; }
+
+  const btn = document.querySelector(`#qb-${qi} button[onclick="triggerImageUpload(${qi})"]`);
+  if (btn) { btn.textContent = '⏳ Chargement...'; btn.disabled = true; }
+
+  try {
+    // Convertir en base64 pour prévisualisation immédiate
+    const b64 = await fileToBase64(file);
+
+    // Essayer d'uploader sur Supabase Storage
+    const uploaded = await uploadToSupabase(file, qi);
+
+    QUESTIONS[qi].image_url = uploaded || b64;
+    renderQBuilder();
+    toast('Image ajoutée à Q'+(qi+1), 'success');
+  } catch(e) {
+    // Fallback : base64 directement
+    const b64 = await fileToBase64(file);
+    QUESTIONS[qi].image_url = b64;
+    renderQBuilder();
+    toast('Image ajoutée (stockage local)', 'info');
+  }
+  input.value = '';
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => res(e.target.result);
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadToSupabase(file, qi) {
+  // Upload vers Supabase Storage bucket "question-images"
+  try {
+    const ext = file.name.split('.').pop();
+    const fname = 'Q'+(qi+1)+'_'+Date.now()+'.'+ext;
+    const res = await fetch(`${SB_URL}/storage/v1/object/question-images/${fname}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer '+SB_KEY,
+        'Content-Type': file.type,
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+    if (!res.ok) return null;
+    // URL publique
+    return `${SB_URL}/storage/v1/object/public/question-images/${fname}`;
+  } catch(e) { return null; }
+}
+
+function copyAlterSQL() {
+  navigator.clipboard.writeText('ALTER TABLE questions ADD COLUMN IF NOT EXISTS image_url text; ALTER TABLE questions ADD COLUMN IF NOT EXISTS html_content text;')
+    .then(() => toast('SQL copié !', 'success'));
 }
 
 function addQuestion() {
@@ -924,7 +1064,10 @@ function addQuestion() {
 function removeQuestion(qi) {
   openModal('Supprimer', 'Supprimer la question Q'+QUESTIONS[qi].num+' ?', async () => {
     const qId = QUESTIONS[qi].id;
-    try { await DB.delete('questions','id=eq.'+qId); } catch(e) {}
+    try {
+      await DB.delete('sous_questions', 'question_id=eq.'+qId);
+      await DB.delete('questions', 'id=eq.'+qId);
+    } catch(e) {}
     QUESTIONS.splice(qi,1);
     QUESTIONS.forEach((q,i) => { q.num=i+1; q.ordre=i; });
     renderQBuilder(); closeModal();
@@ -933,14 +1076,33 @@ function removeQuestion(qi) {
 
 async function saveQuestions() {
   try {
-    // Supprimer sous_questions en premier (contrainte FK)
-    await DB.delete('sous_questions', 'id=like.Q*').catch(()=>{});
-    await DB.delete('questions', 'id=like.Q*').catch(()=>{});
-    // Insérer questions puis leurs sous-questions
+    // Étape 1 : récupérer tous les IDs de questions existantes
+    const existingQs = await DB.select('questions', 'select=id').catch(()=>[]) || [];
+
+    // Étape 2 : supprimer toutes les sous-questions existantes une par une
+    for (const eq of existingQs) {
+      await DB.delete('sous_questions', 'question_id=eq.'+eq.id).catch(()=>{});
+    }
+    // Étape 3 : supprimer toutes les questions existantes
+    for (const eq of existingQs) {
+      await DB.delete('questions', 'id=eq.'+eq.id).catch(()=>{});
+    }
+
+    // Étape 4 : insérer les nouvelles questions puis leurs sous-questions
     for (const q of QUESTIONS) {
-      await DB.upsert('questions', { id:q.id, num:q.num, texte:q.texte, obligatoire:q.obligatoire!==false, ordre:q.ordre||q.num-1 });
+      await DB.upsert('questions', {
+        id: q.id, num: q.num, texte: q.texte,
+        obligatoire: q.obligatoire!==false,
+        ordre: q.ordre||q.num-1,
+        image_url: q.image_url||'',
+        html_content: q.html_content||''
+      });
       for (const sq of (q.sousQuestions||[])) {
-        await DB.upsert('sous_questions', { id:sq.id, question_id:q.id, texte:sq.texte, correcte:!!sq.correcte, pts_v:sq.pts_v??0.25, pts_f:sq.pts_f??-0.25, ordre:sq.ordre||0 });
+        await DB.upsert('sous_questions', {
+          id: sq.id, question_id: q.id, texte: sq.texte,
+          correcte: !!sq.correcte, pts_v: sq.pts_v??0.25,
+          pts_f: sq.pts_f??-0.25, ordre: sq.ordre||0
+        });
       }
     }
     toast('Épreuve enregistrée ('+QUESTIONS.length+' questions)', 'success');
@@ -1186,8 +1348,16 @@ function buildEpreuve() {
   document.getElementById('ep-header').innerHTML = buildExamHeader(c);
   let html = '';
   QUESTIONS.forEach((q,qi) => {
+    const imgBlock = q.image_url ? `
+      <div class="q-image-wrap" style="margin:10px 0 14px;cursor:pointer" onclick="openImageModal('${q.image_url}','Q${q.num}')">
+        <img src="${q.image_url}" alt="Image Q${q.num}" style="max-width:100%;max-height:350px;object-fit:contain;display:block;margin:0 auto;padding:8px">
+        <div class="q-image-caption">🔍 Cliquez pour agrandir</div>
+      </div>` : '';
+    const htmlBlock = q.html_content ? `
+      <div class="q-html-content">${q.html_content}</div>` : '';
     html+=`<div class="question-card" id="qcard-${q.id}">
       <div class="q-title"><span class="q-num">Q${q.num}</span><span>${escH(q.texte||'')}</span><span style="color:var(--red);font-size:12px">*</span></div>
+      ${imgBlock}${htmlBlock}
       <div>${(q.sousQuestions||[]).map(sq=>`
         <label class="choice-label">
           <input type="checkbox" id="cb-${sq.id}" onchange="onChoice('${sq.id}','${q.id}',this.checked)">
@@ -1734,10 +1904,63 @@ function buildRelevePDFINEPage(doc, filiere, candsFil, copiesFil) {
 }
 
 // ── COPIES COMPOSÉES — ZIP ──
+// ── UTILITAIRE : charger une URL image en base64 ──
+function loadImageAsBase64(url) {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    // Déjà en base64
+    if (url.startsWith('data:image')) return resolve(url);
+    // URL externe → fetch puis convertir
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch(e) { resolve(null); }
+    };
+    img.onerror = () => {
+      // Fallback : fetch direct
+      fetch(url)
+        .then(r => r.blob())
+        .then(blob => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        })
+        .catch(() => resolve(null));
+    };
+    img.src = url;
+  });
+}
+
+// ── Précharger toutes les images des questions en base64 ──
+async function preloadQuestionImages() {
+  const urls = [...new Set(QUESTIONS.map(q => q.image_url).filter(u => u && u.startsWith('http')))];
+  if (!urls.length) return;
+  toast('Chargement des images pour le PDF...', 'info');
+  const cache = {};
+  await Promise.all(urls.map(async url => {
+    cache[url] = await loadImageAsBase64(url);
+  }));
+  // Remplacer les URLs par les base64 dans QUESTIONS
+  QUESTIONS.forEach(q => {
+    if (q.image_url && cache[q.image_url]) {
+      q._image_b64 = cache[q.image_url];
+    }
+  });
+}
+
 async function genCopiesComposees() {
   await ensureData();
   if(!COPIES.length){toast('Aucune copie','warn');return;}
   if(typeof JSZip==='undefined'){toast('JSZip non chargé, réessayez','error');return;}
+  await preloadQuestionImages();
   toast('Génération du ZIP copies composées...','info');
   const zip = new JSZip();
   const {jsPDF} = window.jspdf;
@@ -1762,6 +1985,7 @@ async function genCopiesCorrigees() {
   await ensureData();
   if(!COPIES.length){toast('Aucune copie','warn');return;}
   if(typeof JSZip==='undefined'){toast('JSZip non chargé, réessayez','error');return;}
+  await preloadQuestionImages();
   toast('Génération du ZIP copies corrigées...','info');
   const zip = new JSZip();
   const {jsPDF} = window.jspdf;
@@ -1922,6 +2146,31 @@ function buildPDFCopie(doc, cop, corriger) {
     doc.text(qLines, M+3, y+5);
     y += titleH;
 
+    // ── Image de la question (si présente)
+    const imgData = q._image_b64 || (q.image_url && q.image_url.startsWith('data:image') ? q.image_url : null);
+    if (imgData) {
+      try {
+        const imgType = imgData.includes('image/png') ? 'PNG' : 'JPEG';
+        const W_img = W - 2*M;
+        const maxH = 65;
+        // Calculer ratio via Image temporaire
+        const tmpImg = new window.Image();
+        tmpImg.src = imgData;
+        const ratio = tmpImg.naturalWidth > 0 ? tmpImg.naturalHeight / tmpImg.naturalWidth : 0.45;
+        const imgW = Math.min(W_img, 130);
+        const imgH = Math.min(maxH, imgW * ratio);
+        if (y + imgH + 5 > availH) { drawFooter(); doc.addPage(); y = M; }
+        // Centrer l'image
+        const imgX = M + (W_img - imgW) / 2;
+        doc.addImage(imgData, imgType, imgX, y, imgW, imgH);
+        y += imgH + 4;
+      } catch(e) {
+        doc.setFontSize(8); doc.setTextColor(163,45,45);
+        doc.text('[Image non disponible]', M+3, y+4);
+        y += 8; doc.setTextColor(0,0,0);
+      }
+    }
+
     // ── Sous-questions
     (q.sousQuestions||[]).forEach(sq => {
       const checked = rq[sq.id]||false;
@@ -1994,6 +2243,16 @@ function openModal(title,body,onOk,cancelLbl,okLbl){
   document.getElementById('modal').style.display='flex';
 }
 function closeModal(){document.getElementById('modal').style.display='none';}
+
+function openImageModal(url, title) {
+  document.getElementById('img-modal-src').src = url;
+  document.getElementById('img-modal-title').textContent = title;
+  document.getElementById('img-modal').style.display = 'flex';
+}
+function closeImageModal() {
+  document.getElementById('img-modal').style.display = 'none';
+  document.getElementById('img-modal-src').src = '';
+}
 function closeModalNotif(){document.getElementById('modal-notif').style.display='none';}
 
 function toast(msg,type='success'){
