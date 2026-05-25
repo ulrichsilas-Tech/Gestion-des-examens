@@ -157,6 +157,48 @@ textarea{resize:vertical;min-height:80px}
 .exam-closed{background:#FEE2E2;color:#991B1B;border:1px solid #FECACA}
 /* Stats résultats - 5 colonnes */
 .stats-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:1.5rem}
+/* ── STYLES MODERNES POUR LA SÉLECTION ÉTUDIANT ── */
+.sel-card-opt {
+  background: var(--gray-light);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+.sel-card-opt:hover {
+  background: #fff;
+  border-color: var(--blue);
+  transform: translateX(5px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.sel-card-opt.selected {
+  background: var(--blue-light);
+  border-color: var(--blue);
+}
+
+.sel-card-opt.selected div:first-child {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+/* Barre de progression */
+#sel-progress {
+  transition: width 0.3s ease;
+}
+
+/* Crumb trail */
+#sel-crumb2, #sel-crumb3, #sel-crumb4 {
+  font-size: 12px;
+  color: var(--blue);
+  background: var(--blue-light);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
 /* ── MOBILE OPTIMISATION COMPLÈTE ── */
 @media(max-width:640px){
   /* Grilles */
@@ -221,6 +263,186 @@ textarea{resize:vertical;min-height:80px}
   /* Stats filière */
   #stats-grid{grid-template-columns:repeat(3,1fr)}
 }
+/* Correction des étapes pour 6 éléments */
+.steps {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 0 10px;
+}
+
+.step-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  border: 2px solid var(--gray-mid);
+  color: var(--text-muted);
+  background: #fff;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.step-line {
+  width: 30px;
+  height: 2px;
+  background: var(--gray-mid);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+/* Correction pour espacer les étapes du haut */
+#pg-candidat-select .steps {
+  margin-top: 1.5rem !important;
+  margin-bottom: 2rem !important;
+}
+
+/* Pour la bannière épurée */
+#pg-candidat-select > div:first-of-type {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* ===== CORRECTIONS POUR MOBILE ===== */
+#pg-candidat-select {
+  overflow-x: hidden;
+}
+
+/* Conteneur principal */
+#pg-candidat-select > div:last-of-type {
+  padding: 0 12px !important;
+}
+
+/* Steps responsives */
+.steps {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  margin: 20px auto 25px auto !important;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 0 10px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.step-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid var(--gray-mid);
+  color: var(--text-muted);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.step-line {
+  width: 25px;
+  height: 2px;
+  background: var(--gray-mid);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Cartes responsives */
+#sel-step1, #sel-step2, #sel-step3, #sel-step4, #sel-step5, #sel-step6 {
+  padding: 18px !important;
+}
+
+.sel-card-opt {
+  padding: 14px 16px !important;
+  margin-bottom: 10px !important;
+}
+
+/* Bouton validation */
+#btn-valider-sel {
+  height: 48px !important;
+  font-size: 15px !important;
+}
+
+/* Champs de saisie */
+#cand-nom-sel {
+  height: 48px !important;
+  font-size: 16px !important;
+}
+
+/* Media query pour petits écrans */
+@media (max-width: 640px) {
+  .step-dot {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  
+  .step-line {
+    width: 15px;
+  }
+  
+  .steps {
+    gap: 3px;
+    margin: 15px auto 20px auto !important;
+  }
+  
+  #sel-step1, #sel-step2, #sel-step3, #sel-step4, #sel-step5, #sel-step6 {
+    padding: 14px !important;
+  }
+  
+  .sel-card-opt {
+    padding: 12px 14px !important;
+  }
+  
+  .sel-card-opt div {
+    font-size: 14px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .step-dot {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+  
+  .step-line {
+    width: 10px;
+  }
+  
+  .steps {
+    gap: 2px;
+  }
+  
+  #sel-crumb2, #sel-crumb3, #sel-crumb4, #sel-crumb5, #sel-crumb6 {
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+}
+
+/* Responsive pour mobile */
+@media (max-width: 640px) {
+  .step-dot {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  .step-line {
+    width: 15px;
+  }
+  .steps {
+    gap: 4px;
+  }
+}
 @media(max-width:380px){
   .home-hero h1{font-size:17px}
   .stats-5,#stats-grid{grid-template-columns:1fr 1fr}
@@ -257,66 +479,90 @@ textarea{resize:vertical;min-height:80px}
         <div style="width:100%">
           <div class="setup-step-title">Créer les tables (SQL Editor)</div>
           <p style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">Dans Supabase → SQL Editor → copiez-collez ce script :</p>
-          <div class="code-block" id="sql-block">
--- Table configuration
-create table if not exists exam_config (
-  id text primary key default 'main',
-  ecole text, institut text, matiere text,
-  niveau text, annee text, date_exam text,
-  heure text, duree integer default 90,
-  session text, bareme integer default 20,
-  consigne text, pwd_admin text default 'admin123',
-  pwd_candidat text default '',
-  statut text default 'ferme',
-  created_at timestamptz default now()
+          <div class="code-block" id="sql-block" style="max-height:260px;overflow-y:auto;font-size:11px">
+-- ═══════════════════════════════════════════
+-- MIGRATION SQL ExamPlatform — Multi-Admin
+-- Exécuter dans Supabase → SQL Editor
+-- ═══════════════════════════════════════════
+
+-- 1. Table admins
+CREATE TABLE IF NOT EXISTS admins (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  identifiant text UNIQUE NOT NULL,
+  nom text DEFAULT '',
+  email text DEFAULT '',
+  pwd text NOT NULL,
+  role text DEFAULT 'enseignant',
+  valide boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
 );
-create table if not exists candidats (
-  id uuid primary key default gen_random_uuid(),
-  matricule text unique not null,
-  nom text not null, prenom text,
-  date_naissance text, filiere text, email text,
-  created_at timestamptz default now()
+
+-- 2. Super admin (pwd: superadmin2024 — changez-le!)
+INSERT INTO admins (identifiant, nom, email, pwd, role, valide)
+VALUES ('admin', 'Super Administrateur', 'admin@examplatform.local', 'superadmin2024', 'superadmin', true)
+ON CONFLICT (identifiant) DO NOTHING;
+
+-- 3. Colonnes admin_id sur tables existantes
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS admin_id uuid REFERENCES admins(id);
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS universite text DEFAULT '';
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS entite text DEFAULT '';
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS logo_universite text DEFAULT '';
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS logo_entite text DEFAULT '';
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS resend_key text DEFAULT '';
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS smtp_from text DEFAULT '';
+ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS email_verification boolean DEFAULT false;
+ALTER TABLE candidats ADD COLUMN IF NOT EXISTS admin_id uuid;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS admin_id uuid;
+ALTER TABLE copies ADD COLUMN IF NOT EXISTS admin_id uuid;
+
+-- 4. Nouvelles tables
+CREATE TABLE IF NOT EXISTS tokens_composition (
+  token uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  matricule text NOT NULL,
+  admin_id uuid REFERENCES admins(id),
+  expires_at timestamptz NOT NULL,
+  used boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
 );
-create table if not exists questions (
-  id text primary key,
-  num integer, texte text, obligatoire boolean default true,
-  ordre integer default 0,
-  created_at timestamptz default now()
+CREATE TABLE IF NOT EXISTS reset_tokens (
+  token text PRIMARY KEY,
+  admin_id uuid REFERENCES admins(id),
+  expires_at timestamptz NOT NULL,
+  used boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
 );
-create table if not exists sous_questions (
-  id text primary key,
-  question_id text references questions(id) on delete cascade,
-  texte text, correcte boolean default false,
-  pts_v numeric default 0.5, pts_f numeric default -0.25,
-  ordre integer default 0
+CREATE TABLE IF NOT EXISTS universites (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nom text NOT NULL,
+  entites jsonb DEFAULT '[]',
+  created_at timestamptz DEFAULT now()
 );
-create table if not exists copies (
-  id uuid primary key default gen_random_uuid(),
-  matricule text references candidats(matricule),
-  reponses jsonb default '{}',
-  note_brute numeric default 0,
-  note_sur_bareme numeric default 0,
-  date_depot timestamptz default now(),
-  unique(matricule)
+CREATE TABLE IF NOT EXISTS niveaux (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nom text NOT NULL,
+  ordre integer DEFAULT 0
 );
-alter table exam_config enable row level security;
-alter table candidats enable row level security;
-alter table questions enable row level security;
-alter table sous_questions enable row level security;
-alter table copies enable row level security;
-create policy "public_read_config" on exam_config for select using (true);
-create policy "public_read_candidats" on candidats for select using (true);
-create policy "public_update_candidats" on candidats for update using (true) with check (true);
-create policy "public_read_questions" on questions for select using (true);
-create policy "public_read_sous_questions" on sous_questions for select using (true);
-create policy "public_insert_copies" on copies for insert with check (true);
-create policy "public_read_copies" on copies for select using (true);
-create policy "admin_all_config" on exam_config for all using (true);
-create policy "admin_all_candidats" on candidats for all using (true);
-create policy "admin_all_questions" on questions for all using (true);
-create policy "admin_all_sous_questions" on sous_questions for all using (true);
-create policy "admin_all_copies" on copies for all using (true);
-          </div>
+
+-- 5. Niveaux par défaut
+INSERT INTO niveaux (nom, ordre) VALUES
+  ('Licence 1',1),('Licence 2',2),('Licence 3',3),
+  ('Master 1',4),('Master 2',5),('Doctorat',6)
+ON CONFLICT DO NOTHING;
+
+-- 6. RLS policies
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tokens_composition ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reset_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE universites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE niveaux ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "public_all_admins" ON admins FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public_all_tokens" ON tokens_composition FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public_all_reset" ON reset_tokens FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public_all_universites" ON universites FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public_all_niveaux" ON niveaux FOR ALL USING (true) WITH CHECK (true);
+
+-- 7. Créer le bucket Storage "logos" (public) dans Supabase Dashboard → Storage</div>
           <button class="btn btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
         </div>
       </div>
@@ -348,7 +594,7 @@ create policy "admin_all_copies" on copies for all using (true);
     <p id="home-subtitle">Chargement de l'examen...</p>
     <div id="home-exam-status" class="exam-status-banner" style="display:none;max-width:500px;margin:0 auto 2rem"></div>
     <div class="home-cards">
-      <div class="home-card" onclick="enterComposition()">
+      <div class="home-card" onclick="initSelectionPage();goTo('pg-candidat-select')">
         <div class="home-card-icon" style="background:var(--blue-light)">📝</div>
         <h3>Espace Composition</h3>
         <p>Accédez à votre épreuve en ligne</p>
@@ -372,14 +618,22 @@ create policy "admin_all_copies" on copies for all using (true);
     <button class="btn btn-ghost btn-sm" onclick="goTo('pg-home')">← Accueil</button>
   </div>
   <div class="container">
-    <div style="max-width:380px;margin:4rem auto">
+    <div style="max-width:400px;margin:3rem auto">
       <div class="card">
-        <div class="card-title" style="font-size:17px">🔐 Connexion Responsable</div>
+        <div class="card-title" style="font-size:17px;margin-bottom:4px">🔐 Connexion Espace Gestion</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Enseignants &amp; Administrateurs</p>
         <div id="admin-err" class="alert alert-danger" style="display:none"></div>
-        <div class="field"><label class="lbl">Mot de passe</label>
-          <input type="password" id="admin-pwd" onkeydown="if(event.key==='Enter')doAdminLogin()">
+        <div class="field"><label class="lbl">Identifiant</label>
+          <input type="text" id="admin-identifiant" placeholder="Votre identifiant" autocomplete="username">
         </div>
-        <button class="btn btn-primary" style="width:100%" onclick="doAdminLogin()">Connexion</button>
+        <div class="field"><label class="lbl">Mot de passe</label>
+          <input type="password" id="admin-pwd" placeholder="Votre mot de passe" onkeydown="if(event.key==='Enter')doAdminLogin()">
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:10px" onclick="doAdminLogin()">Se connecter</button>
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <a href="#" onclick="goTo('pg-create-account');return false" style="color:var(--blue)">➕ Créer un compte</a>
+          <a href="#" onclick="goTo('pg-reset-pwd');return false" style="color:var(--text-muted)">Mot de passe oublié ?</a>
+        </div>
       </div>
     </div>
   </div>
@@ -390,7 +644,7 @@ create policy "admin_all_copies" on copies for all using (true);
   <div class="topbar">
     <div class="topbar-logo"><span>EP</span> Gestion</div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span class="badge badge-purple">👤 Responsable</span>
+      <span id="admin-name-chip" class="badge badge-purple">👤 Responsable</span>
       <button class="btn btn-ghost btn-sm" onclick="adminLogout()">Déconnexion</button>
     </div>
   </div>
@@ -435,10 +689,41 @@ create policy "admin_all_copies" on copies for all using (true);
       <div class="field"><label class="lbl">Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
       <div class="field"><label class="lbl">👨‍🏫 Nom de l'enseignant</label><input id="c-enseignant" placeholder="Ex : Dr Arnaud ZANNOU"></div>
       <div class="sep"></div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:12px">🏛️ Logos dynamiques</div>
+      <div class="grid-2">
+        <div class="field"><label class="lbl">Logo Université (URL)</label>
+          <input id="c-logo-univ" placeholder="Laisser vide = logo UAC par défaut">
+          <button class="btn btn-sm" style="margin-top:4px" onclick="document.getElementById('logo-univ-input').click()">📤 Uploader</button>
+          <input type="file" id="logo-univ-input" accept="image/*" style="display:none" onchange="uploadLogoAdmin(this,'universite')">
+        </div>
+        <div class="field"><label class="lbl">Logo Entité (URL)</label>
+          <input id="c-logo-entite" placeholder="Laisser vide = logo INE par défaut">
+          <button class="btn btn-sm" style="margin-top:4px" onclick="document.getElementById('logo-entite-input').click()">📤 Uploader</button>
+          <input type="file" id="logo-entite-input" accept="image/*" style="display:none" onchange="uploadLogoAdmin(this,'entite')">
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:12px">📧 Vérification email étudiants</div>
+      <div class="card" style="background:var(--amber-light);border:1px solid #FDE68A;margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="c-email-verif" style="width:18px;height:18px;accent-color:var(--amber)">
+          <span><strong>Activer la vérification email</strong> — Un lien unique sera envoyé à chaque étudiant avant composition</span>
+        </label>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label class="lbl">Clé API Resend</label>
+          <input id="c-resend-key" type="password" placeholder="re_xxxxxxxxxxxx">
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Compte gratuit sur <a href="https://resend.com" target="_blank" style="color:var(--blue)">resend.com</a></p>
+        </div>
+        <div class="field"><label class="lbl">Email expéditeur</label>
+          <input id="c-smtp-from" placeholder="noreply@votre-domaine.com">
+        </div>
+      </div>
+      <div class="sep"></div>
       <div style="font-size:15px;font-weight:600;margin-bottom:12px">🔐 Sécurité</div>
       <div class="grid-2">
-        <div class="field"><label class="lbl">Mot de passe Gestion</label><input id="c-pwd-admin" type="password"></div>
-        <div class="field"><label class="lbl">Code d'accès candidats (optionnel)</label><input id="c-pwd-candidat" type="password" placeholder="Vide = pas de code"></div>
+        <div class="field"><label class="lbl">Nouveau mot de passe (laisser vide pour conserver)</label>
+          <input id="c-pwd-admin" type="password" placeholder="Nouveau mot de passe"></div>
       </div>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="saveConfig()">💾 Enregistrer</button>
@@ -558,50 +843,200 @@ create policy "admin_all_copies" on copies for all using (true);
   </div>
 </div>
 
-<!-- CANDIDAT LOGIN -->
-<div id="pg-candidat-login" class="page">
-  <div class="topbar">
-    <div class="topbar-logo"><span>EP</span> Composition</div>
+<!-- pg-candidat-select -->
+ <div id="pg-candidat-select" class="page" style="background:linear-gradient(135deg,#EFF6FF 0%,#F8FAFC 100%);min-height:100vh">
+  <div class="topbar" style="background:#fff;border-bottom:1px solid #E5E7EB">
+    <div class="topbar-logo"><span>EP</span> Espace Composition</div>
     <button class="btn btn-ghost btn-sm" onclick="goTo('pg-home')">← Accueil</button>
   </div>
-  <div class="container">
-    <div style="max-width:460px;margin:2rem auto">
-      <div class="steps">
-        <div><div class="step-dot active">1</div></div>
-        <div class="step-line"></div>
-        <div><div class="step-dot" id="s2">2</div></div>
-        <div class="step-line"></div>
-        <div><div class="step-dot" id="s3">3</div></div>
+
+  <!-- Hero avec barre de progression -->
+  <div style="background:linear-gradient(135deg,#1D4ED8,#1E40AF);color:#fff;padding:2rem 1rem 2.5rem;text-align:center;border-radius:0 0 2rem 2rem">
+    <h2 style="font-size:22px;font-weight:700">Accès à votre épreuve</h2>
+    <p style="opacity:0.8;font-size:14px;margin-top:6px" id="sel-hero-sub">7 étapes pour accéder à votre composition</p>
+    <div style="max-width:480px;margin:1.5rem auto 0;background:rgba(255,255,255,.2);border-radius:99px;height:6px">
+      <div id="sel-progress" style="background:#fff;border-radius:99px;height:6px;width:14%;transition:width .4s ease"></div>
+    </div>
+    <div id="sel-breadcrumb" style="font-size:11px;opacity:0.75;margin-top:10px;min-height:16px"></div>
+  </div>
+
+  <div style="max-width:560px;margin:-1rem auto 2rem;padding:0 1rem">
+
+    <!-- Indicateurs 7 étapes -->
+    <div style="display:flex;justify-content:center;align-items:center;gap:6px;margin-bottom:2rem">
+      <div><div class="step-dot active" id="sel-s1">1</div></div>
+      <div style="width:25px;height:2px;background:#CBD5E1;border-radius:2px"></div>
+      <div><div class="step-dot" id="sel-s2">2</div></div>
+      <div style="width:25px;height:2px;background:#CBD5E1;border-radius:2px"></div>
+      <div><div class="step-dot" id="sel-s3">3</div></div>
+      <div style="width:25px;height:2px;background:#CBD5E1;border-radius:2px"></div>
+      <div><div class="step-dot" id="sel-s4">4</div></div>
+      <div style="width:25px;height:2px;background:#CBD5E1;border-radius:2px"></div>
+      <div><div class="step-dot" id="sel-s5">5</div></div>
+      <div style="width:25px;height:2px;background:#CBD5E1;border-radius:2px"></div>
+      <div><div class="step-dot" id="sel-s6">6</div></div>
+      <div style="width:25px;height:2px;background:#CBD5E1;border-radius:2px"></div>
+      <div><div class="step-dot" id="sel-s7">7</div></div>
+    </div>
+
+    <!-- Étape 1 : Université -->
+    <div id="sel-step1" style="background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08);display:block">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div style="width:48px;height:48px;border-radius:14px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-size:24px">🏛️</div>
+        <div><div style="font-weight:700;font-size:18px">Votre université</div><div style="font-size:13px;color:#64748B">Étape 1 sur 7</div></div>
       </div>
-      <div class="card">
-        <div class="card-title">Identification de l'étudiant</div>
-        <div id="cand-code-zone" style="display:none" class="field">
-          <label class="lbl">Code d'accès à l'examen</label>
-          <input type="password" id="cand-code-input" placeholder="Code fourni par le responsable">
-        </div>
-        <div id="cand-err" class="alert alert-danger" style="display:none"></div>
-        <div class="field">
-          <label class="lbl">Nom de famille *</label>
-          <input id="cand-nom" placeholder="Saisir votre nom..." oninput="onNomInput(this.value)" autocomplete="off" style="text-transform:uppercase">
-          <div id="nom-suggestions"></div>
-        </div>
-        <div id="cand-preview" style="display:none">
-          <div class="alert alert-success">✓ Étudiant trouvé. Vérifiez vos informations avant de valider.</div>
-          <div style="background:var(--gray-light);border-radius:var(--radius);padding:14px;margin-bottom:14px">
-            <table style="width:100%;font-size:13px;border-collapse:collapse">
-              <tr><td style="color:var(--text-muted);padding:3px 0;width:130px">Matricule</td><td id="pv-mat" style="font-weight:600"></td></tr>
-              <tr><td style="color:var(--text-muted);padding:3px 0">Nom complet</td><td id="pv-nom" style="font-weight:600"></td></tr>
-              <tr><td style="color:var(--text-muted);padding:3px 0">Date naissance</td><td id="pv-ddn"></td></tr>
-              <tr><td style="color:var(--text-muted);padding:3px 0">Filière</td><td id="pv-fil"></td></tr>
-              <tr><td style="color:var(--text-muted);padding:3px 0">Email</td><td id="pv-mail" style="color:var(--blue)"></td></tr>
-            </table>
-          </div>
-        </div>
-        <button class="btn btn-primary" style="width:100%" id="btn-valider-id" onclick="validerIdentite()" disabled>Valider et accéder à l'épreuve →</button>
+      <div id="sel-univ-list"><div style="text-align:center;padding:2rem;color:#6B7280">⏳ Chargement...</div></div>
+    </div>
+
+    <!-- Étape 2 : Entité -->
+    <div id="sel-step2" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="selGoBack(1)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+        <div style="width:48px;height:48px;border-radius:14px;background:#F3E8FF;display:flex;align-items:center;justify-content:center;font-size:24px">🏫</div>
+        <div><div style="font-weight:700;font-size:18px">Votre entité</div><div style="font-size:13px;color:#64748B">Étape 2 sur 7</div></div>
       </div>
+      <div id="sel-entite-list"></div>
+    </div>
+
+    <!-- Étape 3 : Département -->
+    <div id="sel-step3" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="selGoBack(2)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+        <div style="width:48px;height:48px;border-radius:14px;background:#ECFDF5;display:flex;align-items:center;justify-content:center;font-size:24px">🏗️</div>
+        <div><div style="font-weight:700;font-size:18px">Votre département</div><div style="font-size:13px;color:#64748B">Étape 3 sur 7</div></div>
+      </div>
+      <div id="sel-dept-list"></div>
+    </div>
+
+    <!-- Étape 4 : Niveau -->
+    <div id="sel-step4" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="selGoBack(3)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+        <div style="width:48px;height:48px;border-radius:14px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;font-size:24px">📚</div>
+        <div><div style="font-weight:700;font-size:18px">Votre niveau</div><div style="font-size:13px;color:#64748B">Étape 4 sur 7</div></div>
+      </div>
+      <div id="sel-niveau-list"></div>
+    </div>
+
+    <!-- Étape 5 : Filière -->
+    <div id="sel-step5" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="selGoBack(4)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+        <div style="width:48px;height:48px;border-radius:14px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:24px">🎓</div>
+        <div><div style="font-weight:700;font-size:18px">Votre filière</div><div style="font-size:13px;color:#64748B">Étape 5 sur 7</div></div>
+      </div>
+      <div id="sel-filiere-list"></div>
+    </div>
+
+    <!-- Étape 6 : Matière -->
+    <div id="sel-step6" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="selGoBack(5)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+        <div style="width:48px;height:48px;border-radius:14px;background:#FFE4E6;display:flex;align-items:center;justify-content:center;font-size:24px">📋</div>
+        <div><div style="font-weight:700;font-size:18px">Votre matière</div><div style="font-size:13px;color:#64748B">Étape 6 sur 7</div></div>
+      </div>
+      <div id="sel-matiere-list"></div>
+    </div>
+
+    <!-- Étape 7 : Identification -->
+    <div id="sel-step7" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="selGoBack(6)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+        <div style="width:48px;height:48px;border-radius:14px;background:#FCE7F3;display:flex;align-items:center;justify-content:center;font-size:24px">👤</div>
+        <div><div style="font-weight:700;font-size:18px">Votre identité</div><div style="font-size:13px;color:#64748B">Étape 7 sur 7</div></div>
+      </div>
+      <div id="sel-exam-info" style="background:#EFF6FF;border-radius:10px;padding:12px 16px;font-size:13px;color:#1E40AF;margin-bottom:16px;display:none"></div>
+      <div id="cand-err-sel" class="alert alert-danger" style="display:none"></div>
+      <div style="position:relative;margin-bottom:16px">
+        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:18px">🔍</span>
+        <input id="cand-nom-sel" placeholder="Tapez les premières lettres de votre nom" autocomplete="off" style="text-transform:uppercase;width:100%;padding:14px 14px 14px 44px;border:2px solid #E5E7EB;border-radius:14px;font-size:15px;outline:none">
+        <div id="nom-suggestions-sel" style="margin-top:6px"></div>
+      </div>
+      <div id="cand-preview-sel" style="display:none;background:linear-gradient(135deg,#F0FDF4,#ECFDF5);border:1.5px solid #6EE7B7;border-radius:16px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div style="width:36px;height:36px;background:#10B981;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff">✓</div>
+          <div style="font-weight:600;color:#065F46">Étudiant trouvé — vérifiez vos informations</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:#fff;border-radius:10px;padding:10px"><div style="font-size:10px;color:#64748B">Matricule</div><div id="pv-mat-sel" style="font-weight:700;color:#1D4ED8"></div></div>
+          <div style="background:#fff;border-radius:10px;padding:10px"><div style="font-size:10px;color:#64748B">Filière</div><div id="pv-fil-sel" style="font-weight:700"></div></div>
+          <div style="background:#fff;border-radius:10px;padding:10px;grid-column:1/-1"><div style="font-size:10px;color:#64748B">Nom complet</div><div id="pv-nom-sel" style="font-weight:700"></div></div>
+          <div style="background:#fff;border-radius:10px;padding:10px;grid-column:1/-1"><div style="font-size:10px;color:#64748B">Email</div><div id="pv-mail-sel" style="color:#1D4ED8"></div></div>
+        </div>
+      </div>
+      <div id="email-verif-notice" style="display:none;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:13px;color:#92400E;margin-bottom:16px">📧 Un lien de vérification va être envoyé à votre email.</div>
+      <button style="background:#1D4ED8;color:#fff;border:none;padding:14px;border-radius:14px;width:100%;font-weight:600;font-size:16px;cursor:pointer" id="btn-valider-sel" onclick="validerIdentiteSel()" disabled>✓ Valider et accéder à l'épreuve</button>
+    </div>
+
+    <!-- Email envoyé -->
+    <div id="sel-step-email" style="display:none;background:#fff;border-radius:20px;padding:32px 24px;box-shadow:0 8px 24px rgba(0,0,0,.08);text-align:center">
+      <div style="width:80px;height:80px;background:#EFF6FF;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 20px">📧</div>
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:8px">Email envoyé !</h3>
+      <p style="color:#64748B;font-size:14px;margin-bottom:20px">Un lien de composition a été envoyé à votre adresse email.<br>Cliquez dessus pour démarrer l'examen.</p>
+      <div style="background:#F0FDF4;border-radius:12px;padding:14px;margin-bottom:20px;font-size:13px;color:#065F46;text-align:left">
+        <strong>📌 Pas reçu ?</strong><br>• Vérifiez vos spams<br>• Contactez votre responsable d'examen
+      </div>
+      <button class="btn btn-ghost" onclick="goTo('pg-home')" style="padding:12px 24px;background:transparent;border:1px solid #E5E7EB;border-radius:12px;cursor:pointer">← Retour à l'accueil</button>
     </div>
   </div>
 </div>
+
+<style>
+.step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid #CBD5E1;
+  background: #fff;
+  color: #94A3B8;
+}
+.step-dot.active {
+  background: #1D4ED8;
+  border-color: #1D4ED8;
+  color: #fff;
+}
+.step-dot.done {
+  background: #10B981;
+  border-color: #10B981;
+  color: #fff;
+}
+.option-card {
+  background: #F8FAFC;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all .2s;
+}
+.option-card:hover {
+  background: #fff;
+  border-color: #1D4ED8;
+  transform: translateX(4px);
+}
+.option-card.selected {
+  background: #EFF6FF;
+  border-color: #1D4ED8;
+}
+.option-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.option-desc {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 4px;
+}
+.input-field:focus {
+  border-color: #1D4ED8;
+  outline: none;
+}
+</style>
 
 <!-- ÉPREUVE -->
 <div id="pg-epreuve" class="page">
@@ -706,6 +1141,125 @@ create policy "admin_all_copies" on copies for all using (true);
   </div>
 </div>
 
+<!-- ══ CRÉER COMPTE ENSEIGNANT ══ -->
+<div id="pg-create-account" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> Créer un compte</div>
+    <button class="btn btn-ghost btn-sm" onclick="goTo('pg-admin-login')">← Retour</button>
+  </div>
+  <div class="container">
+    <div style="max-width:420px;margin:2rem auto">
+      <div class="card">
+        <div class="card-title" style="font-size:17px">📝 Inscription Enseignant</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Votre compte sera activé après validation par le super administrateur.</p>
+        <div id="create-err" class="alert alert-danger" style="display:none"></div>
+        <div id="create-ok" class="alert alert-success" style="display:none"></div>
+        <div class="field"><label class="lbl">Identifiant *</label>
+          <input type="text" id="reg-identifiant" autocomplete="off">
+        </div>
+        <div class="field"><label class="lbl">Nom complet *</label>
+          <input type="text" id="reg-nom" placeholder=>
+        </div>
+        <div class="field"><label class="lbl">Email *</label>
+          <input type="email" id="reg-email" placeholder=>
+        </div>
+        <div class="field"><label class="lbl">Mot de passe * (min 8 caractères)</label>
+          <input type="password" id="reg-pwd">
+        </div>
+        <div class="field"><label class="lbl">Confirmer le mot de passe *</label>
+          <input type="password" id="reg-pwd2">
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="createAccount()">Créer mon compte</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RESET MOT DE PASSE ══ -->
+<div id="pg-reset-pwd" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> Réinitialisation</div>
+    <button class="btn btn-ghost btn-sm" onclick="goTo('pg-admin-login')">← Retour</button>
+  </div>
+  <div class="container">
+    <div style="max-width:380px;margin:3rem auto">
+      <div class="card">
+        <div class="card-title">🔑 Mot de passe oublié</div>
+        <div id="reset-err" class="alert alert-danger" style="display:none"></div>
+        <div id="reset-ok" class="alert alert-success" style="display:none"></div>
+        <div id="reset-step1">
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Entrez votre identifiant ou email pour recevoir un code de réinitialisation.</p>
+          <div class="field"><label class="lbl">Identifiant ou Email</label>
+            <input type="text" id="reset-identifiant" placeholder="Votre identifiant ou email">
+          </div>
+          <button class="btn btn-primary" style="width:100%" onclick="requestPasswordReset()">Envoyer le code</button>
+        </div>
+        <div id="reset-step2" style="display:none">
+          <div class="field"><label class="lbl">Code reçu par email</label>
+            <input type="text" id="reset-code" placeholder="123456" maxlength="6">
+          </div>
+          <div class="field"><label class="lbl">Nouveau mot de passe</label>
+            <input type="password" id="reset-newpwd">
+          </div>
+          <button class="btn btn-primary" style="width:100%" onclick="confirmPasswordReset()">Réinitialiser</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUPER ADMIN ══ -->
+<div id="pg-superadmin" class="page">
+  <div class="topbar">
+    <div class="topbar-logo"><span>EP</span> Super Administration</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="background:#7C3AED;color:#fff;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700">👑 Super Admin</span>
+      <button class="btn btn-ghost btn-sm" onclick="adminLogout()">Déconnexion</button>
+    </div>
+  </div>
+  <div class="container-wide">
+    <div style="background:linear-gradient(135deg,#1e1b4b,#312e81);color:#fff;border-radius:var(--radius-xl);padding:24px;margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:4px">Tableau de bord Super Administration</h2>
+      <p style="opacity:.75;font-size:14px">Gestion globale de la plateforme ExamPlatform</p>
+      <div id="sa-stats-top" class="grid-4" style="margin-top:16px"></div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTabSA(this,'sa-tab-comptes')">👥 Comptes enseignants</button>
+      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-universites')">🏛️ Universités &amp; Entités</button>
+      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-niveaux')">📚 Niveaux</button>
+      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-activity')">📈 Activité</button>
+    </div>
+    <div id="sa-tab-comptes" class="admin-tab">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:var(--blue);color:#fff;border-color:var(--blue)" id="sa-fil-all" onclick="saFilterAdmins('all',this)">Tous</button>
+        <button class="btn btn-sm" id="sa-fil-pending" onclick="saFilterAdmins('pending',this)">⏳ En attente</button>
+        <button class="btn btn-sm" id="sa-fil-active" onclick="saFilterAdmins('active',this)">✅ Actifs</button>
+      </div>
+      <div id="sa-comptes-list"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+    <div id="sa-tab-universites" class="admin-tab" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
+        <div class="section-title" style="margin:0">Universités &amp; Entités</div>
+        <button class="btn btn-primary btn-sm" onclick="saShowAddUniversite()">+ Ajouter université</button>
+      </div>
+      <div id="sa-universites-list"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+    <div id="sa-tab-niveaux" class="admin-tab" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
+        <div class="section-title" style="margin:0">Niveaux d'études</div>
+        <button class="btn btn-primary btn-sm" onclick="saAddNiveau()">+ Ajouter niveau</button>
+      </div>
+      <div id="sa-niveaux-list"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+    <div id="sa-tab-activity" class="admin-tab" style="display:none">
+      <div class="section-title">Activité récente</div>
+      <div id="sa-activity-list"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+  </div>
+</div>
+
+
+
 <script>
 // ════════════════════════════════════════
 // SUPABASE CLIENT
@@ -800,24 +1354,15 @@ function copySQL() {
 // ════════════════════════════════════════
 async function initApp() {
   try {
-    await loadConfig();
-    await loadCandidats();
-    await loadQuestions();
-    const statut = CFG.statut || 'ferme';
-    const statusEl = document.getElementById('home-exam-status');
-    const subtitle = document.getElementById('home-subtitle');
-    subtitle.textContent = CFG.matiere ? CFG.matiere + ' — ' + (CFG.annee||'') : 'Examen universitaire';
-    statusEl.style.display = 'block';
-    if (statut === 'ouvert') {
-      statusEl.className = 'exam-status-banner exam-open';
-      statusEl.textContent = '✅ Examen ouvert — Les étudiants peuvent composer';
-    } else {
-      statusEl.className = 'exam-status-banner exam-closed';
-      statusEl.textContent = '🔒 Examen fermé — Accès étudiants désactivé';
-    }
-    document.getElementById('home-db-status').innerHTML = `<span class="status-dot green"></span>Connecté à Supabase — ${CANDIDATS.length} étudiants — ${QUESTIONS.length} questions`;
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get("token");
+    if (token) { await handleTokenAccess(token); return; }
+    await sbFetch("admins?select=id&limit=1");
+    const dbStatus = document.getElementById("home-db-status");
+    if (dbStatus) dbStatus.innerHTML = "<span class=\"status-dot green\"></span>Connecté à Supabase";
   } catch(e) {
-    document.getElementById('home-db-status').innerHTML = `<span class="status-dot red"></span>Erreur: ${e.message}`;
+    const dbStatus = document.getElementById("home-db-status");
+    if (dbStatus) dbStatus.innerHTML = "<span class=\"status-dot red\"></span>Erreur: " + e.message;
   }
 }
 
@@ -875,64 +1420,15 @@ function switchTab(btn, tabId) {
 // ════════════════════════════════════════
 // ADMIN
 // ════════════════════════════════════════
-async function doAdminLogin() {
-  const pwd = document.getElementById('admin-pwd').value;
-  await loadConfig();
-  if (pwd === (CFG.pwd_admin || 'admin123')) {
-    document.getElementById('admin-err').style.display = 'none';
-    document.getElementById('admin-pwd').value = '';
-    adminAuth = true;
-    loadConfigForm();
-    goTo('pg-admin');
-    renderCandidatsTable();
-  } else {
-    document.getElementById('admin-err').textContent = 'Mot de passe incorrect.';
-    document.getElementById('admin-err').style.display = 'flex';
-  }
-}
+async function doAdminLogin() { await doAdminLoginNew(); }
 
-function adminLogout() { adminAuth = false; goTo('pg-home'); }
+function adminLogout() { adminLogoutNew(); }
 
-function loadConfigForm() {
-  const map = { ecole:'c-ecole', institut:'c-institut', matiere:'c-matiere', niveau:'c-niveau',
-    annee:'c-annee', date_exam:'c-date', heure:'c-heure', duree:'c-duree', session:'c-session',
-    bareme:'c-bareme', consigne:'c-consigne', enseignant:'c-enseignant', pwd_admin:'c-pwd-admin', pwd_candidat:'c-pwd-candidat' };
-  Object.entries(map).forEach(([k,id]) => { const el=document.getElementById(id); if(el&&CFG[k]!=null) el.value=CFG[k]; });
-  const statEl = document.getElementById('current-statut');
-  if (statEl) {
-    statEl.textContent = CFG.statut === 'ouvert' ? '🟢 Examen OUVERT' : '🔴 Examen FERMÉ';
-    statEl.className = CFG.statut === 'ouvert' ? 'badge badge-green' : 'badge badge-red';
-    statEl.style.cssText += ';font-size:13px;padding:6px 14px';
-  }
-}
+function loadConfigForm() { loadConfigFormNew(); }
 
-async function saveConfig() {
-  const data = {
-    ecole: v('c-ecole'), institut: v('c-institut'), matiere: v('c-matiere'),
-    niveau: v('c-niveau'), annee: v('c-annee'), date_exam: v('c-date'),
-    heure: v('c-heure'), duree: parseInt(v('c-duree'))||90,
-    session: v('c-session'), bareme: parseInt(v('c-bareme'))||20,
-    consigne: v('c-consigne'),
-    enseignant: v('c-enseignant'),
-    pwd_admin: v('c-pwd-admin')||'admin123',
-    pwd_candidat: v('c-pwd-candidat'),
-    statut: CFG.statut || 'ferme'
-  };
-  try {
-    await DB.upsert('exam_config', { id:'main', ...data });
-    Object.assign(CFG, data);
-    toast('Configuration enregistrée', 'success');
-  } catch(e) { toast('Erreur: '+e.message, 'error'); }
-}
+async function saveConfig() { await saveConfigNew(); }
 
-async function setExamStatut(statut) {
-  try {
-    await DB.update('exam_config', 'id=eq.main', { statut });
-    CFG.statut = statut;
-    loadConfigForm();
-    toast(statut==='ouvert' ? '✅ Examen ouvert' : '🔒 Examen fermé', statut==='ouvert'?'success':'warn');
-  } catch(e) { toast('Erreur: '+e.message, 'error'); }
-}
+async function setExamStatut(statut) { await setExamStatutNew(statut); }
 
 // ════════════════════════════════════════
 // QUESTIONS BUILDER
@@ -1090,7 +1586,7 @@ function removeQuestion(qi) {
 async function saveQuestions() {
   try {
     // Étape 1 : récupérer tous les IDs de questions existantes
-    const existingQs = await DB.select('questions', 'select=id').catch(()=>[]) || [];
+    const existingQs = await DB.select('questions', (currentAdmin?'admin_id=eq.'+currentAdmin.id+'&':'')+'select=id').catch(()=>[]) || [];
 
     // Étape 2 : supprimer toutes les sous-questions existantes une par une
     for (const eq of existingQs) {
@@ -1108,7 +1604,8 @@ async function saveQuestions() {
         obligatoire: q.obligatoire!==false,
         ordre: q.ordre||q.num-1,
         image_url: q.image_url||'',
-        html_content: q.html_content||''
+        html_content: q.html_content||'',
+        admin_id: currentAdmin ? currentAdmin.id : null
       });
       for (const sq of (q.sousQuestions||[])) {
         await DB.upsert('sous_questions', {
@@ -1173,7 +1670,7 @@ function filterFiliere(f, btn) {
 }
 
 async function renderCandidatsTable() {
-  await loadCandidats();
+  if (currentAdmin) CANDIDATS = await DB.select('candidats','admin_id=eq.'+currentAdmin.id+'&order=nom.asc') || [];
   const copies = await DB.select('copies','select=matricule').catch(()=>[]) || [];
   const deposes = new Set(copies.map(c=>c.matricule));
   const wrap = document.getElementById('candidats-table-wrap');
@@ -1249,7 +1746,7 @@ async function parseCandidatsExcel(input) {
       let count = 0;
       for (const row of unique) {
         try {
-          await DB.upsert('candidats', row, 'matricule');
+          await DB.upsert('candidats', { ...row, admin_id: currentAdmin ? currentAdmin.id : null }, 'matricule');
           count++;
         } catch(err) {
           console.warn('Skip matricule '+row.matricule+':', err.message);
@@ -1285,25 +1782,7 @@ function downloadCandidatsTemplate() {
 // ════════════════════════════════════════
 // COMPOSITION — LOGIN
 // ════════════════════════════════════════
-async function enterComposition() {
-  await loadConfig();
-  if (CFG.statut !== 'ouvert') {
-    openModal('Examen fermé', "L'examen n'est pas encore ouvert ou est terminé.\nContactez votre responsable.", ()=>closeModal(), null, 'OK');
-    document.getElementById('modal-ok').onclick = closeModal;
-    return;
-  }
-  await loadCandidats();
-  await loadQuestions();
-  const candCodeZone = document.getElementById('cand-code-zone');
-  candCodeZone.style.display = (CFG.pwd_candidat && CFG.pwd_candidat.trim()) ? 'block' : 'none';
-  currentCandidat = null;
-  document.getElementById('cand-nom').value = '';
-  document.getElementById('nom-suggestions').innerHTML = '';
-  document.getElementById('cand-preview').style.display = 'none';
-  document.getElementById('btn-valider-id').disabled = true;
-  document.getElementById('cand-err').style.display = 'none';
-  goTo('pg-candidat-login');
-}
+async function enterComposition() { initSelectionPage(); goTo("pg-candidat-select"); }
 
 function onNomInput(val) {
   val = val.trim().toUpperCase();
@@ -1400,7 +1879,7 @@ function buildExamHeader(c) {
   return `<div class="exam-header-box">
     <div class="exam-header-top" style="grid-template-columns:80px 1fr 80px;align-items:center;gap:8px">
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-        <img src="${LOGO_UAC_B64}" alt="UAC" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">
+        <img src="${_lgG}" alt="Logo" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">
         <span style="font-size:9px;font-weight:700;letter-spacing:.5px;opacity:.95">UAC</span>
       </div>
       <div class="center">
@@ -1409,7 +1888,7 @@ function buildExamHeader(c) {
         <span style="font-size:10px;font-weight:400;opacity:.85">UAC — INE</span>
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-        <img src="${LOGO_INE_B64}" alt="INE" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">
+        <img src="${_lgD}" alt="Logo" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">
         <span style="font-size:9px;font-weight:700;letter-spacing:.5px;opacity:.95">INE</span>
       </div>
     </div>
@@ -1481,7 +1960,8 @@ async function deposerCopie() {
       matricule: currentCandidat.matricule,
       reponses: repCand,
       note_brute: sur20,
-      note_sur_bareme: sur20
+      note_sur_bareme: sur20,
+      admin_id: selAdminId || (currentAdmin ? currentAdmin.id : null)
     });
     document.getElementById('res-note').innerHTML = `${sur20.toFixed(2)}<span style="font-size:32px;color:var(--text-muted);font-weight:400">/${CFG.bareme||20}</span>`;
     document.getElementById('res-mention').textContent = getMention(sur20);
@@ -1636,7 +2116,7 @@ function renderResultatsTable() {
 // EXPORTS
 // ════════════════════════════════════════
 async function ensureData() {
-  if (!COPIES.length) COPIES = await DB.select('copies','order=date_depot.asc').catch(()=>[]) || [];
+  if (!COPIES.length) COPIES = await DB.select('copies',(currentAdmin?'admin_id=eq.'+currentAdmin.id+'&':'')+'order=date_depot.asc').catch(()=>[]) || [];
   if (!CANDIDATS.length) await loadCandidats();
   if (!QUESTIONS.length) await loadQuestions();
 }
@@ -2043,8 +2523,8 @@ async function preloadLogos() {
       img.src = b64;
     });
   }
-  window._LOGO_UAC_CLIPPED = await clipToCircle(LOGO_UAC_B64);
-  window._LOGO_INE_CLIPPED = await clipToCircle(LOGO_INE_B64);
+  window._LOGO_UAC_CLIPPED = await clipToCircle(getLogoGauche());
+  window._LOGO_INE_CLIPPED = await clipToCircle(getLogoDroite());
 }
 
 async function preloadQuestionImages() {
@@ -2422,21 +2902,35 @@ document.addEventListener('keydown',e=>{
 // ════════════════════════════════════════
 // ANTI-TRICHE — Plein écran uniquement
 // ════════════════════════════════════════
-let anticheatActive = false;
-let acHiddenTimer   = null;
-let acHiddenStart   = null;
-const AC_GRACE_MS   = 45000;
+let anticheatActive  = false;
+let acHiddenTimer    = null;
+let acHiddenStart    = null;
+let acInfractions    = 0;         // compteur infractions mobiles
+const AC_GRACE_MS    = 45000;     // 45s avant dépôt forcé
+const AC_MOBILE      = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function activerAntiTriche() {
   anticheatActive = true;
+  acInfractions   = 0;
   requestFullscreenSilent();
+
+  // ── PC : fullscreen + clavier
   document.addEventListener('fullscreenchange',       _acFS);
   document.addEventListener('webkitfullscreenchange', _acFS);
-  document.addEventListener('visibilitychange',       _acVisibility);
-  window.addEventListener('blur',                     _acBlur);
   document.addEventListener('keydown',                _acKeydown, true);
+
+  // ── PC + Mobile : visibilitychange (le plus fiable)
+  document.addEventListener('visibilitychange',       _acVisibility);
+
+  // ── PC : blur fenêtre (alt+tab)
+  window.addEventListener('blur',                     _acBlur);
+
+  // ── Mobile : pagehide/pageshow (home button, changement d'app)
   window.addEventListener('pagehide',                 _acPageHide);
   window.addEventListener('pageshow',                 _acPageShow);
+
+  // ── Mobile : focus retrouvé (reprise après changement d'app)
+  window.addEventListener('focus',                    _acFocus);
 }
 
 function desactiverAntiTriche() {
@@ -2444,110 +2938,1154 @@ function desactiverAntiTriche() {
   _acClearTimer();
   document.removeEventListener('fullscreenchange',       _acFS);
   document.removeEventListener('webkitfullscreenchange', _acFS);
+  document.removeEventListener('keydown',                _acKeydown, true);
   document.removeEventListener('visibilitychange',       _acVisibility);
   window.removeEventListener('blur',                     _acBlur);
-  document.removeEventListener('keydown',                _acKeydown, true);
   window.removeEventListener('pagehide',                 _acPageHide);
   window.removeEventListener('pageshow',                 _acPageShow);
+  window.removeEventListener('focus',                    _acFocus);
   exitFullscreen();
 }
 
+// ── Clavier (PC uniquement — bloque raccourcis dangereux)
 function _acKeydown(e) {
   if (!anticheatActive) return;
   const k = e.key; const ctrl = e.ctrlKey||e.metaKey; const alt = e.altKey;
   if (k==='Escape'||k==='F11') { e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (ctrl&&['t','n','w'].includes(k.toLowerCase())) { e.preventDefault(); e.stopImmediatePropagation(); return; }
-  if (alt&&(k==='F4'||k==='Tab')) { e.preventDefault(); e.stopImmediatePropagation(); return; }
-  if (k==='F12') { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (alt&&(k==='F4'||k==='Tab'))   { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (k==='F12')                    { e.preventDefault(); e.stopImmediatePropagation(); return; }
   if (ctrl&&e.shiftKey&&['i','j','c'].includes(k.toLowerCase())) { e.preventDefault(); e.stopImmediatePropagation(); return; }
 }
 
+// ── Plein écran quitté (PC)
 function _acFS() {
   if (!anticheatActive) return;
   if (!(document.fullscreenElement||document.webkitFullscreenElement)) {
     _acShowOverlay('Sortie du plein écran détectée — revenez sur cette page !');
     setTimeout(requestFullscreenSilent, 600);
-    _acStartTimer();
-  } else { _acClearTimer(); }
+    _acStartTimer('fullscreen');
+  } else {
+    _acClearTimer();
+  }
 }
 
+// ── Changement visibilité (PC + Mobile — PRINCIPAL détecteur mobile)
 function _acVisibility() {
   if (!anticheatActive) return;
-  if (document.hidden) {
-    _acShowOverlay("Changement d'onglet détecté — revenez sur cette page !");
-    _acStartTimer();
-  } else { _acClearTimer(); document.getElementById('anticheat-overlay').style.display='none'; requestFullscreenSilent(); }
+  if (document.hidden || document.visibilityState === 'hidden') {
+    // Page masquée → démarrer décompte immédiatement
+    const msg = AC_MOBILE
+      ? "Application mise en arrière-plan — revenez sur l'examen !"
+      : "Changement d'onglet détecté — revenez sur cette page !";
+    _acShowOverlay(msg);
+    _acStartTimer('visibility');
+  } else {
+    // Page revenue au premier plan
+    // Sur mobile : ne PAS annuler si le timer a déjà expiré (dépôt en cours)
+    if (!acHiddenTimer && !anticheatActive) return; // dépôt déjà lancé
+    if (acHiddenStart) {
+      // Enregistrer l'infraction même si l'étudiant revient
+      acInfractions++;
+    }
+    _acClearTimer();
+    document.getElementById('anticheat-overlay').style.display = 'none';
+    if (!AC_MOBILE) requestFullscreenSilent();
+  }
 }
 
+// ── Perte focus fenêtre (PC : alt+tab)
 function _acBlur() {
-  if (!anticheatActive) return;
-  setTimeout(()=>{
+  if (!anticheatActive || AC_MOBILE) return;
+  // Délai 100ms pour ignorer les faux positifs (boîtes de dialogue)
+  setTimeout(() => {
     if (!anticheatActive) return;
-    if (!document.hasFocus()) { _acShowOverlay('Fenêtre inactive — revenez sur cette page !'); _acStartTimer(); }
-  }, 200);
+    if (!document.hasFocus() && !document.hidden) {
+      _acShowOverlay('Fenêtre inactive — revenez sur cette page !');
+      _acStartTimer('blur');
+    }
+  }, 100);
 }
 
-function _acPageHide() { if (anticheatActive) _acStartTimer(); }
-function _acPageShow()  { if (anticheatActive) _acClearTimer(); }
+// ── Mobile : app mise en arrière-plan (pagehide)
+function _acPageHide(e) {
+  if (!anticheatActive) return;
+  // Ne pas lancer si visibilitychange l'a déjà fait
+  if (!acHiddenTimer) {
+    _acShowOverlay("Application mise en arrière-plan — revenez sur l'examen !");
+    _acStartTimer('pagehide');
+  }
+}
 
-function _acStartTimer() {
-  if (acHiddenTimer) return;
+// ── Mobile : app revenue (pageshow)
+function _acPageShow(e) {
+  if (!anticheatActive) return;
+  // pageshow se déclenche aussi au chargement initial → ignorer si pas de timer actif
+  if (acHiddenTimer) {
+    acInfractions++;
+    _acClearTimer();
+    document.getElementById('anticheat-overlay').style.display = 'none';
+  }
+}
+
+// ── Mobile : focus retrouvé (complément de blur)
+function _acFocus() {
+  if (!anticheatActive) return;
+  if (acHiddenTimer) {
+    acInfractions++;
+    _acClearTimer();
+    document.getElementById('anticheat-overlay').style.display = 'none';
+    if (!AC_MOBILE) requestFullscreenSilent();
+  }
+}
+
+// ── Démarrer le décompte
+function _acStartTimer(source) {
+  if (acHiddenTimer) return; // déjà en cours
   acHiddenStart = Date.now();
   _acUpdateCountdown();
-  acHiddenTimer = setInterval(()=>{
-    const elapsed = Date.now()-acHiddenStart;
-    const restant = Math.max(0, AC_GRACE_MS-elapsed);
+  acHiddenTimer = setInterval(() => {
+    if (!anticheatActive) { _acClearTimer(); return; }
+    const elapsed = Date.now() - acHiddenStart;
+    const restant = Math.max(0, AC_GRACE_MS - elapsed);
     _acUpdateCountdown(restant);
-    if (elapsed>=AC_GRACE_MS) {
+    if (elapsed >= AC_GRACE_MS) {
       _acClearTimer();
-      document.getElementById('anticheat-overlay').style.display='none';
-      toast('Copie déposée automatiquement : absence trop longue.','warn');
+      document.getElementById('anticheat-overlay').style.display = 'none';
+      toast('Copie déposée automatiquement : absence trop longue.', 'warn');
       deposerCopie();
     }
   }, 500);
 }
 
+// ── Annuler le décompte
 function _acClearTimer() {
-  if (acHiddenTimer) { clearInterval(acHiddenTimer); acHiddenTimer=null; }
+  if (acHiddenTimer) { clearInterval(acHiddenTimer); acHiddenTimer = null; }
   acHiddenStart = null;
   const cd = document.getElementById('anticheat-countdown');
-  if (cd) cd.textContent='';
+  if (cd) cd.textContent = '';
 }
 
+// ── Mettre à jour le décompte affiché
 function _acUpdateCountdown(ms) {
   const cd = document.getElementById('anticheat-countdown');
   if (!cd) return;
-  if (ms===undefined) {
-    cd.textContent='Dépôt automatique dans '+(AC_GRACE_MS/1000)+'s si vous ne revenez pas.';
+  if (ms === undefined) {
+    cd.textContent = 'Dépôt automatique dans ' + (AC_GRACE_MS/1000) + 's si vous ne revenez pas.';
   } else {
-    const s = Math.ceil(ms/1000);
-    cd.textContent = s>0?'Dépôt automatique dans '+s+'s...':'Dépôt en cours...';
+    const s = Math.ceil(ms / 1000);
+    cd.textContent = s > 0 ? 'Dépôt automatique dans ' + s + 's...' : 'Dépôt en cours...';
   }
 }
 
+// ── Afficher l'overlay
 function _acShowOverlay(msg) {
-  const ov=document.getElementById('anticheat-overlay');
-  const el=document.getElementById('anticheat-msg');
-  if (el) el.textContent=msg;
-  ov.style.display='flex';
+  const ov = document.getElementById('anticheat-overlay');
+  const el = document.getElementById('anticheat-msg');
+  if (el) el.textContent = msg;
+  ov.style.display = 'flex';
 }
 
 function showAvertissement() { _acShowOverlay('Sortie du plein écran détectée'); }
 
 function fermerAvertissement() {
-  _acClearTimer();
-  document.getElementById('anticheat-overlay').style.display='none';
-  requestFullscreenSilent();
+  // Sur mobile : permettre de fermer l'overlay sans refuser le plein écran
+  if (acHiddenTimer) {
+    // Timer encore actif → l'étudiant est revenu
+    acInfractions++;
+    _acClearTimer();
+  }
+  document.getElementById('anticheat-overlay').style.display = 'none';
+  if (!AC_MOBILE) requestFullscreenSilent();
 }
 
 function requestFullscreenSilent() {
-  try { const el=document.documentElement; if(el.requestFullscreen)el.requestFullscreen().catch(()=>{}); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); } catch(e) {}
+  if (AC_MOBILE) return; // plein écran non disponible sur mobile
+  try {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } catch(e) {}
 }
 
 function exitFullscreen() {
-  try { if(document.exitFullscreen)document.exitFullscreen().catch(()=>{}); else if(document.webkitExitFullscreen)document.webkitExitFullscreen(); } catch(e) {}
+  try {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } catch(e) {}
 }
 
+// ════════════════════════════════════════
+// MULTI-ADMIN — NEW STATE VARIABLES
+// ════════════════════════════════════════
+let currentAdmin    = null;   // { id, identifiant, nom, role }
+let selUniversite = null;
+let selEntite = null;
+let selDepartement = null;  // ← NOUVEAU
+let selNiveau = null;
+let selFiliere = null;
+let selAdminId = null;
+let LOGO_GAUCHE_B64 = null;
+let LOGO_DROITE_B64 = null;
+
+// ── Logo helpers
+function getLogoGauche() { return LOGO_GAUCHE_B64 || LOGO_UAC_B64; }
+function getLogoDroite()  { return LOGO_DROITE_B64 || LOGO_INE_B64; }
+
+async function loadLogos() {
+  LOGO_GAUCHE_B64 = null;
+  LOGO_DROITE_B64 = null;
+  if (CFG.logo_universite) {
+    try { LOGO_GAUCHE_B64 = await urlToBase64(CFG.logo_universite); } catch(e) {}
+  }
+  if (CFG.logo_entite) {
+    try { LOGO_DROITE_B64 = await urlToBase64(CFG.logo_entite); } catch(e) {}
+  }
+}
+
+function urlToBase64(url) {
+  if (!url) return Promise.reject(new Error("No URL"));
+  if (url.startsWith("data:")) return Promise.resolve(url);
+  return new Promise((res, rej) => {
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const cv = document.createElement("canvas");
+      cv.width  = img.naturalWidth;
+      cv.height = img.naturalHeight;
+      cv.getContext("2d").drawImage(img, 0, 0);
+      res(cv.toDataURL("image/png"));
+    };
+    img.onerror = () => rej(new Error("Logo non chargeable"));
+    img.src = url;
+  });
+}
+
+// ════════════════════════════════════════
+// LOAD ADMIN DATA
+// ════════════════════════════════════════
+async function loadAdminData() {
+  if (!currentAdmin) return;
+  const rows = await DB.select("exam_config", "admin_id=eq." + currentAdmin.id + "&select=*");
+  if (rows && rows.length) {
+    CFG = rows[0];
+  } else {
+    const res = await DB.insert("exam_config", {
+      admin_id: currentAdmin.id,
+      ecole:"", institut:"", matiere:"", niveau:"",
+      annee:"", date_exam:"", heure:"08:00", duree:90,
+      session:"Normale", bareme:20, consigne:"",
+      enseignant:"", statut:"ferme",
+      email_verification:false, resend_key:"", smtp_from:"",
+      logo_universite:"", logo_entite:""
+    });
+    CFG = (res && res[0]) ? res[0] : { statut:"ferme", bareme:20, duree:90 };
+  }
+  CANDIDATS = await DB.select("candidats", "admin_id=eq." + currentAdmin.id + "&order=nom.asc") || [];
+  if (!CANDIDATS.find(c => c.matricule === "TEST")) {
+    await DB.upsert("candidats", {
+      matricule:"TEST", nom:"COMPTE", prenom:"Test",
+      filiere:"TEST", email:"test@plateforme.local",
+      admin_id: currentAdmin.id
+    }, "matricule").catch(() => {});
+    CANDIDATS = await DB.select("candidats", "admin_id=eq." + currentAdmin.id + "&order=nom.asc") || [];
+  }
+  const qs  = await DB.select("questions", "admin_id=eq." + currentAdmin.id + "&order=ordre.asc") || [];
+  const sqs = await DB.select("sous_questions", "order=ordre.asc") || [];
+  QUESTIONS = qs.map(q => ({
+    ...q, image_url: q.image_url||"", html_content: q.html_content||"",
+    sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
+  }));
+  await loadLogos();
+}
+
+// ════════════════════════════════════════
+// AUTH LOGIN / LOGOUT
+// ════════════════════════════════════════
+async function doAdminLoginNew() {
+  const identEl = document.getElementById("admin-identifiant");
+  const identifiant = identEl ? identEl.value.trim() : "";
+  const pwd = document.getElementById("admin-pwd").value;
+  const err = document.getElementById("admin-err");
+  err.style.display = "none";
+  if (!identifiant || !pwd) {
+    err.textContent = "Identifiant et mot de passe requis.";
+    err.style.display = "flex"; return;
+  }
+  try {
+    const rows = await DB.select("admins", "identifiant=eq." + encodeURIComponent(identifiant) + "&select=*");
+    if (!rows || !rows.length) {
+      err.textContent = "Identifiant introuvable.";
+      err.style.display = "flex"; return;
+    }
+    const admin = rows[0];
+    if (admin.pwd !== pwd) {
+      err.textContent = "Mot de passe incorrect.";
+      err.style.display = "flex"; return;
+    }
+    if (!admin.valide) {
+      err.textContent = "Compte en attente de validation par le super administrateur.";
+      err.style.display = "flex"; return;
+    }
+    currentAdmin = admin;
+    adminAuth    = true;
+    document.getElementById("admin-pwd").value = "";
+    if (identEl) identEl.value = "";
+    if (admin.role === "superadmin") {
+      goTo("pg-superadmin");
+      saLoadStats(); saLoadComptes();
+    } else {
+      await loadAdminData();
+      loadConfigFormNew();
+      const chip = document.getElementById("admin-name-chip");
+      if (chip) chip.textContent = "\uD83D\uDC64 " + (admin.nom || admin.identifiant);
+      goTo("pg-admin");
+      renderCandidatsTable();
+    }
+  } catch(e) {
+    err.textContent = "Erreur : " + e.message;
+    err.style.display = "flex";
+  }
+}
+
+function adminLogoutNew() {
+  adminAuth = false; currentAdmin = null;
+  CFG = {}; QUESTIONS = []; CANDIDATS = []; COPIES = [];
+  LOGO_GAUCHE_B64 = null; LOGO_DROITE_B64 = null;
+  goTo("pg-home");
+}
+
+// ════════════════════════════════════════
+// CONFIG FORM (new version with logos/email)
+// ════════════════════════════════════════
+function loadConfigFormNew() {
+  const map = {
+    ecole:"c-ecole", institut:"c-institut", matiere:"c-matiere",
+    niveau:"c-niveau", annee:"c-annee", date_exam:"c-date",
+    heure:"c-heure", duree:"c-duree", session:"c-session",
+    bareme:"c-bareme", consigne:"c-consigne", enseignant:"c-enseignant",
+    logo_universite:"c-logo-univ", logo_entite:"c-logo-entite",
+    resend_key:"c-resend-key", smtp_from:"c-smtp-from"
+  };
+  Object.entries(map).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (el && CFG[k] != null) el.value = CFG[k];
+  });
+  const ev = document.getElementById("c-email-verif");
+  if (ev) ev.checked = !!CFG.email_verification;
+  const st = document.getElementById("current-statut");
+  if (st) {
+    st.textContent = CFG.statut === "ouvert" ? "\uD83D\uDFE2 Examen OUVERT" : "\uD83D\uDD34 Examen FERM\u00C9";
+    st.className   = CFG.statut === "ouvert" ? "badge badge-green" : "badge badge-red";
+  }
+}
+
+async function saveConfigNew() {
+  if (!currentAdmin) return;
+  const newPwd = v("c-pwd-admin");
+  const data = {
+    admin_id: currentAdmin.id,
+    ecole: v("c-ecole"), institut: v("c-institut"), matiere: v("c-matiere"),
+    niveau: v("c-niveau"), annee: v("c-annee"), date_exam: v("c-date"),
+    heure: v("c-heure"), duree: parseInt(v("c-duree"))||90,
+    session: v("c-session"), bareme: parseInt(v("c-bareme"))||20,
+    consigne: v("c-consigne"), enseignant: v("c-enseignant"),
+    logo_universite: v("c-logo-univ"), logo_entite: v("c-logo-entite"),
+    resend_key: v("c-resend-key"), smtp_from: v("c-smtp-from"),
+    email_verification: document.getElementById("c-email-verif")?.checked || false,
+    statut: CFG.statut || "ferme"
+  };
+  try {
+    if (CFG.id) {
+      await DB.update("exam_config", "id=eq." + CFG.id, data);
+    } else {
+      const res = await DB.insert("exam_config", data);
+      if (res && res[0]) CFG.id = res[0].id;
+    }
+    Object.assign(CFG, data);
+    if (newPwd && newPwd.length >= 8) {
+      await DB.update("admins", "id=eq." + currentAdmin.id, { pwd: newPwd });
+      document.getElementById("c-pwd-admin").value = "";
+      currentAdmin.pwd = newPwd;
+    }
+    await loadLogos();
+    toast("Configuration enregistr\u00e9e", "success");
+  } catch(e) { toast("Erreur: " + e.message, "error"); }
+}
+
+async function setExamStatutNew(statut) {
+  if (!CFG.id) { toast("Enregistrez la configuration", "warn"); return; }
+  try {
+    await DB.update("exam_config", "id=eq." + CFG.id, { statut });
+    CFG.statut = statut;
+    loadConfigFormNew();
+    toast(statut === "ouvert" ? "\u2705 Examen ouvert" : "\uD83D\uDD12 Examen ferm\u00e9",
+          statut === "ouvert" ? "success" : "warn");
+  } catch(e) { toast("Erreur: " + e.message, "error"); }
+}
+
+// Upload logo to Supabase Storage
+async function uploadLogoAdmin(input, type) {
+  const file = input.files[0]; if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { toast("Logo trop lourd (max 2MB)", "warn"); return; }
+  try {
+    const ext  = file.name.split(".").pop();
+    const fname = type + "_" + (currentAdmin ? currentAdmin.id : "anon") + "_" + Date.now() + "." + ext;
+    const res  = await fetch(SB_URL + "/storage/v1/object/logos/" + fname, {
+      method: "POST",
+      headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Content-Type": file.type, "x-upsert": "true" },
+      body: file
+    });
+    if (res.ok) {
+      const url = SB_URL + "/storage/v1/object/public/logos/" + fname;
+      document.getElementById(type === "universite" ? "c-logo-univ" : "c-logo-entite").value = url;
+      toast("Logo upload\u00e9", "success");
+    } else { toast("Erreur upload", "error"); }
+  } catch(e) { toast("Erreur: " + e.message, "error"); }
+  input.value = "";
+}
+
+// ════════════════════════════════════════
+// STUDENT SELECTION (5-step flow)
+// ════════════════════════════════════════
+async function initSelectionPage() {
+  selUniversite = null; selEntite = null; selDepartement = null;
+  selNiveau = null; selFiliere = null; selAdminId = null;
+  // Cacher toutes les étapes
+  for(let i = 1; i <= 6; i++) {
+    const el = document.getElementById(`sel-step${i}`);
+    if (el) el.style.display = "none";
+  }
+  // Afficher l'étape 1
+  const s1 = document.getElementById("sel-step1");
+  if (s1) s1.style.display = "block";
+  // Mettre à jour les indicateurs d'étape
+  for (let i = 1; i <= 6; i++) {
+    const d = document.getElementById("sel-s" + i);
+    if (d) d.className = i === 1 ? "step-dot active" : "step-dot";
+  }
+  try {
+    const univs = await DB.select("universites", "order=nom.asc") || [];
+    const list  = document.getElementById("sel-univ-list");
+    if (!list) return;
+    if (!univs.length) {
+      list.innerHTML = "<div class=\"alert alert-warning\">Aucune université configurée. Contactez l'administrateur.</div>";
+      return;
+    }
+    list.innerHTML = univs.map(u =>
+      `<div class="sel-card-opt" onclick="selChooseUniversite('${u.id}','${escH(u.nom)}',this)">
+        <div style="font-weight:600;font-size:15px">${escH(u.nom)}</div>
+      </div>`
+    ).join("");
+  } catch(e) { toast("Erreur: " + e.message, "error"); }
+}
+
+async function selChooseUniversite(id, nom, el) {
+  document.querySelectorAll("#sel-univ-list .sel-card-opt").forEach(o => o.classList.remove("selected"));
+  el.classList.add("selected");
+  selUniversite = { id, nom };
+  const crumb2 = document.getElementById("sel-crumb2");
+  if (crumb2) crumb2.textContent = "🏛️ " + nom;
+  const rows    = await DB.select("universites", "id=eq." + id + "&select=entites");
+  const entites = rows && rows[0]
+    ? (Array.isArray(rows[0].entites) ? rows[0].entites : JSON.parse(rows[0].entites || "[]"))
+    : [];
+  const list = document.getElementById("sel-entite-list");
+  if (list) {
+    if (!entites.length) {
+      list.innerHTML = "<div class=\"alert alert-warning\">Aucune entité configurée.</div>";
+    } else {
+      list.innerHTML = entites.map(e => `<div class="sel-card-opt" onclick="selChooseEntite('${escH(e)}',this)"><div style="font-weight:600;font-size:15px">${escH(e)}</div></div>`).join("");
+    }
+  }
+  selShowStep(2);
+}
+
+function selChooseEntite(nom, el) {
+  document.querySelectorAll("#sel-entite-list .sel-card-opt").forEach(o => o.classList.remove("selected"));
+  el.classList.add("selected");
+  selEntite = nom;
+  const crumb3 = document.getElementById("sel-crumb3");
+  if (crumb3) crumb3.textContent = "🏛️ " + (selUniversite ? selUniversite.nom : "") + "  ›  🏫 " + nom;
+  loadDepartementsForSelection();
+  selShowStep(3);
+}
+
+async function selChooseFiliere(id, code, nom, el) {
+  document.querySelectorAll("#sel-filiere-list .sel-card-opt").forEach(o => o.classList.remove("selected"));
+  el.classList.add("selected");
+  selFiliere = { id: id, code: code, nom: nom };
+  
+  const crumb6 = document.getElementById("sel-crumb6");
+  if (crumb6) {
+    crumb6.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite||"") + "  ›  📂 " + (selDepartement||"") + "  ›  📚 " + (selNiveau?.nom||"") + "  ›  🎓 " + code;
+  }
+  
+  await selLoadEpreuve();
+  selShowStep(6);
+}
+
+async function loadDepartementsForSelection() {
+  try {
+    const depts = await DB.select("departements", "order=nom.asc") || [];
+    const list = document.getElementById("sel-dept-list");
+    if (!list) return;
+    
+    if (!depts.length) {
+      const defaultDepts = ["Génie Civil", "Génie Informatique", "Génie Mécanique", "Génie Électrique", "Sciences de la Terre"];
+      list.innerHTML = defaultDepts.map(d =>
+        `<div class="sel-card-opt" onclick="selChooseDepartement('${d}','${d}',this)">
+          <div style="font-weight:600;font-size:15px">${escH(d)}</div>
+        </div>`
+      ).join("");
+    } else {
+      list.innerHTML = depts.map(d =>
+        `<div class="sel-card-opt" onclick="selChooseDepartement('${d.id}','${escH(d.nom)}',this)">
+          <div style="font-weight:600;font-size:15px">${escH(d.nom)}</div>
+        </div>`
+      ).join("");
+    }
+  } catch(e) {
+    toast("Erreur chargement départements: " + e.message, "error");
+  }
+}
+
+async function selChooseDepartement(id, nom, el) {
+  document.querySelectorAll("#sel-dept-list .sel-card-opt").forEach(o => o.classList.remove("selected"));
+  el.classList.add("selected");
+  selDepartement = { id: id, nom: nom };  // ← Stocker l'ID et le nom
+  
+  const crumb4 = document.getElementById("sel-crumb4");
+  if (crumb4) {
+    crumb4.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite||"") + "  ›  📂 " + nom;
+  }
+  
+  loadNiveauxForSelection();  // ← Ne plus passer de paramètre
+  selShowStep(4);
+}
+
+async function loadNiveauxForSelection() {
+  try {
+    if (!selDepartement || !selDepartement.id) {
+      console.warn("Aucun département sélectionné");
+      return;
+    }
+    
+    // Utiliser l'ID du département, pas le nom
+    const niveaux = await DB.select("niveaux", 
+      "departement_id=eq." + selDepartement.id + "&order=ordre.asc"
+    ) || [];
+    
+    const list = document.getElementById("sel-niveau-list");
+    if (!list) return;
+    
+    if (!niveaux.length) {
+      list.innerHTML = "<div class='alert alert-warning'>Aucun niveau disponible pour ce département.</div>";
+    } else {
+      list.innerHTML = niveaux.map(n =>
+        `<div class="sel-card-opt" onclick="selChooseNiveau('${n.id}','${escH(n.nom)}',this)">
+          <div style="font-weight:600;font-size:15px">${escH(n.nom)}</div>
+        </div>`
+      ).join("");
+    }
+  } catch(e) {
+    toast("Erreur chargement niveaux: " + e.message, "error");
+  }
+}
+
+function selChooseNiveau(id, nom, el) {
+  document.querySelectorAll("#sel-niveau-list .sel-card-opt").forEach(o => o.classList.remove("selected"));
+  el.classList.add("selected");
+  selNiveau = { id: id, nom: nom };
+  
+  const crumb5 = document.getElementById("sel-crumb5");
+  if (crumb5) {
+    crumb5.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite||"") + "  ›  📂 " + (selDepartement||"") + "  ›  📚 " + nom;
+  }
+  
+  // Charger les filières de ce niveau
+  loadFilieresForSelection();
+  selShowStep(5);
+}
+
+async function loadFilieresForSelection() {
+  try {
+    if (!selNiveau || !selNiveau.id) {
+      console.warn("Aucun niveau sélectionné");
+      return;
+    }
+    
+    // Récupérer les filières liées au niveau sélectionné
+    const filieres = await DB.select("filieres", 
+      "niveau_id=eq." + selNiveau.id + "&order=ordre.asc"
+    ) || [];
+    
+    const list = document.getElementById("sel-filiere-list");
+    if (!list) return;
+    
+    if (!filieres.length) {
+      list.innerHTML = "<div class='alert alert-warning'>Aucune filière disponible pour ce niveau.</div>";
+    } else {
+      list.innerHTML = filieres.map(f =>
+        `<div class="sel-card-opt" onclick="selChooseFiliere('${f.id}','${f.code}','${f.nom}',this)">
+          <div style="font-weight:600;font-size:15px">${f.code} - ${escH(f.nom)}</div>
+        </div>`
+      ).join("");
+    }
+  } catch(e) {
+    toast("Erreur chargement filières: " + e.message, "error");
+  }
+}
+
+
+function selShowStep(n) {
+  // Barre de progression (6 étapes)
+  const bar = document.getElementById("sel-progress");
+  if (bar) bar.style.width = (n * 16.6) + "%";
+  
+  for (let i = 1; i <= 6; i++) {
+    const st = document.getElementById("sel-step" + i);
+    if (st) st.style.display = i === n ? "block" : "none";
+    const dt = document.getElementById("sel-s" + i);
+    if (dt) dt.className = i < n ? "step-dot done" : i === n ? "step-dot active" : "step-dot";
+  }
+  const se = document.getElementById("sel-step-email");
+  if (se) se.style.display = "none";
+  if (n === 6) {
+    ["cand-nom-sel","cand-err-sel"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        if (id.includes("nom")) el.value = "";
+        else el.style.display = "none";
+      }
+    });
+    const ns = document.getElementById("nom-suggestions-sel");
+    if (ns) ns.innerHTML = "";
+    const cp = document.getElementById("cand-preview-sel");
+    if (cp) cp.style.display = "none";
+    const bv = document.getElementById("btn-valider-sel");
+    if (bv) bv.disabled = true;
+    currentCandidat = null;
+  }
+}
+
+async function selLoadEpreuve() {
+  try {
+    if (!selFiliere || !selFiliere.id) {
+      console.warn("Aucune filière sélectionnée");
+      return;
+    }
+    
+    // Filtrer les épreuves par filiere_id
+    const cfgs = await DB.select("exam_config", 
+      "filiere_id=eq." + selFiliere.id + 
+      "&statut=eq.ouvert&select=*"
+    ) || [];
+    
+    const infoEl = document.getElementById("sel-exam-info");
+    const btnEl = document.getElementById("btn-valider-sel");
+    
+    if (!cfgs || cfgs.length === 0) {
+      if (infoEl) {
+        infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve ouverte pour cette filière.</strong>";
+        infoEl.style.display = "block";
+      }
+      if (btnEl) btnEl.disabled = true;
+      selAdminId = null;
+      return;
+    }
+    
+    // Afficher la liste des matières (épreuves)
+    if (infoEl) {
+      infoEl.innerHTML = "<strong>📖 Matières disponibles :</strong><br>" + 
+        cfgs.map(cfg => "• " + escH(cfg.matiere || cfg.ecole || "Sans nom")).join("<br>");
+      infoEl.style.display = "block";
+    }
+    
+    // Prendre la première épreuve pour la configuration
+    const cfg = cfgs[0];
+    selAdminId = cfg.admin_id;
+    CFG = cfg;
+    
+    // Charger les candidats de cette filière
+    CANDIDATS = await DB.select("candidats", 
+      "filiere_id=eq." + selFiliere.id + "&order=nom.asc"
+    ) || [];
+    
+    if (cfg.admin_id) {
+      const qs = await DB.select("questions", "admin_id=eq." + cfg.admin_id + "&order=ordre.asc") || [];
+      const sqs = await DB.select("sous_questions", "order=ordre.asc") || [];
+      QUESTIONS = qs.map(q => ({
+        ...q,
+        sousQuestions: sqs.filter(sq => sq.question_id === q.id)
+      }));
+    }
+    
+    if (btnEl) btnEl.disabled = false;
+    
+    const evZone = document.getElementById("email-verif-notice");
+    if (evZone) {
+      evZone.style.display = cfg.email_verification ? "block" : "none";
+    }
+    
+  } catch(e) {
+    console.error("Erreur chargement épreuve:", e);
+    toast("Erreur chargement épreuve: " + e.message, "error");
+    const btnEl = document.getElementById("btn-valider-sel");
+    if (btnEl) btnEl.disabled = true;
+  }
+}
+function selGoBack(n) { selShowStep(n); }
+
+function onNomInputSel(val) {
+  val = val.trim().toUpperCase();
+  const sug = document.getElementById("nom-suggestions-sel");
+  currentCandidat = null;
+  const bv = document.getElementById("btn-valider-sel"); if (bv) bv.disabled = true;
+  const cp = document.getElementById("cand-preview-sel"); if (cp) cp.style.display = "none";
+  if (sug) sug.innerHTML = "";
+  if (val.length < 2) return;
+  const found = CANDIDATS.filter(c =>
+    c.nom.toUpperCase().startsWith(val) &&
+    (!selFiliere || (c.filiere||"").toUpperCase() === selFiliere.toUpperCase()) &&
+    c.matricule !== "TEST"
+  );
+  if (!found.length) { if (sug) sug.innerHTML = "<div class=\"alert alert-danger\" style=\"margin-top:6px\">Aucun \u00e9tudiant trouv\u00e9.</div>"; return; }
+  if (sug) sug.innerHTML = "<div class=\"suggestions\">" + found.map(c =>
+    `<div class="suggestion-item" onclick="selectCandidatSel('${c.matricule}')"><strong>${c.nom} ${c.prenom||""}</strong> \u2014 ${c.matricule}</div>`
+  ).join("") + "</div>";
+}
+
+function selectCandidatSel(mat) {
+  const c = CANDIDATS.find(x => x.matricule === mat); if (!c) return;
+  currentCandidat = c;
+  const sug = document.getElementById("nom-suggestions-sel"); if (sug) sug.innerHTML = "";
+  const cn  = document.getElementById("cand-nom-sel");    if (cn)  cn.value = c.nom;
+  const pm  = document.getElementById("pv-mat-sel");      if (pm)  pm.textContent = c.matricule;
+  const pn  = document.getElementById("pv-nom-sel");      if (pn)  pn.textContent = c.nom + " " + (c.prenom||"");
+  const pf  = document.getElementById("pv-fil-sel");      if (pf)  pf.textContent = (c.filiere_code || c.filiere || selFiliere?.code || "");
+  const pe  = document.getElementById("pv-mail-sel");     if (pe)  pe.textContent = c.email||"—";
+  const cp  = document.getElementById("cand-preview-sel"); if (cp) cp.style.display = "block";
+  const bv  = document.getElementById("btn-valider-sel"); if (bv) bv.disabled = false;
+}
+
+async function validerIdentiteSel() {
+  if (!currentCandidat) return;
+  
+  const err = document.getElementById("cand-err-sel");
+  const isTest = currentCandidat.matricule === "TEST";
+  
+  // Vérifier que l'étudiant n'a pas déjà composé
+  try {
+    const af = selAdminId ? "&admin_id=eq." + selAdminId : "";
+    const exist = await DB.select("copies", "matricule=eq." + currentCandidat.matricule + af);
+    if (exist && exist.length) {
+      if (isTest) {
+        await DB.delete("copies", "matricule=eq.TEST" + (selAdminId ? "&admin_id=eq." + selAdminId : ""));
+        toast("Mode TEST — copie supprimée", "info");
+      } else {
+        if (err) {
+          err.textContent = "Vous avez déjà déposé votre copie pour cette épreuve.";
+          err.style.display = "flex";
+        }
+        return;
+      }
+    }
+  } catch(e) {}
+  
+  if (err) err.style.display = "none";
+  
+  // Envoi email ou accès direct
+  if (CFG && CFG.email_verification && currentCandidat.email && !isTest) {
+    await sendCompositionToken();
+    return;
+  }
+  
+  repCand = {};
+  buildEpreuve();  // Cette fonction doit exister
+  activerAntiTriche();  // Cette fonction doit exister
+  goTo("pg-epreuve");
+}
+// ════════════════════════════════════════
+// EMAIL VERIFICATION
+// ════════════════════════════════════════
+async function sendCompositionToken() {
+  try {
+    const expiresAt = new Date(Date.now() + (CFG.duree + 30) * 60000).toISOString();
+    const res       = await DB.insert("tokens_composition", {
+      matricule: currentCandidat.matricule,
+      admin_id:  selAdminId,
+      expires_at: expiresAt,
+      used: false
+    });
+    const token = res && res[0] ? res[0].token : null;
+    if (!token) { toast("Erreur g\u00e9n\u00e9ration token", "error"); return; }
+    const link  = window.location.origin + window.location.pathname + "?token=" + token;
+    const subj  = "Lien acc\u00e8s examen \u2014 " + (CFG.matiere || "");
+    const txt   = "Bonjour " + currentCandidat.nom + ",\n\nVotre lien : " + link + "\n\nLien valable jusqu\u2019\u00e0 la fin de l\u2019\u00e9preuve. Ne pas partager.";
+    const htm   = "<div style=\"font-family:sans-serif;padding:24px\"><h2 style=\"color:#1D4ED8\">ExamPlatform</h2>"
+      + "<p>Bonjour <strong>" + escH(currentCandidat.nom) + "</strong>,</p>"
+      + "<p>Lien pour votre examen de <strong>" + escH(CFG.matiere||"") + "</strong> :</p>"
+      + "<p><a href=\"" + link + "\" style=\"background:#1D4ED8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block\">Acc\u00e9der \u00e0 l\u2019examen</a></p>"
+      + "<p style=\"color:#6B7280;font-size:13px\">Lien valable jusqu\u2019\u00e0 la fin de l\u2019\u00e9preuve. Ne pas partager.</p></div>";
+    await sendEmailResend(currentCandidat.email, subj, txt, htm);
+    selShowStep(5);
+    const s5 = document.getElementById("sel-step5");   if (s5) s5.style.display = "none";
+    const se = document.getElementById("sel-step-email"); if (se) se.style.display = "block";
+  } catch(e) { toast("Erreur envoi email: " + e.message, "error"); }
+}
+
+async function sendEmailResend(to, subject, text, html) {
+  if (!CFG.resend_key) { toast("Cl\u00e9 Resend non configur\u00e9e", "warn"); return; }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + CFG.resend_key, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: CFG.smtp_from || "noreply@examplatform.com", to, subject, text, html })
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || "Erreur Resend"); }
+}
+
+async function handleTokenAccess(token) {
+  try {
+    const tokens = await DB.select("tokens_composition", "token=eq." + token + "&select=*");
+    if (!tokens || !tokens.length) { toast("Lien invalide ou expir\u00e9.", "error"); goTo("pg-home"); return; }
+    const tk = tokens[0];
+    if (tk.used) { toast("Ce lien a d\u00e9j\u00e0 \u00e9t\u00e9 utilis\u00e9.", "warn"); goTo("pg-home"); return; }
+    if (new Date(tk.expires_at) < new Date()) { toast("Ce lien a expir\u00e9.", "warn"); goTo("pg-home"); return; }
+    await DB.update("tokens_composition", "token=eq." + token, { used: true });
+    selAdminId = tk.admin_id;
+    const cfgs = await DB.select("exam_config", "admin_id=eq." + selAdminId + "&select=*");
+    if (!cfgs || !cfgs.length) { toast("\u00C9preuve introuvable.", "error"); goTo("pg-home"); return; }
+    CFG = cfgs[0];
+    if (CFG.statut !== "ouvert") { toast("L\u2019\u00e9preuve est ferm\u00e9e.", "warn"); goTo("pg-home"); return; }
+    CANDIDATS  = await DB.select("candidats",    "admin_id=eq." + selAdminId + "&order=nom.asc") || [];
+    const qs   = await DB.select("questions",    "admin_id=eq." + selAdminId + "&order=ordre.asc") || [];
+    const sqs  = await DB.select("sous_questions", "order=ordre.asc") || [];
+    QUESTIONS  = qs.map(q => ({ ...q, sousQuestions: sqs.filter(sq => sq.question_id === q.id) }));
+    await loadLogos();
+    currentCandidat = CANDIDATS.find(c => c.matricule === tk.matricule);
+    if (!currentCandidat) { toast("\u00C9tudiant introuvable.", "error"); goTo("pg-home"); return; }
+    repCand = {}; buildEpreuve(); activerAntiTriche(); goTo("pg-epreuve");
+    window.history.replaceState({}, "", window.location.pathname);
+  } catch(e) { toast("Erreur acc\u00e8s: " + e.message, "error"); goTo("pg-home"); }
+}
+
+// ════════════════════════════════════════
+// ACCOUNT CREATION
+// ════════════════════════════════════════
+async function createAccount() {
+  const identifiant = (document.getElementById("reg-identifiant")||{value:""}).value.trim();
+  const nom         = (document.getElementById("reg-nom")||{value:""}).value.trim();
+  const email       = (document.getElementById("reg-email")||{value:""}).value.trim();
+  const pwd         = (document.getElementById("reg-pwd")||{value:""}).value;
+  const pwd2        = (document.getElementById("reg-pwd2")||{value:""}).value;
+  const err = document.getElementById("create-err");
+  const ok  = document.getElementById("create-ok");
+  err.style.display = "none"; ok.style.display = "none";
+  if (!identifiant || !nom || !email || !pwd) {
+    err.textContent = "Tous les champs sont obligatoires."; err.style.display = "flex"; return;
+  }
+  if (pwd !== pwd2) { err.textContent = "Les mots de passe ne correspondent pas."; err.style.display = "flex"; return; }
+  if (pwd.length < 8) { err.textContent = "Minimum 8 caract\u00e8res."; err.style.display = "flex"; return; }
+  try {
+    const ex = await DB.select("admins", "identifiant=eq." + encodeURIComponent(identifiant) + "&select=id");
+    if (ex && ex.length) { err.textContent = "Cet identifiant est d\u00e9j\u00e0 utilis\u00e9."; err.style.display = "flex"; return; }
+    await DB.insert("admins", { identifiant, nom, email, pwd, role:"enseignant", valide:false });
+    ok.textContent = "\u2713 Compte cr\u00e9\u00e9 ! En attente de validation.";
+    ok.style.display = "flex";
+    ["reg-identifiant","reg-nom","reg-email","reg-pwd","reg-pwd2"].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = "";
+    });
+  } catch(e) { err.textContent = "Erreur : " + e.message; err.style.display = "flex"; }
+}
+
+// ════════════════════════════════════════
+// PASSWORD RESET
+// ════════════════════════════════════════
+let resetAdminId = null;
+
+async function requestPasswordReset() {
+  const val = (document.getElementById("reset-identifiant")||{value:""}).value.trim();
+  const err = document.getElementById("reset-err");
+  const ok  = document.getElementById("reset-ok");
+  const btn = document.querySelector("#pg-reset-pwd .btn-primary");
+  err.style.display = "none"; ok.style.display = "none";
+  if (!val) { err.textContent = "Entrez votre identifiant ou email."; err.style.display = "flex"; return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Envoi en cours..."; }
+  try {
+    // Chercher le compte par identifiant OU email
+    let rows = await DB.select("admins", "identifiant=eq." + encodeURIComponent(val) + "&select=id,email,nom,identifiant&limit=1");
+    if (!rows || !rows.length)
+      rows = await DB.select("admins", "email=eq." + encodeURIComponent(val) + "&select=id,email,nom,identifiant&limit=1");
+    if (!rows || !rows.length) {
+      err.textContent = "Aucun compte trouv\u00e9 avec cet identifiant ou email.";
+      err.style.display = "flex";
+      if (btn) { btn.disabled = false; btn.textContent = "Envoyer le code"; }
+      return;
+    }
+    const admin = rows[0];
+    resetAdminId = admin.id;
+
+    // Générer un code à 6 chiffres
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 3600000).toISOString();
+
+    // Supprimer les anciens tokens non utilisés pour cet admin
+    await DB.delete("reset_tokens", "admin_id=eq." + admin.id + "&used=eq.false").catch(() => {});
+    // Insérer le nouveau token
+    await DB.insert("reset_tokens", { token: code, admin_id: admin.id, expires_at: expiresAt, used: false });
+
+    // Chercher une clé Resend valide : d'abord dans la config de l'admin lui-même
+    let resendKey = null;
+    let fromEmail = "noreply@examplatform.com";
+    try {
+      const myCfg = await DB.select("exam_config", "admin_id=eq." + admin.id + "&select=resend_key,smtp_from&limit=1");
+      if (myCfg && myCfg.length && myCfg[0].resend_key && myCfg[0].resend_key.length > 10) {
+        resendKey = myCfg[0].resend_key;
+        if (myCfg[0].smtp_from) fromEmail = myCfg[0].smtp_from;
+      }
+    } catch(e) {}
+
+    // Si pas de clé dans sa propre config, chercher chez n'importe quel admin
+    if (!resendKey) {
+      try {
+        const allCfgs = await DB.select("exam_config", "select=resend_key,smtp_from&limit=10");
+        if (allCfgs) {
+          const valid = allCfgs.find(c => c.resend_key && c.resend_key.length > 10);
+          if (valid) {
+            resendKey = valid.resend_key;
+            if (valid.smtp_from) fromEmail = valid.smtp_from;
+          }
+        }
+      } catch(e) {}
+    }
+
+    let emailSent = false;
+    if (resendKey && admin.email) {
+      try {
+        const emailBody = {
+          from: fromEmail,
+          to: admin.email,
+          subject: "Code de r\u00e9initialisation \u2014 ExamPlatform",
+          text: "Bonjour " + admin.nom + ",\n\nVotre code de r\u00e9initialisation de mot de passe est :\n\n" + code + "\n\nCe code est valable 1 heure.\n\nSi vous n\'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.\n\nExamPlatform",
+          html: "<div style=\"font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px\"><div style=\"background:#1D4ED8;color:#fff;padding:20px;border-radius:8px 8px 0 0;text-align:center\"><h2 style=\"margin:0\">ExamPlatform</h2></div><div style=\"background:#fff;border:1px solid #E5E7EB;border-top:none;padding:24px;border-radius:0 0 8px 8px\"><p>Bonjour <strong>" + escH(admin.nom) + "</strong>,</p><p>Votre code de r\u00e9initialisation de mot de passe :</p><div style=\"background:#EFF6FF;border-radius:8px;padding:20px;text-align:center;margin:20px 0\"><span style=\"font-size:36px;font-weight:700;letter-spacing:8px;color:#1D4ED8\">" + code + "</span></div><p style=\"color:#6B7280;font-size:13px\">Ce code est valable <strong>1 heure</strong>.</p><p style=\"color:#6B7280;font-size:13px\">Si vous n\'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.</p></div></div>"
+        };
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + resendKey, "Content-Type": "application/json" },
+          body: JSON.stringify(emailBody)
+        });
+        if (res.ok) {
+          emailSent = true;
+        } else {
+          const resErr = await res.json().catch(() => ({}));
+          console.warn("Resend error:", resErr);
+        }
+      } catch(e) { console.warn("Email send failed:", e.message); }
+    }
+
+    if (emailSent) {
+      ok.innerHTML = "\u2713 Code envoy\u00e9 \u00e0 <strong>" + escH(admin.email) + "</strong>. V\u00e9rifiez vos spams si vous ne le voyez pas.";
+    } else {
+      // Fallback : afficher le code directement si l'email n'est pas configuré
+      ok.innerHTML = "\u26A0\uFE0F Email non configur\u00e9. Votre code : <strong style=\"font-size:20px;letter-spacing:4px\">" + code + "</strong><br><small>Notez ce code, il expire dans 1h.</small>";
+    }
+    ok.style.display = "flex";
+    const s1 = document.getElementById("reset-step1"); if (s1) s1.style.display = "none";
+    const s2 = document.getElementById("reset-step2"); if (s2) s2.style.display = "block";
+  } catch(e) {
+    err.textContent = "Erreur : " + e.message;
+    err.style.display = "flex";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Envoyer le code"; }
+  }
+}
+
+async function confirmPasswordReset() {
+  const code   = (document.getElementById("reset-code")||{value:""}).value.trim();
+  const newpwd = (document.getElementById("reset-newpwd")||{value:""}).value;
+  const err    = document.getElementById("reset-err");
+  err.style.display = "none";
+  if (!code || !newpwd) { err.textContent = "Code et mot de passe requis."; err.style.display = "flex"; return; }
+  if (newpwd.length < 8) { err.textContent = "Minimum 8 caract\u00e8res."; err.style.display = "flex"; return; }
+  try {
+    const tokens = await DB.select("reset_tokens", "token=eq." + code + "&admin_id=eq." + resetAdminId + "&used=eq.false&select=*");
+    if (!tokens || !tokens.length) { err.textContent = "Code invalide ou expir\u00e9."; err.style.display = "flex"; return; }
+    if (new Date(tokens[0].expires_at) < new Date()) { err.textContent = "Code expir\u00e9."; err.style.display = "flex"; return; }
+    await DB.update("admins", "id=eq." + resetAdminId, { pwd: newpwd });
+    await DB.update("reset_tokens", "token=eq." + code, { used: true });
+    const ok = document.getElementById("reset-ok");
+    if (ok) { ok.textContent = "\u2713 Mot de passe r\u00e9initialis\u00e9 !"; ok.style.display = "flex"; }
+    setTimeout(() => goTo("pg-admin-login"), 2000);
+  } catch(e) { err.textContent = "Erreur : " + e.message; err.style.display = "flex"; }
+}
+
+// ════════════════════════════════════════
+// SUPER ADMIN
+// ════════════════════════════════════════
+let saCurrentFilter = "all";
+
+function switchTabSA(btn, tabId) {
+  document.querySelectorAll("#pg-superadmin .tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll("#pg-superadmin .admin-tab").forEach(t => t.style.display = "none");
+  btn.classList.add("active");
+  const el = document.getElementById(tabId); if (el) el.style.display = "block";
+  if (tabId === "sa-tab-comptes")    saLoadComptes();
+  if (tabId === "sa-tab-universites") saLoadUniversites();
+  if (tabId === "sa-tab-niveaux")    saLoadNiveaux();
+  if (tabId === "sa-tab-activity")   saLoadActivity();
+}
+
+async function saLoadStats() {
+  try {
+    const admins   = await DB.select("admins",      "role=eq.enseignant&select=id,valide") || [];
+    const copies   = await DB.select("copies",      "select=id") || [];
+    const epreuves = await DB.select("exam_config", "select=id,statut") || [];
+    const ouvertes = epreuves.filter(e => e.statut === "ouvert").length;
+    const grid = document.getElementById("sa-stats-top");
+    if (grid) grid.innerHTML = [
+      { n: admins.length,                    l: "Enseignants" },
+      { n: admins.filter(a=>a.valide).length, l: "Actifs",     c: "#86EFAC" },
+      { n: admins.filter(a=>!a.valide).length,l: "En attente", c: "#FDE68A" },
+      { n: ouvertes,                          l: "\u00C9preuves ouvertes", c: "#86EFAC" },
+      { n: copies.length,                     l: "Copies total" }
+    ].map(s => `<div class="stat-super"><div class="num" ${s.c?`style="color:${s.c}"`:""}>${s.n}</div><div class="lbl">${s.l}</div></div>`).join("");
+  } catch(e) { console.error(e); }
+}
+
+async function saLoadComptes() {
+  await saLoadStats();
+  try {
+    const all = await DB.select("admins", "role=eq.enseignant&order=created_at.desc&select=*") || [];
+    const filtered = saCurrentFilter === "all" ? all
+      : saCurrentFilter === "pending" ? all.filter(a => !a.valide)
+      : all.filter(a => a.valide);
+    const wrap = document.getElementById("sa-comptes-list");
+    if (!wrap) return;
+    if (!filtered.length) { wrap.innerHTML = "<div class=\"alert alert-warning\">Aucun compte.</div>"; return; }
+    wrap.innerHTML = "<div class=\"tbl-wrap\"><table class=\"tbl\"><thead><tr><th>Identifiant</th><th>Nom</th><th>Email</th><th>Statut</th><th>Actions</th></tr></thead><tbody>"
+      + filtered.map(a => `<tr>
+          <td><code>${escH(a.identifiant)}</code></td>
+          <td><strong>${escH(a.nom||"\u2014")}</strong></td>
+          <td style="font-size:12px">${escH(a.email||"\u2014")}</td>
+          <td>${a.valide ? "<span class=\"badge badge-green\">\u2705 Actif</span>" : "<span class=\"badge badge-amber\">\u23F3 En attente</span>"}</td>
+          <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+            ${!a.valide ? `<button class="btn btn-success btn-sm" onclick="saValiderCompte('${a.id}')">\u2713 Valider</button>` : ""}
+            <button class="btn btn-danger btn-sm" onclick="saSupprimerCompte('${a.id}','${escH(a.identifiant)}')">\u2715</button>
+          </div></td></tr>`).join("")
+      + "</tbody></table></div>";
+  } catch(e) { toast("Erreur: " + e.message, "error"); }
+}
+
+function saFilterAdmins(f, btn) {
+  saCurrentFilter = f;
+  ["all","pending","active"].forEach(x => {
+    const b = document.getElementById("sa-fil-" + x);
+    if (b) { b.style.background=""; b.style.color=""; b.style.borderColor=""; }
+  });
+  btn.style.background="var(--blue)"; btn.style.color="#fff"; btn.style.borderColor="var(--blue)";
+  saLoadComptes();
+}
+
+async function saValiderCompte(id) {
+  openModal("Valider ce compte", "Activer ce compte enseignant ?", async () => {
+    await DB.update("admins", "id=eq." + id, { valide: true });
+    toast("Compte valid\u00e9", "success"); closeModal(); saLoadComptes();
+  });
+}
+
+async function saSupprimerCompte(id, identifiant) {
+  openModal("Supprimer", "Supprimer le compte \"" + identifiant + "\" ?", async () => {
+    await DB.delete("admins", "id=eq." + id).catch(() => {});
+    toast("Compte supprim\u00e9", "success"); closeModal(); saLoadComptes();
+  });
+}
+
+async function saLoadUniversites() {
+  try {
+    const univs = await DB.select("universites", "order=nom.asc") || [];
+    const wrap  = document.getElementById("sa-universites-list"); if (!wrap) return;
+    if (!univs.length) { wrap.innerHTML = "<div class=\"alert alert-warning\">Aucune universit\u00e9.</div>"; return; }
+    wrap.innerHTML = univs.map(u => {
+      const entites = Array.isArray(u.entites) ? u.entites : JSON.parse(u.entites||"[]");
+      return "<div class=\"qbuilder-item\"><div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px\">"
+        + "<strong>" + escH(u.nom) + "</strong>"
+        + "<div style=\"display:flex;gap:6px\">"
+        + `<button class="btn btn-sm" onclick="saAddEntite('${u.id}','${escH(u.nom)}')">+ Entit\u00e9</button>`
+        + `<button class="btn btn-danger btn-sm" onclick="saDeleteUniversite('${u.id}','${escH(u.nom)}')">\u2715</button>`
+        + "</div></div><div style=\"display:flex;gap:6px;flex-wrap:wrap\">"
+        + (entites.map(e => `<span class="badge badge-blue" style="font-size:12px;padding:4px 10px">${escH(e)} <button onclick="saRemoveEntite('${u.id}','${escH(e)}')" style="background:none;border:none;color:inherit;cursor:pointer;margin-left:4px">\u2715</button></span>`).join("") || "<span style=\"font-size:12px;color:var(--text-muted)\">Aucune entit\u00e9</span>")
+        + "</div></div>";
+    }).join("");
+  } catch(e) { toast("Erreur: " + e.message, "error"); }
+}
+
+async function saShowAddUniversite() {
+  const nom = prompt("Nom de la nouvelle universit\u00e9 :");
+  if (!nom) return;
+  await DB.insert("universites", { nom, entites: [] });
+  toast("Universit\u00e9 ajout\u00e9e", "success"); saLoadUniversites();
+}
+
+async function saDeleteUniversite(id, nom) {
+  openModal("Supprimer", "Supprimer l\u2019universit\u00e9 \"" + nom + "\" ?", async () => {
+    await DB.delete("universites", "id=eq." + id); closeModal(); saLoadUniversites();
+  });
+}
+
+async function saAddEntite(univId, univNom) {
+  const nom = prompt("Ajouter une entit\u00e9 \u00e0 \"" + univNom + "\" :");
+  if (!nom) return;
+  const rows    = await DB.select("universites", "id=eq." + univId + "&select=entites");
+  const entites = rows && rows[0] ? (Array.isArray(rows[0].entites) ? rows[0].entites : JSON.parse(rows[0].entites||"[]")) : [];
+  if (!entites.includes(nom)) entites.push(nom);
+  await DB.update("universites", "id=eq." + univId, { entites });
+  toast("Entit\u00e9 ajout\u00e9e", "success"); saLoadUniversites();
+}
+
+async function saRemoveEntite(univId, entiteNom) {
+  const rows    = await DB.select("universites", "id=eq." + univId + "&select=entites");
+  let entites   = rows && rows[0] ? (Array.isArray(rows[0].entites) ? rows[0].entites : JSON.parse(rows[0].entites||"[]")) : [];
+  entites = entites.filter(e => e !== entiteNom);
+  await DB.update("universites", "id=eq." + univId, { entites });
+  toast("Entit\u00e9 supprim\u00e9e", "success"); saLoadUniversites();
+}
+
+async function saLoadNiveaux() {
+  const niveaux = await DB.select("niveaux", "order=ordre.asc") || [];
+  const wrap    = document.getElementById("sa-niveaux-list"); if (!wrap) return;
+  wrap.innerHTML = "<div class=\"tbl-wrap\"><table class=\"tbl\"><thead><tr><th>Niveau</th><th>Ordre</th><th>Action</th></tr></thead><tbody>"
+    + niveaux.map(n => `<tr><td>${escH(n.nom)}</td><td>${n.ordre}</td><td><button class="btn btn-danger btn-sm" onclick="saDeleteNiveau('${n.id}','${escH(n.nom)}')">\u2715</button></td></tr>`).join("")
+    + "</tbody></table></div>";
+}
+
+async function saAddNiveau() {
+  const nom   = prompt("Nom du niveau (ex: Master 1) :"); if (!nom) return;
+  const ordre = parseInt(prompt("Ordre (ex: 4) :")||"0");
+  await DB.insert("niveaux", { nom, ordre });
+  toast("Niveau ajout\u00e9", "success"); saLoadNiveaux();
+}
+
+async function saDeleteNiveau(id, nom) {
+  openModal("Supprimer", "Supprimer \"" + nom + "\" ?", async () => {
+    await DB.delete("niveaux", "id=eq." + id); closeModal(); saLoadNiveaux();
+  });
+}
+
+async function saLoadActivity() {
+  try {
+    const copies = await DB.select("copies", "order=date_depot.desc&select=matricule,date_depot,admin_id&limit=50") || [];
+    const admins = await DB.select("admins", "role=eq.enseignant&select=id,nom") || [];
+    const wrap   = document.getElementById("sa-activity-list"); if (!wrap) return;
+    if (!copies.length) { wrap.innerHTML = "<div class=\"alert alert-warning\">Aucune activit\u00e9.</div>"; return; }
+    wrap.innerHTML = "<div class=\"tbl-wrap\"><table class=\"tbl\"><thead><tr><th>Matricule</th><th>Enseignant</th><th>Date</th></tr></thead><tbody>"
+      + copies.map(c => {
+          const a = admins.find(x => x.id === c.admin_id);
+          return `<tr><td><code>${escH(c.matricule)}</code></td><td>${a ? escH(a.nom) : "\u2014"}</td><td style="font-size:12px">${new Date(c.date_depot).toLocaleString("fr-FR")}</td></tr>`;
+        }).join("")
+      + "</tbody></table></div>";
+  } catch(e) { toast("Erreur: " + e.message, "error"); }
+}
 
 // ════════════════════════════════════════
 // DÉMARRAGE
