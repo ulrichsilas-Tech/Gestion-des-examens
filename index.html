@@ -480,87 +480,6 @@ textarea{resize:vertical;min-height:80px}
           <div class="setup-step-title">Créer les tables (SQL Editor)</div>
           <p style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">Dans Supabase → SQL Editor → copiez-collez ce script :</p>
           <div class="code-block" id="sql-block" style="max-height:260px;overflow-y:auto;font-size:11px">
--- ═══════════════════════════════════════════
--- MIGRATION SQL ExamPlatform — Multi-Admin
--- Exécuter dans Supabase → SQL Editor
--- ═══════════════════════════════════════════
-
--- 1. Table admins
-CREATE TABLE IF NOT EXISTS admins (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  identifiant text UNIQUE NOT NULL,
-  nom text DEFAULT '',
-  email text DEFAULT '',
-  pwd text NOT NULL,
-  role text DEFAULT 'enseignant',
-  valide boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
-
--- 2. Super admin (pwd: superadmin2024 — changez-le!)
-INSERT INTO admins (identifiant, nom, email, pwd, role, valide)
-VALUES ('admin', 'Super Administrateur', 'admin@examplatform.local', 'superadmin2024', 'superadmin', true)
-ON CONFLICT (identifiant) DO NOTHING;
-
--- 3. Colonnes admin_id sur tables existantes
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS admin_id uuid REFERENCES admins(id);
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS universite text DEFAULT '';
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS entite text DEFAULT '';
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS logo_universite text DEFAULT '';
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS logo_entite text DEFAULT '';
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS resend_key text DEFAULT '';
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS smtp_from text DEFAULT '';
-ALTER TABLE exam_config ADD COLUMN IF NOT EXISTS email_verification boolean DEFAULT false;
-ALTER TABLE candidats ADD COLUMN IF NOT EXISTS admin_id uuid;
-ALTER TABLE questions ADD COLUMN IF NOT EXISTS admin_id uuid;
-ALTER TABLE copies ADD COLUMN IF NOT EXISTS admin_id uuid;
-
--- 4. Nouvelles tables
-CREATE TABLE IF NOT EXISTS tokens_composition (
-  token uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  matricule text NOT NULL,
-  admin_id uuid REFERENCES admins(id),
-  expires_at timestamptz NOT NULL,
-  used boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS reset_tokens (
-  token text PRIMARY KEY,
-  admin_id uuid REFERENCES admins(id),
-  expires_at timestamptz NOT NULL,
-  used boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS universites (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nom text NOT NULL,
-  entites jsonb DEFAULT '[]',
-  created_at timestamptz DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS niveaux (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nom text NOT NULL,
-  ordre integer DEFAULT 0
-);
-
--- 5. Niveaux par défaut
-INSERT INTO niveaux (nom, ordre) VALUES
-  ('Licence 1',1),('Licence 2',2),('Licence 3',3),
-  ('Master 1',4),('Master 2',5),('Doctorat',6)
-ON CONFLICT DO NOTHING;
-
--- 6. RLS policies
-ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tokens_composition ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reset_tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE universites ENABLE ROW LEVEL SECURITY;
-ALTER TABLE niveaux ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "public_all_admins" ON admins FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "public_all_tokens" ON tokens_composition FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "public_all_reset" ON reset_tokens FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "public_all_universites" ON universites FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "public_all_niveaux" ON niveaux FOR ALL USING (true) WITH CHECK (true);
 
 -- 7. Créer le bucket Storage "logos" (public) dans Supabase Dashboard → Storage</div>
           <button class="btn btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
@@ -929,14 +848,23 @@ CREATE POLICY "public_all_niveaux" ON niveaux FOR ALL USING (true) WITH CHECK (t
     </div>
 
     <!-- Étape 6 : Matière -->
-    <div id="sel-step6" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-        <button onclick="selGoBack(5)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
-        <div style="width:48px;height:48px;border-radius:14px;background:#FFE4E6;display:flex;align-items:center;justify-content:center;font-size:24px">📋</div>
-        <div><div style="font-weight:700;font-size:18px">Votre matière</div><div style="font-size:13px;color:#64748B">Étape 6 sur 7</div></div>
-      </div>
-      <div id="sel-matiere-list"></div>
-    </div>
+<div id="sel-step6" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <button onclick="selGoBack(5)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+    <div style="width:48px;height:48px;border-radius:14px;background:#FFE4E6;display:flex;align-items:center;justify-content:center;font-size:24px">📋</div>
+    <div><div style="font-weight:700;font-size:18px">Votre matière</div><div style="font-size:13px;color:#64748B">Étape 6 sur 7</div></div>
+  </div>
+  <div id="sel-exam-info" style="background:#EFF6FF;border-radius:10px;padding:12px 16px;font-size:13px;color:#1E40AF;margin-bottom:16px;display:none"></div>
+  <div id="sel-matiere-list"></div>
+  
+  <!-- AJOUTEZ CE BOUTON POUR CONTINUER VERS L'ÉTAPE 7 -->
+  <div style="margin-top: 20px;">
+    <button class="btn btn-primary" style="width:100%; padding:14px; font-size:16px; font-weight:600;" 
+            id="btn-continuer-to-step7" onclick="goToStep7()" disabled>
+      ➡ Continuer vers l'identification
+    </button>
+  </div>
+</div>
 
     <!-- Étape 7 : Identification -->
     <div id="sel-step7" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
@@ -945,7 +873,6 @@ CREATE POLICY "public_all_niveaux" ON niveaux FOR ALL USING (true) WITH CHECK (t
         <div style="width:48px;height:48px;border-radius:14px;background:#FCE7F3;display:flex;align-items:center;justify-content:center;font-size:24px">👤</div>
         <div><div style="font-weight:700;font-size:18px">Votre identité</div><div style="font-size:13px;color:#64748B">Étape 7 sur 7</div></div>
       </div>
-      <div id="sel-exam-info" style="background:#EFF6FF;border-radius:10px;padding:12px 16px;font-size:13px;color:#1E40AF;margin-bottom:16px;display:none"></div>
       <div id="cand-err-sel" class="alert alert-danger" style="display:none"></div>
       <div style="position:relative;margin-bottom:16px">
         <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:18px">🔍</span>
@@ -3539,32 +3466,39 @@ async function loadFilieresForSelection() {
 
 
 function selShowStep(n) {
-  // Barre de progression (6 étapes)
+  // Barre de progression (7 étapes)
   const bar = document.getElementById("sel-progress");
-  if (bar) bar.style.width = (n * 16.6) + "%";
+  if (bar) bar.style.width = (n * 14.28) + "%";  // 100/7 ≈ 14.28
   
-  for (let i = 1; i <= 6; i++) {
+  // Afficher/masquer les étapes 1 à 7
+  for (let i = 1; i <= 7; i++) {
     const st = document.getElementById("sel-step" + i);
     if (st) st.style.display = i === n ? "block" : "none";
     const dt = document.getElementById("sel-s" + i);
     if (dt) dt.className = i < n ? "step-dot done" : i === n ? "step-dot active" : "step-dot";
   }
+  
   const se = document.getElementById("sel-step-email");
   if (se) se.style.display = "none";
-  if (n === 6) {
-    ["cand-nom-sel","cand-err-sel"].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        if (id.includes("nom")) el.value = "";
-        else el.style.display = "none";
-      }
-    });
-    const ns = document.getElementById("nom-suggestions-sel");
-    if (ns) ns.innerHTML = "";
-    const cp = document.getElementById("cand-preview-sel");
-    if (cp) cp.style.display = "none";
-    const bv = document.getElementById("btn-valider-sel");
-    if (bv) bv.disabled = true;
+  
+  // Réinitialiser l'étape 7 si on y arrive
+  if (n === 7) {
+    // Réinitialiser les champs de l'étape 7
+    const nomInput = document.getElementById("cand-nom-sel");
+    if (nomInput) nomInput.value = "";
+    
+    const errDiv = document.getElementById("cand-err-sel");
+    if (errDiv) errDiv.style.display = "none";
+    
+    const suggestions = document.getElementById("nom-suggestions-sel");
+    if (suggestions) suggestions.innerHTML = "";
+    
+    const preview = document.getElementById("cand-preview-sel");
+    if (preview) preview.style.display = "none";
+    
+    const btnValider = document.getElementById("btn-valider-sel");
+    if (btnValider) btnValider.disabled = true;
+    
     currentCandidat = null;
   }
 }
@@ -3576,63 +3510,130 @@ async function selLoadEpreuve() {
       return;
     }
     
-    // Filtrer les épreuves par filiere_id
+    // Récupérer toutes les épreuves ouvertes pour cette filière
     const cfgs = await DB.select("exam_config", 
       "filiere_id=eq." + selFiliere.id + 
       "&statut=eq.ouvert&select=*"
     ) || [];
     
     const infoEl = document.getElementById("sel-exam-info");
-    const btnEl = document.getElementById("btn-valider-sel");
+    const matiereList = document.getElementById("sel-matiere-list");
     
     if (!cfgs || cfgs.length === 0) {
       if (infoEl) {
         infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve ouverte pour cette filière.</strong>";
         infoEl.style.display = "block";
       }
-      if (btnEl) btnEl.disabled = true;
+      if (matiereList) {
+        matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
+      }
       selAdminId = null;
+      const btnEl = document.getElementById("btn-valider-sel");
+      if (btnEl) btnEl.disabled = true;
       return;
     }
     
-    // Afficher la liste des matières (épreuves)
-    if (infoEl) {
-      infoEl.innerHTML = "<strong>📖 Matières disponibles :</strong><br>" + 
-        cfgs.map(cfg => "• " + escH(cfg.matiere || cfg.ecole || "Sans nom")).join("<br>");
-      infoEl.style.display = "block";
+    // Afficher la liste des matières dans sel-matiere-list
+    if (matiereList) {
+      matiereList.innerHTML = cfgs.map(cfg => `
+        <div class="sel-card-opt" onclick="selectMatiere('${cfg.id}', '${escH(cfg.matiere || cfg.ecole || "Sans nom")}', this)">
+          <div style="font-weight:600;font-size:15px">📖 ${escH(cfg.matiere || cfg.ecole || "Sans nom")}</div>
+          ${cfg.enseignant ? `<div style="font-size:12px;color:#64748B;margin-top:4px">Enseignant : ${escH(cfg.enseignant)}</div>` : ''}
+        </div>
+      `).join("");
     }
     
-    // Prendre la première épreuve pour la configuration
-    const cfg = cfgs[0];
-    selAdminId = cfg.admin_id;
-    CFG = cfg;
-    
-    // Charger les candidats de cette filière
-    CANDIDATS = await DB.select("candidats", 
-      "filiere_id=eq." + selFiliere.id + "&order=nom.asc"
-    ) || [];
-    
-    if (cfg.admin_id) {
-      const qs = await DB.select("questions", "admin_id=eq." + cfg.admin_id + "&order=ordre.asc") || [];
-      const sqs = await DB.select("sous_questions", "order=ordre.asc") || [];
-      QUESTIONS = qs.map(q => ({
-        ...q,
-        sousQuestions: sqs.filter(sq => sq.question_id === q.id)
-      }));
-    }
-    
-    if (btnEl) btnEl.disabled = false;
-    
-    const evZone = document.getElementById("email-verif-notice");
-    if (evZone) {
-      evZone.style.display = cfg.email_verification ? "block" : "none";
-    }
+    // Masquer l'ancien affichage d'info si présent
+    if (infoEl) infoEl.style.display = "none";
     
   } catch(e) {
     console.error("Erreur chargement épreuve:", e);
     toast("Erreur chargement épreuve: " + e.message, "error");
     const btnEl = document.getElementById("btn-valider-sel");
     if (btnEl) btnEl.disabled = true;
+  }
+}
+
+// Variables pour stocker la matière sélectionnée
+let selectedMatiereId = null;
+let selectedMatiereNom = null;
+
+// Fonction pour sélectionner une matière
+function selectMatiere(id, nom, el) {
+  // Retirer la classe selected de tous les éléments
+  document.querySelectorAll("#sel-matiere-list .sel-card-opt").forEach(opt => {
+    opt.classList.remove("selected");
+  });
+  
+  // Ajouter la classe selected à l'élément cliqué
+  el.classList.add("selected");
+  
+  // Stocker la matière sélectionnée
+  selectedMatiereId = id;
+  selectedMatiereNom = nom;
+  
+  // Récupérer la configuration complète de cette matière
+  chargerConfigMatiere(id);
+}
+
+async function chargerConfigMatiere(configId) {
+  try {
+    const cfgs = await DB.select("exam_config", "id=eq." + configId + "&select=*") || [];
+    if (cfgs && cfgs.length > 0) {
+      const cfg = cfgs[0];
+      selAdminId = cfg.admin_id;
+      CFG = cfg;
+      
+      // Charger les candidats de cette matière
+      CANDIDATS = await DB.select("candidats", 
+        "admin_id=eq." + selAdminId + "&order=nom.asc"
+      ) || [];
+      
+      // Charger les questions
+      const qs = await DB.select("questions", "admin_id=eq." + selAdminId + "&order=ordre.asc") || [];
+      const sqs = await DB.select("sous_questions", "order=ordre.asc") || [];
+      QUESTIONS = qs.map(q => ({
+        ...q,
+        sousQuestions: sqs.filter(sq => sq.question_id === q.id)
+      }));
+      
+      // Mettre à jour l'affichage de l'info matière
+      const infoEl = document.getElementById("sel-exam-info");
+      if (infoEl) {
+        infoEl.innerHTML = `<strong>✅ Matière sélectionnée : ${escH(cfg.matiere || cfg.ecole || "Sans nom")}</strong>`;
+        infoEl.style.display = "block";
+      }
+      
+      // Activer le bouton pour passer à l'étape suivante (étape 7)
+      const btnValider = document.getElementById("btn-valider-sel");
+      if (btnValider) {
+        btnValider.disabled = false;
+        btnValider.textContent = "✓ Continuer vers l'identification";
+      }
+      
+      // Activer le bouton "Continuer vers l'identification" dans l'étape 6
+      const btnContinuer = document.getElementById("btn-continuer-to-step7");
+      if (btnContinuer) {
+        btnContinuer.disabled = false;
+      }
+      
+      // Mettre à jour l'affichage de la vérification email
+      const evZone = document.getElementById("email-verif-notice");
+      if (evZone) {
+        evZone.style.display = cfg.email_verification ? "block" : "none";
+      }
+      
+      toast(`Matière "${cfg.matiere || cfg.ecole}" sélectionnée`, "success");
+      
+      // AFFICHER UN MESSAGE POUR INVITER L'UTILISATEUR À CONTINUER
+      setTimeout(() => {
+        toast("Cliquez sur 'Continuer vers l'identification' pour passer à l'étape suivante", "info");
+      }, 1000);
+      
+    }
+  } catch(e) {
+    console.error("Erreur chargement config matière:", e);
+    toast("Erreur: " + e.message, "error");
   }
 }
 function selGoBack(n) { selShowStep(n); }
@@ -4103,6 +4104,15 @@ async function saLoadActivity() {
   }
   document.body.style.visibility='visible';
 })();
+// Fonction pour passer manuellement à l'étape 7
+function goToStep7() {
+  if (selectedMatiereId) {
+    selShowStep(7);
+  } else {
+    toast("Veuillez d'abord sélectionner une matière", "warn");
+  }
+}
+
 </script>
 
 <style>
