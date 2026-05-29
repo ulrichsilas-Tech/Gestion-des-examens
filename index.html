@@ -480,6 +480,165 @@ textarea{resize:vertical;min-height:80px}
           <div class="setup-step-title">Créer les tables (SQL Editor)</div>
           <p style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">Dans Supabase → SQL Editor → copiez-collez ce script :</p>
           <div class="code-block" id="sql-block" style="max-height:260px;overflow-y:auto;font-size:11px">
+-- ════ ExamPlatform — Script SQL complet ════
+-- À exécuter dans Supabase → SQL Editor
+
+-- 1. Tables de base
+create table if not exists admins (
+  id uuid primary key default gen_random_uuid(),
+  identifiant text unique not null,
+  nom text, email text, pwd text,
+  role text default 'enseignant',
+  valide boolean default false,
+  created_at timestamptz default now()
+);
+
+create table if not exists universites (
+  id uuid primary key default gen_random_uuid(),
+  nom text not null,
+  entites jsonb default '[]'
+);
+
+create table if not exists entites (
+  id uuid primary key default gen_random_uuid(),
+  nom text not null,
+  universite_id uuid references universites(id) on delete cascade
+);
+
+create table if not exists departements (
+  id uuid primary key default gen_random_uuid(),
+  nom text not null,
+  entite_id uuid references entites(id) on delete cascade
+);
+
+create table if not exists niveaux (
+  id uuid primary key default gen_random_uuid(),
+  nom text not null,
+  ordre int default 0,
+  departement_id uuid references departements(id) on delete cascade
+);
+
+create table if not exists filieres (
+  id uuid primary key default gen_random_uuid(),
+  nom text not null,
+  code text not null,
+  ordre int default 0,
+  departement_id uuid references departements(id) on delete cascade,
+  niveau_id uuid references niveaux(id) on delete cascade
+);
+
+-- 2. Tables parcours
+create table if not exists parcours (
+  id uuid primary key default gen_random_uuid(),
+  universite_id uuid references universites(id) on delete cascade,
+  entite_id uuid references entites(id) on delete cascade,
+  departement_id uuid references departements(id) on delete cascade,
+  niveau_id uuid references niveaux(id) on delete cascade,
+  admin_id uuid references admins(id) on delete cascade,
+  created_at timestamptz default now()
+);
+
+create table if not exists parcours_filieres (
+  parcours_id uuid references parcours(id) on delete cascade,
+  filiere_id uuid references filieres(id) on delete cascade,
+  primary key (parcours_id, filiere_id)
+);
+
+-- 3. Tables exam
+create table if not exists exam_config (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references admins(id) on delete cascade,
+  parcours_id uuid references parcours(id) on delete set null,
+  ecole text, institut text, matiere text, niveau text,
+  annee text, date_exam date, heure time default '08:00',
+  duree int default 90, session text default 'Normale',
+  bareme int default 20, consigne text, enseignant text,
+  statut text default 'ferme',
+  email_verification boolean default false,
+  resend_key text, smtp_from text,
+  logo_universite text, logo_entite text,
+  pwd_admin text, created_at timestamptz default now()
+);
+
+create table if not exists candidats (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references admins(id) on delete cascade,
+  matricule text not null,
+  nom text, prenom text,
+  filiere text, filiere_id uuid references filieres(id) on delete set null,
+  email text, date_naissance date,
+  unique(admin_id, matricule)
+);
+
+create table if not exists questions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references admins(id) on delete cascade,
+  num int, ordre int, texte text,
+  image_url text, html_content text
+);
+
+create table if not exists sous_questions (
+  id text primary key,
+  question_id uuid references questions(id) on delete cascade,
+  ordre int, texte text, correct boolean default false
+);
+
+create table if not exists copies (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references admins(id) on delete cascade,
+  matricule text, nom text, prenom text,
+  filiere text, reponses jsonb, note numeric,
+  date_depot timestamptz default now()
+);
+
+create table if not exists tokens_composition (
+  token uuid primary key default gen_random_uuid(),
+  matricule text, admin_id uuid, expires_at timestamptz, used boolean default false
+);
+
+create table if not exists reset_tokens (
+  id uuid primary key default gen_random_uuid(),
+  token text, admin_id uuid, expires_at timestamptz, used boolean default false
+);
+
+-- 4. Super admin par défaut
+insert into admins (identifiant, nom, email, pwd, role, valide)
+values ('admin', 'Super Administrateur', 'admin@examplatform.com', 'admin123', 'superadmin', true)
+on conflict (identifiant) do nothing;
+
+-- 5. GRANTs explicites pour le rôle anon (obligatoire depuis mai 2025)
+do $$
+declare
+  t text;
+  tables text[] := array[
+    'admins','exam_config','candidats','questions','sous_questions',
+    'copies','tokens_composition','reset_tokens',
+    'universites','entites','departements','niveaux','filieres',
+    'parcours','parcours_filieres'
+  ];
+begin
+  foreach t in array tables loop
+    execute format('grant select, insert, update, delete on public.%I to anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+    execute format('grant select, insert, update, delete on public.%I to service_role', t);
+  end loop;
+end $$;
+
+-- 6. RLS désactivé (app sans auth Supabase — cloisonnement géré par admin_id)
+do $$
+declare
+  t text;
+  tables text[] := array[
+    'admins','exam_config','candidats','questions','sous_questions',
+    'copies','tokens_composition','reset_tokens',
+    'universites','entites','departements','niveaux','filieres',
+    'parcours','parcours_filieres'
+  ];
+begin
+  foreach t in array tables loop
+    execute format('alter table public.%I disable row level security', t);
+  end loop;
+end $$;
 
 -- 7. Créer le bucket Storage "logos" (public) dans Supabase Dashboard → Storage</div>
           <button class="btn btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
@@ -587,55 +746,41 @@ textarea{resize:vertical;min-height:80px}
           <span id="current-statut" class="badge badge-gray" style="align-self:center;font-size:13px;padding:6px 14px"></span>
         </div>
       </div>
+      <!-- Champs hidden pour compatibilité -->
+      <input type="hidden" id="c-ecole"><input type="hidden" id="c-institut"><input type="hidden" id="c-niveau"><input type="hidden" id="c-annee">
+      <input type="hidden" id="c-resend-key"><input type="hidden" id="c-smtp-from"><input type="hidden" id="c-email-verif">
+      
+      <div id="cfg-parcours-info" class="alert alert-info" style="margin-bottom:16px;display:none">
+        📍 Parcours assigné par l'administrateur — visible pour les étudiants
+      </div>
       <div class="grid-2">
         <div>
-          <div class="field"><label class="lbl">Établissement</label><input id="c-ecole"></div>
-          <div class="field"><label class="lbl">Institut / Département</label><input id="c-institut"></div>
-          <div class="field"><label class="lbl">Matière</label><input id="c-matiere"></div>
-          <div class="field"><label class="lbl">Niveau / Classe</label><input id="c-niveau"></div>
-          <div class="field"><label class="lbl">Année académique</label><input id="c-annee"></div>
+          <div class="field"><label class="lbl">📖 Matière</label><input id="c-matiere" placeholder="Ex : Hydraulique Générale"></div>
+          <div class="field"><label class="lbl">📅 Date de l'épreuve</label><input id="c-date" type="date"></div>
+          <div class="field"><label class="lbl">🕐 Heure début</label><input id="c-heure" type="time" value="08:00"></div>
         </div>
         <div>
-          <div class="field"><label class="lbl">Date de l'épreuve</label><input id="c-date" type="date"></div>
-          <div class="field"><label class="lbl">Heure début</label><input id="c-heure" type="time" value="08:00"></div>
-          <div class="field"><label class="lbl">Durée (minutes)</label><input id="c-duree" type="number" value="90"></div>
-          <div class="field"><label class="lbl">Session</label>
+          <div class="field"><label class="lbl">⏱ Durée (minutes)</label><input id="c-duree" type="number" value="90"></div>
+          <div class="field"><label class="lbl">📊 Barème total</label><input id="c-bareme" type="number" value="20"></div>
+          <div class="field"><label class="lbl">📋 Session</label>
             <select id="c-session"><option>Normale</option><option>Rattrapage</option><option>Spéciale</option></select>
           </div>
-          <div class="field"><label class="lbl">Barème total</label><input id="c-bareme" type="number" value="20"></div>
         </div>
       </div>
-      <div class="field"><label class="lbl">Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
+      <div class="field"><label class="lbl">📝 Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
       <div class="field"><label class="lbl">👨‍🏫 Nom de l'enseignant</label><input id="c-enseignant" placeholder="Ex : Dr Arnaud ZANNOU"></div>
       <div class="sep"></div>
       <div style="font-size:15px;font-weight:600;margin-bottom:12px">🏛️ Logos dynamiques</div>
       <div class="grid-2">
         <div class="field"><label class="lbl">Logo Université (URL)</label>
-          <input id="c-logo-univ" placeholder="Laisser vide = logo UAC par défaut">
+          <input id="c-logo-univ" placeholder="Laisser vide = logo par défaut">
           <button class="btn btn-sm" style="margin-top:4px" onclick="document.getElementById('logo-univ-input').click()">📤 Uploader</button>
           <input type="file" id="logo-univ-input" accept="image/*" style="display:none" onchange="uploadLogoAdmin(this,'universite')">
         </div>
         <div class="field"><label class="lbl">Logo Entité (URL)</label>
-          <input id="c-logo-entite" placeholder="Laisser vide = logo INE par défaut">
+          <input id="c-logo-entite" placeholder="Laisser vide = logo par défaut">
           <button class="btn btn-sm" style="margin-top:4px" onclick="document.getElementById('logo-entite-input').click()">📤 Uploader</button>
           <input type="file" id="logo-entite-input" accept="image/*" style="display:none" onchange="uploadLogoAdmin(this,'entite')">
-        </div>
-      </div>
-      <div class="sep"></div>
-      <div style="font-size:15px;font-weight:600;margin-bottom:12px">📧 Vérification email étudiants</div>
-      <div class="card" style="background:var(--amber-light);border:1px solid #FDE68A;margin-bottom:16px">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
-          <input type="checkbox" id="c-email-verif" style="width:18px;height:18px;accent-color:var(--amber)">
-          <span><strong>Activer la vérification email</strong> — Un lien unique sera envoyé à chaque étudiant avant composition</span>
-        </label>
-      </div>
-      <div class="grid-2">
-        <div class="field"><label class="lbl">Clé API Resend</label>
-          <input id="c-resend-key" type="password" placeholder="re_xxxxxxxxxxxx">
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Compte gratuit sur <a href="https://resend.com" target="_blank" style="color:var(--blue)">resend.com</a></p>
-        </div>
-        <div class="field"><label class="lbl">Email expéditeur</label>
-          <input id="c-smtp-from" placeholder="noreply@votre-domaine.com">
         </div>
       </div>
       <div class="sep"></div>
@@ -1152,8 +1297,8 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTabSA(this,'sa-tab-comptes')">👥 Comptes enseignants</button>
-      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-universites')">🏛️ Universités &amp; Entités</button>
-      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-niveaux')">📚 Niveaux</button>
+      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-hierarchie')">🏛️ Hiérarchie</button>
+      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-parcours')">🗺️ Parcours</button>
       <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-activity')">📈 Activité</button>
     </div>
     <div id="sa-tab-comptes" class="admin-tab">
@@ -1164,20 +1309,61 @@ textarea{resize:vertical;min-height:80px}
       </div>
       <div id="sa-comptes-list"><div class="alert alert-warning">Chargement...</div></div>
     </div>
-    <div id="sa-tab-universites" class="admin-tab" style="display:none">
+
+    <!-- Onglet Hiérarchie -->
+    <div id="sa-tab-hierarchie" class="admin-tab" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
-        <div class="section-title" style="margin:0">Universités &amp; Entités</div>
-        <button class="btn btn-primary btn-sm" onclick="saShowAddUniversite()">+ Ajouter université</button>
+        <div class="section-title" style="margin:0">🏛️ Hiérarchie universitaire</div>
+        <button class="btn btn-primary btn-sm" onclick="saShowAddUniversite()">+ Université</button>
       </div>
-      <div id="sa-universites-list"><div class="alert alert-warning">Chargement...</div></div>
+      <div id="sa-hierarchie-list"><div class="alert alert-warning">Chargement...</div></div>
     </div>
-    <div id="sa-tab-niveaux" class="admin-tab" style="display:none">
+
+    <!-- Onglet Parcours -->
+    <div id="sa-tab-parcours" class="admin-tab" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
-        <div class="section-title" style="margin:0">Niveaux d'études</div>
-        <button class="btn btn-primary btn-sm" onclick="saAddNiveau()">+ Ajouter niveau</button>
+        <div class="section-title" style="margin:0">🗺️ Parcours</div>
+        <button class="btn btn-primary btn-sm" onclick="saShowCreateParcours()">+ Créer un parcours</button>
       </div>
-      <div id="sa-niveaux-list"><div class="alert alert-warning">Chargement...</div></div>
+      <div class="alert alert-info" style="font-size:13px;margin-bottom:16px">
+        Un parcours relie une hiérarchie (Université → Filière) à un enseignant. Les étudiants voient les matières de l'enseignant assigné à leur parcours.
+      </div>
+      <div id="sa-parcours-list"><div class="alert alert-warning">Chargement...</div></div>
+
+      <!-- Formulaire création parcours -->
+      <div id="sa-parcours-form" style="display:none;background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:20px;margin-top:16px">
+        <div style="font-size:16px;font-weight:600;margin-bottom:16px">➕ Nouveau parcours</div>
+        <div class="grid-2">
+          <div class="field"><label class="lbl">Université</label>
+            <select id="pf-univ" onchange="pfLoadEntites()"><option value="">— Sélectionner —</option></select>
+          </div>
+          <div class="field"><label class="lbl">Entité</label>
+            <select id="pf-entite" onchange="pfLoadDepts()"><option value="">— Sélectionner —</option></select>
+          </div>
+          <div class="field"><label class="lbl">Département</label>
+            <select id="pf-dept" onchange="pfLoadNiveaux()"><option value="">— Sélectionner —</option></select>
+          </div>
+          <div class="field"><label class="lbl">Niveau</label>
+            <select id="pf-niveau" onchange="pfLoadFilieres()"><option value="">— Sélectionner —</option></select>
+          </div>
+        </div>
+        <div class="field"><label class="lbl">Filières (sélection multiple)</label>
+          <div id="pf-filieres-checkboxes" style="display:flex;gap:10px;flex-wrap:wrap;padding:10px;border:1px solid var(--gray-mid);border-radius:var(--radius);min-height:44px">
+            <span style="color:var(--text-muted);font-size:13px">Sélectionnez un niveau d'abord</span>
+          </div>
+        </div>
+        <div class="field"><label class="lbl">Enseignant assigné</label>
+          <select id="pf-enseignant"><option value="">— Sélectionner —</option></select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-success" onclick="saCreateParcours()">✓ Créer le parcours</button>
+          <button class="btn" onclick="document.getElementById('sa-parcours-form').style.display='none'">Annuler</button>
+        </div>
+      </div>
     </div>
+
+    <div id="sa-tab-universites" class="admin-tab" style="display:none"><!-- kept for compat --></div>
+    <div id="sa-tab-niveaux" class="admin-tab" style="display:none"><!-- kept for compat --></div>
     <div id="sa-tab-activity" class="admin-tab" style="display:none">
       <div class="section-title">Activité récente</div>
       <div id="sa-activity-list"><div class="alert alert-warning">Chargement...</div></div>
@@ -3048,10 +3234,12 @@ function exitFullscreen() {
 let currentAdmin    = null;   // { id, identifiant, nom, role }
 let selUniversite = null;
 let selEntite = null;
-let selDepartement = null;  // ← NOUVEAU
+let selDepartement = null;
 let selNiveau = null;
 let selFiliere = null;
 let selAdminId = null;
+let selectedMatiereId = null;
+let selectedMatiereNom = null;
 let LOGO_GAUCHE_B64 = null;
 let LOGO_DROITE_B64 = null;
 
@@ -3278,6 +3466,7 @@ async function uploadLogoAdmin(input, type) {
 async function initSelectionPage() {
   selUniversite = null; selEntite = null; selDepartement = null;
   selNiveau = null; selFiliere = null; selAdminId = null;
+  selectedMatiereId = null; selectedMatiereNom = null;
   // Cacher toutes les étapes
   for(let i = 1; i <= 6; i++) {
     const el = document.getElementById(`sel-step${i}`);
@@ -3313,25 +3502,27 @@ async function selChooseUniversite(id, nom, el) {
   selUniversite = { id, nom };
   const crumb2 = document.getElementById("sel-crumb2");
   if (crumb2) crumb2.textContent = "🏛️ " + nom;
-  const rows    = await DB.select("universites", "id=eq." + id + "&select=entites");
-  const entites = rows && rows[0]
-    ? (Array.isArray(rows[0].entites) ? rows[0].entites : JSON.parse(rows[0].entites || "[]"))
-    : [];
+  // Charger les entités depuis la table entites
+  const entites = await DB.select("entites", "universite_id=eq." + id + "&order=nom.asc") || [];
   const list = document.getElementById("sel-entite-list");
   if (list) {
     if (!entites.length) {
-      list.innerHTML = "<div class=\"alert alert-warning\">Aucune entité configurée.</div>";
+      list.innerHTML = "<div class=\"alert alert-warning\">Aucune entité configurée pour cette université.</div>";
     } else {
-      list.innerHTML = entites.map(e => `<div class="sel-card-opt" onclick="selChooseEntite('${escH(e)}',this)"><div style="font-weight:600;font-size:15px">${escH(e)}</div></div>`).join("");
+      list.innerHTML = entites.map(e =>
+        `<div class="sel-card-opt" onclick="selChooseEntite('${e.id}','${escH(e.nom)}',this)">
+          <div style="font-weight:600;font-size:15px">🏫 ${escH(e.nom)}</div>
+        </div>`
+      ).join("");
     }
   }
   selShowStep(2);
 }
 
-function selChooseEntite(nom, el) {
+function selChooseEntite(id, nom, el) {
   document.querySelectorAll("#sel-entite-list .sel-card-opt").forEach(o => o.classList.remove("selected"));
   el.classList.add("selected");
-  selEntite = nom;
+  selEntite = { id, nom };
   const crumb3 = document.getElementById("sel-crumb3");
   if (crumb3) crumb3.textContent = "🏛️ " + (selUniversite ? selUniversite.nom : "") + "  ›  🏫 " + nom;
   loadDepartementsForSelection();
@@ -3345,7 +3536,7 @@ async function selChooseFiliere(id, code, nom, el) {
   
   const crumb6 = document.getElementById("sel-crumb6");
   if (crumb6) {
-    crumb6.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite||"") + "  ›  📂 " + (selDepartement||"") + "  ›  📚 " + (selNiveau?.nom||"") + "  ›  🎓 " + code;
+    crumb6.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite?.nom||"") + "  ›  📂 " + (selDepartement?.nom||"") + "  ›  📚 " + (selNiveau?.nom||"") + "  ›  🎓 " + code;
   }
   
   await selLoadEpreuve();
@@ -3354,27 +3545,20 @@ async function selChooseFiliere(id, code, nom, el) {
 
 async function loadDepartementsForSelection() {
   try {
-    const depts = await DB.select("departements", "order=nom.asc") || [];
+    if (!selEntite || !selEntite.id) { console.warn("Aucune entité sélectionnée"); return; }
+    const depts = await DB.select("departements", "entite_id=eq." + selEntite.id + "&order=nom.asc") || [];
     const list = document.getElementById("sel-dept-list");
     if (!list) return;
-    
     if (!depts.length) {
-      const defaultDepts = ["Génie Civil", "Génie Informatique", "Génie Mécanique", "Génie Électrique", "Sciences de la Terre"];
-      list.innerHTML = defaultDepts.map(d =>
-        `<div class="sel-card-opt" onclick="selChooseDepartement('${d}','${d}',this)">
-          <div style="font-weight:600;font-size:15px">${escH(d)}</div>
-        </div>`
-      ).join("");
+      list.innerHTML = "<div class='alert alert-warning'>Aucun département pour cette entité.</div>";
     } else {
       list.innerHTML = depts.map(d =>
         `<div class="sel-card-opt" onclick="selChooseDepartement('${d.id}','${escH(d.nom)}',this)">
-          <div style="font-weight:600;font-size:15px">${escH(d.nom)}</div>
+          <div style="font-weight:600;font-size:15px">📂 ${escH(d.nom)}</div>
         </div>`
       ).join("");
     }
-  } catch(e) {
-    toast("Erreur chargement départements: " + e.message, "error");
-  }
+  } catch(e) { toast("Erreur chargement départements: " + e.message, "error"); }
 }
 
 async function selChooseDepartement(id, nom, el) {
@@ -3384,7 +3568,7 @@ async function selChooseDepartement(id, nom, el) {
   
   const crumb4 = document.getElementById("sel-crumb4");
   if (crumb4) {
-    crumb4.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite||"") + "  ›  📂 " + nom;
+    crumb4.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite?.nom||"") + "  ›  📂 " + nom;
   }
   
   loadNiveauxForSelection();  // ← Ne plus passer de paramètre
@@ -3427,7 +3611,7 @@ function selChooseNiveau(id, nom, el) {
   
   const crumb5 = document.getElementById("sel-crumb5");
   if (crumb5) {
-    crumb5.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite||"") + "  ›  📂 " + (selDepartement||"") + "  ›  📚 " + nom;
+    crumb5.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite?.nom||"") + "  ›  📂 " + (selDepartement?.nom||"") + "  ›  📚 " + nom;
   }
   
   // Charger les filières de ce niveau
@@ -3505,58 +3689,71 @@ function selShowStep(n) {
 
 async function selLoadEpreuve() {
   try {
-    if (!selFiliere || !selFiliere.id) {
-      console.warn("Aucune filière sélectionnée");
-      return;
-    }
-    
-    // Récupérer toutes les épreuves ouvertes pour cette filière
-    const cfgs = await DB.select("exam_config", 
-      "filiere_id=eq." + selFiliere.id + 
-      "&statut=eq.ouvert&select=*"
-    ) || [];
-    
-    const infoEl = document.getElementById("sel-exam-info");
+    if (!selFiliere || !selFiliere.id) { console.warn("Aucune filière sélectionnée"); return; }
+    const infoEl      = document.getElementById("sel-exam-info");
     const matiereList = document.getElementById("sel-matiere-list");
-    
-    if (!cfgs || cfgs.length === 0) {
-      if (infoEl) {
-        infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve ouverte pour cette filière.</strong>";
-        infoEl.style.display = "block";
-      }
-      if (matiereList) {
-        matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
-      }
-      selAdminId = null;
-      const btnEl = document.getElementById("btn-valider-sel");
-      if (btnEl) btnEl.disabled = true;
+
+    // Chercher les parcours qui incluent cette filière
+    const pf = await DB.select("parcours_filieres", "filiere_id=eq." + selFiliere.id + "&select=parcours_id") || [];
+    const parcoursIds = pf.map(x => x.parcours_id);
+
+    if (!parcoursIds.length) {
+      if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucun parcours configuré pour cette filière.</strong>"; infoEl.style.display = "block"; }
+      if (matiereList) matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
       return;
     }
-    
-    // Afficher la liste des matières dans sel-matiere-list
-    if (matiereList) {
-      matiereList.innerHTML = cfgs.map(cfg => `
-        <div class="sel-card-opt" onclick="selectMatiere('${cfg.id}', '${escH(cfg.matiere || cfg.ecole || "Sans nom")}', this)">
-          <div style="font-weight:600;font-size:15px">📖 ${escH(cfg.matiere || cfg.ecole || "Sans nom")}</div>
-          ${cfg.enseignant ? `<div style="font-size:12px;color:#64748B;margin-top:4px">Enseignant : ${escH(cfg.enseignant)}</div>` : ''}
-        </div>
-      `).join("");
+
+    // Pour chaque parcours, charger les épreuves de l'enseignant assigné
+    const parcoursList = await DB.select("parcours", "select=*") || [];
+    const matchedParcours = parcoursList.filter(p => parcoursIds.includes(p.id));
+
+    // Récupérer toutes les épreuves des admins de ces parcours
+    const adminIds = [...new Set(matchedParcours.map(p => p.admin_id).filter(Boolean))];
+    if (!adminIds.length) {
+      if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucun enseignant assigné à ce parcours.</strong>"; infoEl.style.display = "block"; }
+      if (matiereList) matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
+      return;
     }
-    
-    // Masquer l'ancien affichage d'info si présent
+
+    // Récupérer toutes les épreuves (ouvertes ET fermées) de ces enseignants
+    let allCfgs = [];
+    for (const aId of adminIds) {
+      const cfgs = await DB.select("exam_config", "admin_id=eq." + aId + "&select=*") || [];
+      allCfgs = allCfgs.concat(cfgs);
+    }
+
+    if (!allCfgs.length) {
+      if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve configurée.</strong>"; infoEl.style.display = "block"; }
+      if (matiereList) matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
+      return;
+    }
+
     if (infoEl) infoEl.style.display = "none";
-    
+    if (matiereList) {
+      matiereList.innerHTML = allCfgs.map(cfg => {
+        const isOpen = cfg.statut === "ouvert";
+        return `
+        <div class="sel-card-opt${isOpen ? "" : ""}" onclick="${isOpen ? `selectMatiere('${cfg.id}','${escH(cfg.matiere||cfg.ecole||"Sans nom")}',this)` : "void(0)"}"
+          style="${isOpen ? "" : "opacity:0.55;cursor:not-allowed;background:#F3F4F6"}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div>
+              <div style="font-weight:600;font-size:15px">📖 ${escH(cfg.matiere || cfg.ecole || "Sans nom")}</div>
+              ${cfg.enseignant ? `<div style="font-size:12px;color:#64748B;margin-top:2px">👨‍🏫 ${escH(cfg.enseignant)}</div>` : ""}
+            </div>
+            <div style="margin-left:auto;flex-shrink:0">
+              ${isOpen
+                ? `<span class="badge badge-green">🟢 Ouverte</span>`
+                : `<span class="badge badge-red">🔴 Non disponible</span>`}
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+    }
   } catch(e) {
     console.error("Erreur chargement épreuve:", e);
     toast("Erreur chargement épreuve: " + e.message, "error");
-    const btnEl = document.getElementById("btn-valider-sel");
-    if (btnEl) btnEl.disabled = true;
   }
 }
-
-// Variables pour stocker la matière sélectionnée
-let selectedMatiereId = null;
-let selectedMatiereNom = null;
 
 // Fonction pour sélectionner une matière
 function selectMatiere(id, nom, el) {
@@ -3646,14 +3843,19 @@ function onNomInputSel(val) {
   const cp = document.getElementById("cand-preview-sel"); if (cp) cp.style.display = "none";
   if (sug) sug.innerHTML = "";
   if (val.length < 2) return;
-  const found = CANDIDATS.filter(c =>
-    c.nom.toUpperCase().startsWith(val) &&
-    (!selFiliere || (c.filiere||"").toUpperCase() === selFiliere.toUpperCase()) &&
-    c.matricule !== "TEST"
-  );
-  if (!found.length) { if (sug) sug.innerHTML = "<div class=\"alert alert-danger\" style=\"margin-top:6px\">Aucun \u00e9tudiant trouv\u00e9.</div>"; return; }
+  const found = CANDIDATS.filter(c => {
+    if (c.matricule === "TEST") return false;
+    if (!c.nom || !c.nom.toUpperCase().startsWith(val)) return false;
+    // Filtrer par filière : priorité à filiere_id, sinon par code
+    if (selFiliere) {
+      if (selFiliere.id && c.filiere_id) return c.filiere_id === selFiliere.id;
+      if (selFiliere.code) return (c.filiere||"").toUpperCase() === selFiliere.code.toUpperCase();
+    }
+    return true;
+  });
+  if (!found.length) { if (sug) sug.innerHTML = "<div class=\"alert alert-danger\" style=\"margin-top:6px\">Aucun étudiant trouvé.</div>"; return; }
   if (sug) sug.innerHTML = "<div class=\"suggestions\">" + found.map(c =>
-    `<div class="suggestion-item" onclick="selectCandidatSel('${c.matricule}')"><strong>${c.nom} ${c.prenom||""}</strong> \u2014 ${c.matricule}</div>`
+    `<div class="suggestion-item" onclick="selectCandidatSel('${c.matricule}')"><strong>${c.nom} ${c.prenom||""}</strong> — ${c.matricule}</div>`
   ).join("") + "</div>";
 }
 
@@ -3932,6 +4134,8 @@ function switchTabSA(btn, tabId) {
   btn.classList.add("active");
   const el = document.getElementById(tabId); if (el) el.style.display = "block";
   if (tabId === "sa-tab-comptes")    saLoadComptes();
+  if (tabId === "sa-tab-hierarchie") saLoadHierarchie();
+  if (tabId === "sa-tab-parcours")   saLoadParcours();
   if (tabId === "sa-tab-universites") saLoadUniversites();
   if (tabId === "sa-tab-niveaux")    saLoadNiveaux();
   if (tabId === "sa-tab-activity")   saLoadActivity();
@@ -4002,75 +4206,301 @@ async function saSupprimerCompte(id, identifiant) {
   });
 }
 
-async function saLoadUniversites() {
+// ════════════════════════════════════════
+// SUPER ADMIN — HIÉRARCHIE COMPLÈTE
+// ════════════════════════════════════════
+
+async function saLoadHierarchie() {
+  const wrap = document.getElementById("sa-hierarchie-list"); if (!wrap) return;
+  wrap.innerHTML = "<div class='alert alert-info'>Chargement...</div>";
   try {
-    const univs = await DB.select("universites", "order=nom.asc") || [];
-    const wrap  = document.getElementById("sa-universites-list"); if (!wrap) return;
-    if (!univs.length) { wrap.innerHTML = "<div class=\"alert alert-warning\">Aucune universit\u00e9.</div>"; return; }
+    const univs  = await DB.select("universites",  "order=nom.asc")  || [];
+    const entites = await DB.select("entites",    "order=nom.asc")  || [];
+    const depts   = await DB.select("departements","order=nom.asc")  || [];
+    const niveaux = await DB.select("niveaux",    "order=ordre.asc") || [];
+    const filieres= await DB.select("filieres",   "order=ordre.asc") || [];
+
+    if (!univs.length) {
+      wrap.innerHTML = `<div class="alert alert-warning">Aucune université. Cliquez sur "+ Université" pour commencer.</div>`; return;
+    }
+
     wrap.innerHTML = univs.map(u => {
-      const entites = Array.isArray(u.entites) ? u.entites : JSON.parse(u.entites||"[]");
-      return "<div class=\"qbuilder-item\"><div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:10px\">"
-        + "<strong>" + escH(u.nom) + "</strong>"
-        + "<div style=\"display:flex;gap:6px\">"
-        + `<button class="btn btn-sm" onclick="saAddEntite('${u.id}','${escH(u.nom)}')">+ Entit\u00e9</button>`
-        + `<button class="btn btn-danger btn-sm" onclick="saDeleteUniversite('${u.id}','${escH(u.nom)}')">\u2715</button>`
-        + "</div></div><div style=\"display:flex;gap:6px;flex-wrap:wrap\">"
-        + (entites.map(e => `<span class="badge badge-blue" style="font-size:12px;padding:4px 10px">${escH(e)} <button onclick="saRemoveEntite('${u.id}','${escH(e)}')" style="background:none;border:none;color:inherit;cursor:pointer;margin-left:4px">\u2715</button></span>`).join("") || "<span style=\"font-size:12px;color:var(--text-muted)\">Aucune entit\u00e9</span>")
-        + "</div></div>";
+      const uEntites = entites.filter(e => e.universite_id === u.id);
+      return `
+      <div class="qbuilder-item" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-size:16px;font-weight:700">🏛️ ${escH(u.nom)}</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-sm" onclick="saAddEntite2('${u.id}','${escH(u.nom)}')">+ Entité</button>
+            <button class="btn btn-danger btn-sm" onclick="saDeleteUniversite('${u.id}','${escH(u.nom)}')">✕</button>
+          </div>
+        </div>
+        ${uEntites.length ? uEntites.map(e => {
+          const eDepts = depts.filter(d => d.entite_id === e.id);
+          return `
+          <div style="margin-left:20px;margin-bottom:10px;padding:12px;background:#F8FAFF;border-radius:10px;border-left:3px solid var(--blue)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div style="font-weight:600">🏫 ${escH(e.nom)}</div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-sm" onclick="saAddDept('${e.id}','${escH(e.nom)}')">+ Département</button>
+                <button class="btn btn-danger btn-sm" onclick="saDeleteEntite('${e.id}','${escH(e.nom)}')">✕</button>
+              </div>
+            </div>
+            ${eDepts.length ? eDepts.map(d => {
+              const dNiveaux = niveaux.filter(n => n.departement_id === d.id);
+              return `
+              <div style="margin-left:20px;margin-bottom:8px;padding:10px;background:#fff;border-radius:8px;border:1px solid var(--gray-mid)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <div style="font-weight:600;font-size:14px">📂 ${escH(d.nom)}</div>
+                  <div style="display:flex;gap:6px">
+                    <button class="btn btn-sm" onclick="saAddNiveau2('${d.id}','${escH(d.nom)}')">+ Niveau</button>
+                    <button class="btn btn-danger btn-sm" onclick="saDeleteDept('${d.id}','${escH(d.nom)}')">✕</button>
+                  </div>
+                </div>
+                ${dNiveaux.length ? dNiveaux.map(n => {
+                  const nFilieres = filieres.filter(f => f.niveau_id === n.id);
+                  return `
+                  <div style="margin-left:16px;margin-bottom:4px;padding:8px 12px;background:#F0F9FF;border-radius:6px;display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                      <span style="font-weight:600;font-size:13px">📚 ${escH(n.nom)}</span>
+                      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                        ${nFilieres.map(f => `<span class="badge badge-blue" style="font-size:11px">${escH(f.code)} — ${escH(f.nom)} <button onclick="saDeleteFiliere('${f.id}','${escH(f.code)}')" style="background:none;border:none;color:inherit;cursor:pointer;margin-left:2px">✕</button></span>`).join("")}
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">
+                      <button class="btn btn-sm" style="font-size:11px" onclick="saAddFiliere('${n.id}','${d.id}','${escH(n.nom)}')">+ Filière</button>
+                      <button class="btn btn-danger btn-sm" style="font-size:11px" onclick="saDeleteNiveau('${n.id}','${escH(n.nom)}')">✕</button>
+                    </div>
+                  </div>`;
+                }).join("") : "<div style='margin-left:16px;font-size:12px;color:var(--text-muted)'>Aucun niveau</div>"}
+              </div>`;
+            }).join("") : "<div style='margin-left:20px;font-size:12px;color:var(--text-muted);padding:4px'>Aucun département</div>"}
+          </div>`;
+        }).join("") : "<div style='margin-left:20px;font-size:12px;color:var(--text-muted)'>Aucune entité</div>"}
+      </div>`;
     }).join("");
+  } catch(e) { wrap.innerHTML = `<div class="alert alert-danger">Erreur: ${e.message}</div>`; }
+}
+
+// — Université —
+async function saShowAddUniversite() {
+  const nom = prompt("Nom de la nouvelle université :"); if (!nom) return;
+  await DB.insert("universites", { nom }); toast("Université ajoutée", "success");
+  saLoadHierarchie();
+}
+async function saDeleteUniversite(id, nom) {
+  openModal("Supprimer", `Supprimer l'université "${nom}" et toute sa hiérarchie ?`, async () => {
+    await DB.delete("universites", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
+  });
+}
+
+// — Entité —
+async function saAddEntite2(univId, univNom) {
+  const nom = prompt(`Ajouter une entité à "${univNom}" :`); if (!nom) return;
+  await DB.insert("entites", { nom, universite_id: univId }); toast("Entité ajoutée", "success"); saLoadHierarchie();
+}
+async function saDeleteEntite(id, nom) {
+  openModal("Supprimer", `Supprimer l'entité "${nom}" ?`, async () => {
+    await DB.delete("entites", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
+  });
+}
+
+// — Département —
+async function saAddDept(entiteId, entiteNom) {
+  const nom = prompt(`Nouveau département dans "${entiteNom}" :`); if (!nom) return;
+  await DB.insert("departements", { nom, entite_id: entiteId }); toast("Département ajouté", "success"); saLoadHierarchie();
+}
+async function saDeleteDept(id, nom) {
+  openModal("Supprimer", `Supprimer le département "${nom}" ?`, async () => {
+    await DB.delete("departements", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
+  });
+}
+
+// — Niveau —
+async function saAddNiveau2(deptId, deptNom) {
+  const nom   = prompt(`Nom du niveau dans "${deptNom}" (ex: Master 1) :`); if (!nom) return;
+  const ordre = parseInt(prompt("Ordre (ex: 4) :") || "0");
+  await DB.insert("niveaux", { nom, ordre, departement_id: deptId }); toast("Niveau ajouté", "success"); saLoadHierarchie();
+}
+async function saDeleteNiveau(id, nom) {
+  openModal("Supprimer", `Supprimer "${nom}" ?`, async () => {
+    await DB.delete("niveaux", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
+  });
+}
+
+// — Filière —
+async function saAddFiliere(niveauId, deptId, niveauNom) {
+  const code = prompt(`Code filière dans "${niveauNom}" (ex: EHA) :`); if (!code) return;
+  const nom  = prompt("Nom complet (ex: Eau, Hygiène et Assainissement) :"); if (!nom) return;
+  const ordre = parseInt(prompt("Ordre (ex: 1) :") || "0");
+  await DB.insert("filieres", { code: code.toUpperCase(), nom, ordre, niveau_id: niveauId, departement_id: deptId });
+  toast("Filière ajoutée", "success"); saLoadHierarchie();
+}
+async function saDeleteFiliere(id, code) {
+  openModal("Supprimer", `Supprimer la filière "${code}" ?`, async () => {
+    await DB.delete("filieres", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
+  });
+}
+
+// ════════════════════════════════════════
+// SUPER ADMIN — PARCOURS
+// ════════════════════════════════════════
+async function saLoadParcours() {
+  const wrap = document.getElementById("sa-parcours-list"); if (!wrap) return;
+  wrap.innerHTML = "<div class='alert alert-info'>Chargement...</div>";
+  try {
+    const parcours  = await DB.select("parcours", "order=created_at.desc&select=*") || [];
+    const pFilieres = await DB.select("parcours_filieres", "select=*") || [];
+    const univs     = await DB.select("universites",   "select=id,nom") || [];
+    const entites   = await DB.select("entites",       "select=id,nom") || [];
+    const depts     = await DB.select("departements",  "select=id,nom") || [];
+    const niveaux   = await DB.select("niveaux",       "select=id,nom") || [];
+    const filieres  = await DB.select("filieres",      "select=id,code,nom") || [];
+    const admins    = await DB.select("admins", "role=eq.enseignant&valide=eq.true&select=id,nom,identifiant") || [];
+
+    if (!parcours.length) { wrap.innerHTML = "<div class='alert alert-warning'>Aucun parcours. Cliquez sur \"+ Créer un parcours\".</div>"; return; }
+
+    wrap.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr>"
+      + "<th>Université</th><th>Entité</th><th>Département</th><th>Niveau</th><th>Filières</th><th>Enseignant</th><th>Action</th>"
+      + "</tr></thead><tbody>"
+      + parcours.map(p => {
+          const u  = univs.find(x => x.id === p.universite_id);
+          const e  = entites.find(x => x.id === p.entite_id);
+          const d  = depts.find(x => x.id === p.departement_id);
+          const n  = niveaux.find(x => x.id === p.niveau_id);
+          const a  = admins.find(x => x.id === p.admin_id);
+          const pf = pFilieres.filter(x => x.parcours_id === p.id)
+                               .map(x => { const f = filieres.find(y => y.id === x.filiere_id); return f ? `<span class="badge badge-blue">${escH(f.code)}</span>` : ""; }).join(" ");
+          return `<tr>
+            <td style="font-size:12px">${u ? escH(u.nom) : "—"}</td>
+            <td style="font-size:12px">${e ? escH(e.nom) : "—"}</td>
+            <td style="font-size:12px">${d ? escH(d.nom) : "—"}</td>
+            <td style="font-size:12px">${n ? escH(n.nom) : "—"}</td>
+            <td>${pf || "—"}</td>
+            <td style="font-size:12px">${a ? escH(a.nom || a.identifiant) : "<span class='badge badge-red'>Non assigné</span>"}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="saDeleteParcours('${p.id}')">✕</button></td>
+          </tr>`;
+        }).join("")
+      + "</tbody></table></div>";
+  } catch(e) { wrap.innerHTML = `<div class="alert alert-danger">Erreur: ${e.message}</div>`; }
+}
+
+async function saShowCreateParcours() {
+  const form = document.getElementById("sa-parcours-form"); if (!form) return;
+  form.style.display = "block";
+  // Charger universités
+  const univs   = await DB.select("universites", "order=nom.asc") || [];
+  const admins  = await DB.select("admins", "role=eq.enseignant&valide=eq.true&select=id,nom,identifiant&order=nom.asc") || [];
+  const sel = document.getElementById("pf-univ");
+  if (sel) sel.innerHTML = "<option value=''>— Sélectionner —</option>"
+    + univs.map(u => `<option value="${u.id}">${escH(u.nom)}</option>`).join("");
+  const selA = document.getElementById("pf-enseignant");
+  if (selA) selA.innerHTML = "<option value=''>— Sélectionner —</option>"
+    + admins.map(a => `<option value="${a.id}">${escH(a.nom || a.identifiant)}</option>`).join("");
+  ["pf-entite","pf-dept","pf-niveau"].forEach(id => {
+    const el = document.getElementById(id); if(el) el.innerHTML = "<option value=''>— Sélectionner —</option>";
+  });
+  const fc = document.getElementById("pf-filieres-checkboxes");
+  if (fc) fc.innerHTML = "<span style='color:var(--text-muted);font-size:13px'>Sélectionnez un niveau d'abord</span>";
+}
+
+async function pfLoadEntites() {
+  const univId = document.getElementById("pf-univ")?.value; if (!univId) return;
+  const entites = await DB.select("entites", "universite_id=eq." + univId + "&order=nom.asc") || [];
+  const sel = document.getElementById("pf-entite");
+  if (sel) sel.innerHTML = "<option value=''>— Sélectionner —</option>"
+    + entites.map(e => `<option value="${e.id}">${escH(e.nom)}</option>`).join("");
+  document.getElementById("pf-dept").innerHTML = "<option value=''>— Sélectionner —</option>";
+  document.getElementById("pf-niveau").innerHTML = "<option value=''>— Sélectionner —</option>";
+  document.getElementById("pf-filieres-checkboxes").innerHTML = "<span style='color:var(--text-muted);font-size:13px'>Sélectionnez un niveau d'abord</span>";
+}
+
+async function pfLoadDepts() {
+  const entiteId = document.getElementById("pf-entite")?.value; if (!entiteId) return;
+  const depts = await DB.select("departements", "entite_id=eq." + entiteId + "&order=nom.asc") || [];
+  const sel = document.getElementById("pf-dept");
+  if (sel) sel.innerHTML = "<option value=''>— Sélectionner —</option>"
+    + depts.map(d => `<option value="${d.id}">${escH(d.nom)}</option>`).join("");
+  document.getElementById("pf-niveau").innerHTML = "<option value=''>— Sélectionner —</option>";
+  document.getElementById("pf-filieres-checkboxes").innerHTML = "<span style='color:var(--text-muted);font-size:13px'>Sélectionnez un niveau d'abord</span>";
+}
+
+async function pfLoadNiveaux() {
+  const deptId = document.getElementById("pf-dept")?.value; if (!deptId) return;
+  const niveaux = await DB.select("niveaux", "departement_id=eq." + deptId + "&order=ordre.asc") || [];
+  const sel = document.getElementById("pf-niveau");
+  if (sel) sel.innerHTML = "<option value=''>— Sélectionner —</option>"
+    + niveaux.map(n => `<option value="${n.id}">${escH(n.nom)}</option>`).join("");
+  document.getElementById("pf-filieres-checkboxes").innerHTML = "<span style='color:var(--text-muted);font-size:13px'>Sélectionnez un niveau d'abord</span>";
+}
+
+async function pfLoadFilieres() {
+  const niveauId = document.getElementById("pf-niveau")?.value; if (!niveauId) return;
+  const filieres = await DB.select("filieres", "niveau_id=eq." + niveauId + "&order=ordre.asc") || [];
+  const fc = document.getElementById("pf-filieres-checkboxes");
+  if (!fc) return;
+  if (!filieres.length) { fc.innerHTML = "<span style='color:var(--text-muted);font-size:13px'>Aucune filière pour ce niveau</span>"; return; }
+  fc.innerHTML = filieres.map(f =>
+    `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;background:#F0F9FF;padding:6px 10px;border-radius:6px;border:1px solid #BFDBFE">
+      <input type="checkbox" class="pf-filiere-cb" value="${f.id}" style="width:14px;height:14px;accent-color:var(--blue)">
+      <strong>${escH(f.code)}</strong> — ${escH(f.nom)}
+    </label>`
+  ).join("");
+}
+
+async function saCreateParcours() {
+  const univId    = document.getElementById("pf-univ")?.value;
+  const entiteId  = document.getElementById("pf-entite")?.value;
+  const deptId    = document.getElementById("pf-dept")?.value;
+  const niveauId  = document.getElementById("pf-niveau")?.value;
+  const adminId   = document.getElementById("pf-enseignant")?.value;
+  const cbList    = document.querySelectorAll(".pf-filiere-cb:checked");
+  const filiereIds = Array.from(cbList).map(cb => cb.value);
+
+  if (!univId || !entiteId || !deptId || !niveauId || !adminId) {
+    toast("Remplissez tous les champs", "warn"); return;
+  }
+  if (!filiereIds.length) { toast("Sélectionnez au moins une filière", "warn"); return; }
+
+  try {
+    const res = await DB.insert("parcours", {
+      universite_id: univId, entite_id: entiteId,
+      departement_id: deptId, niveau_id: niveauId, admin_id: adminId
+    });
+    const pId = res && res[0] ? res[0].id : null;
+    if (!pId) { toast("Erreur création parcours", "error"); return; }
+    for (const fId of filiereIds) {
+      await DB.insert("parcours_filieres", { parcours_id: pId, filiere_id: fId }).catch(() => {});
+    }
+    toast("Parcours créé !", "success");
+    document.getElementById("sa-parcours-form").style.display = "none";
+    saLoadParcours();
   } catch(e) { toast("Erreur: " + e.message, "error"); }
 }
 
-async function saShowAddUniversite() {
-  const nom = prompt("Nom de la nouvelle universit\u00e9 :");
-  if (!nom) return;
-  await DB.insert("universites", { nom, entites: [] });
-  toast("Universit\u00e9 ajout\u00e9e", "success"); saLoadUniversites();
-}
-
-async function saDeleteUniversite(id, nom) {
-  openModal("Supprimer", "Supprimer l\u2019universit\u00e9 \"" + nom + "\" ?", async () => {
-    await DB.delete("universites", "id=eq." + id); closeModal(); saLoadUniversites();
+async function saDeleteParcours(id) {
+  openModal("Supprimer", "Supprimer ce parcours ?", async () => {
+    await DB.delete("parcours_filieres", "parcours_id=eq." + id).catch(() => {});
+    await DB.delete("parcours", "id=eq." + id);
+    closeModal(); toast("Parcours supprimé", "success"); saLoadParcours();
   });
 }
 
-async function saAddEntite(univId, univNom) {
-  const nom = prompt("Ajouter une entit\u00e9 \u00e0 \"" + univNom + "\" :");
-  if (!nom) return;
-  const rows    = await DB.select("universites", "id=eq." + univId + "&select=entites");
-  const entites = rows && rows[0] ? (Array.isArray(rows[0].entites) ? rows[0].entites : JSON.parse(rows[0].entites||"[]")) : [];
-  if (!entites.includes(nom)) entites.push(nom);
-  await DB.update("universites", "id=eq." + univId, { entites });
-  toast("Entit\u00e9 ajout\u00e9e", "success"); saLoadUniversites();
+// — Fonctions de compatibilité pour l'ancien système —
+async function saLoadUniversites() { saLoadHierarchie(); }
+async function saAddEntite(univId, univNom) { await saAddEntite2(univId, univNom); }
+async function saRemoveEntite(univId, entiteNom) { /* deprecated */ }
+async function saAddNiveau() {
+  const nom = prompt("Nom du niveau (ex: Master 1) :"); if (!nom) return;
+  const ordre = parseInt(prompt("Ordre (ex: 4) :") || "0");
+  await DB.insert("niveaux", { nom, ordre }); toast("Niveau ajouté", "success"); saLoadNiveaux();
 }
-
-async function saRemoveEntite(univId, entiteNom) {
-  const rows    = await DB.select("universites", "id=eq." + univId + "&select=entites");
-  let entites   = rows && rows[0] ? (Array.isArray(rows[0].entites) ? rows[0].entites : JSON.parse(rows[0].entites||"[]")) : [];
-  entites = entites.filter(e => e !== entiteNom);
-  await DB.update("universites", "id=eq." + univId, { entites });
-  toast("Entit\u00e9 supprim\u00e9e", "success"); saLoadUniversites();
-}
-
 async function saLoadNiveaux() {
   const niveaux = await DB.select("niveaux", "order=ordre.asc") || [];
   const wrap    = document.getElementById("sa-niveaux-list"); if (!wrap) return;
-  wrap.innerHTML = "<div class=\"tbl-wrap\"><table class=\"tbl\"><thead><tr><th>Niveau</th><th>Ordre</th><th>Action</th></tr></thead><tbody>"
-    + niveaux.map(n => `<tr><td>${escH(n.nom)}</td><td>${n.ordre}</td><td><button class="btn btn-danger btn-sm" onclick="saDeleteNiveau('${n.id}','${escH(n.nom)}')">\u2715</button></td></tr>`).join("")
+  wrap.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr><th>Niveau</th><th>Ordre</th><th>Action</th></tr></thead><tbody>"
+    + niveaux.map(n => `<tr><td>${escH(n.nom)}</td><td>${n.ordre}</td><td><button class="btn btn-danger btn-sm" onclick="saDeleteNiveau('${n.id}','${escH(n.nom)}')">✕</button></td></tr>`).join("")
     + "</tbody></table></div>";
-}
-
-async function saAddNiveau() {
-  const nom   = prompt("Nom du niveau (ex: Master 1) :"); if (!nom) return;
-  const ordre = parseInt(prompt("Ordre (ex: 4) :")||"0");
-  await DB.insert("niveaux", { nom, ordre });
-  toast("Niveau ajout\u00e9", "success"); saLoadNiveaux();
-}
-
-async function saDeleteNiveau(id, nom) {
-  openModal("Supprimer", "Supprimer \"" + nom + "\" ?", async () => {
-    await DB.delete("niveaux", "id=eq." + id); closeModal(); saLoadNiveaux();
-  });
 }
 
 async function saLoadActivity() {
