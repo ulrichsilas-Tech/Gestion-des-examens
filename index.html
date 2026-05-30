@@ -1578,7 +1578,8 @@ async function testAndSaveSupabase() {
   btn.disabled = true; btn.textContent = '⏳ Test en cours...';
   try {
     SB_URL = url; SB_KEY = key;
-    await sbFetch('exam_config?id=eq.main&select=id');
+    // CORRECTION : Tester avec une requête qui fonctionne toujours
+    await sbFetch('admins?limit=1&select=id');
     localStorage.setItem('sb_url', url);
     localStorage.setItem('sb_key', key);
     ok.style.display = 'flex';
