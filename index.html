@@ -497,13 +497,15 @@ create table if not exists admins (
 create table if not exists universites (
   id uuid primary key default gen_random_uuid(),
   nom text not null,
-  entites jsonb default '[]'
+  entites jsonb default '[]',
+  logo_url text
 );
 
 create table if not exists entites (
   id uuid primary key default gen_random_uuid(),
   nom text not null,
-  universite_id uuid references universites(id) on delete cascade
+  universite_id uuid references universites(id) on delete cascade,
+  logo_url text
 );
 
 create table if not exists departements (
@@ -562,16 +564,18 @@ create table if not exists exam_config (
 create table if not exists candidats (
   id uuid primary key default gen_random_uuid(),
   admin_id uuid references admins(id) on delete cascade,
+  exam_config_id uuid references exam_config(id) on delete cascade,
   matricule text not null,
   nom text, prenom text,
   filiere text, filiere_id uuid references filieres(id) on delete set null,
   email text, date_naissance date,
-  unique(admin_id, matricule)
+  unique(exam_config_id, matricule)
 );
 
 create table if not exists questions (
   id uuid primary key default gen_random_uuid(),
   admin_id uuid references admins(id) on delete cascade,
+  exam_config_id uuid references exam_config(id) on delete cascade,
   num int, ordre int, texte text,
   image_url text, html_content text
 );
@@ -585,8 +589,10 @@ create table if not exists sous_questions (
 create table if not exists copies (
   id uuid primary key default gen_random_uuid(),
   admin_id uuid references admins(id) on delete cascade,
+  exam_config_id uuid references exam_config(id) on delete cascade,
   matricule text, nom text, prenom text,
   filiere text, reponses jsonb, note numeric,
+  note_brute numeric, note_sur_bareme numeric,
   date_depot timestamptz default now()
 );
 
@@ -689,7 +695,32 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
 -- Protection immédiate : Supabase Dashboard → Settings → API → Allowed origins
 -- → ajouter uniquement l'URL de production (ex: https://votre-app.vercel.app)
 
--- ══ 6. Créer le bucket Storage "logos" (public) dans Dashboard → Storage ══</div>
+-- ══ 6. MIGRATION colonnes manquantes (projets existants) ══
+alter table if exists entites      add column if not exists logo_url text;
+alter table if exists universites  add column if not exists logo_url text;
+alter table if exists copies       add column if not exists note_brute numeric;
+alter table if exists copies       add column if not exists note_sur_bareme numeric;
+alter table if exists sous_questions add column if not exists pts_v numeric default 0.25;
+alter table if exists sous_questions add column if not exists pts_f numeric default -0.25;
+alter table if exists sous_questions add column if not exists correcte boolean;
+update sous_questions set correcte = correct where correcte is null and correct is not null;
+-- ══ Migration v7 : lier questions/candidats/copies à exam_config ══
+alter table if exists questions add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
+alter table if exists candidats add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
+alter table if exists copies    add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
+-- Peupler exam_config_id pour les données existantes
+update questions q set exam_config_id = (select id from exam_config ec where ec.admin_id = q.admin_id limit 1) where q.exam_config_id is null;
+update candidats c set exam_config_id = (select id from exam_config ec where ec.admin_id = c.admin_id limit 1) where c.exam_config_id is null;
+update copies c   set exam_config_id = (select id from exam_config ec where ec.admin_id = c.admin_id limit 1) where c.exam_config_id is null;
+-- Nouvelle contrainte unique candidats par épreuve (supprimer l'ancienne si elle existe)
+alter table if exists candidats drop constraint if exists candidats_admin_id_matricule_key;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'candidats_exam_config_id_matricule_key') then
+    alter table candidats add constraint candidats_exam_config_id_matricule_key unique(exam_config_id, matricule);
+  end if;
+end $$;
+
+-- ══ 7. Créer le bucket Storage "logos" (public) dans Dashboard → Storage ══</div>
           <button class="btn btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
         </div>
       </div>
@@ -776,6 +807,13 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
     </div>
   </div>
   <div class="container-wide">
+    <!-- Sélecteur multi-épreuves -->
+    <div id="epreuve-selector-bar" style="background:var(--blue-light);border-radius:10px;padding:12px 16px;margin-bottom:16px;gap:12px;align-items:center;flex-wrap:wrap;display:none">
+      <span style="font-size:14px;font-weight:600;color:var(--blue-dark)">📚 Épreuve active :</span>
+      <select id="epreuve-select" onchange="switchEpreuve(this.value)" style="flex:1;min-width:200px;padding:6px 10px;border-radius:6px;border:1px solid var(--gray-mid);font-size:14px"></select>
+      <button class="btn btn-sm btn-success" onclick="createNewEpreuve()">+ Nouvelle épreuve</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteCurrentEpreuve()">🗑 Supprimer</button>
+    </div>
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab(this,'tab-config')">⚙️ Configuration</button>
       <button class="tab-btn" onclick="switchTab(this,'tab-epreuve')">📋 Épreuve</button>
@@ -804,7 +842,7 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
       </div>
       <div class="grid-2">
         <div>
-          <div class="field"><label class="lbl">📖 Matière</label><input id="c-matiere" placeholder="Ex : Hydraulique Générale"></div>
+          <div class="field"><label class="lbl">📖 Matière</label><input id="c-matiere" placeholder="Ex : Mathématiques, Droit Civil..."></div>
           <div class="field"><label class="lbl">📅 Date de l'épreuve</label><input id="c-date" type="date"></div>
           <div class="field"><label class="lbl">🕐 Heure début</label><input id="c-heure" type="time" value="08:00"></div>
         </div>
@@ -817,20 +855,15 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
         </div>
       </div>
       <div class="field"><label class="lbl">📝 Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
-      <div class="field"><label class="lbl">👨‍🏫 Nom de l'enseignant</label><input id="c-enseignant" placeholder="Ex : Dr Arnaud ZANNOU"></div>
+      <div class="field"><label class="lbl">👨‍🏫 Nom de l'enseignant</label><input id="c-enseignant" placeholder="Votre nom complet"></div>
       <div class="sep"></div>
-      <div style="font-size:15px;font-weight:600;margin-bottom:12px">🏛️ Logos dynamiques</div>
-      <div class="grid-2">
-        <div class="field"><label class="lbl">Logo Université (URL)</label>
-          <input id="c-logo-univ" placeholder="Laisser vide = logo par défaut">
-          <button class="btn btn-sm" style="margin-top:4px" onclick="document.getElementById('logo-univ-input').click()">📤 Uploader</button>
-          <input type="file" id="logo-univ-input" accept="image/*" style="display:none" onchange="uploadLogoAdmin(this,'universite')">
-        </div>
-        <div class="field"><label class="lbl">Logo Entité (URL)</label>
-          <input id="c-logo-entite" placeholder="Laisser vide = logo par défaut">
-          <button class="btn btn-sm" style="margin-top:4px" onclick="document.getElementById('logo-entite-input').click()">📤 Uploader</button>
-          <input type="file" id="logo-entite-input" accept="image/*" style="display:none" onchange="uploadLogoAdmin(this,'entite')">
-        </div>
+      <!-- Logos gérés par le super admin uniquement — champs hidden pour compatibilité PDF/Excel -->
+      <input type="hidden" id="c-logo-univ">
+      <input type="hidden" id="c-logo-entite">
+      <div id="logos-preview-block" style="display:flex;gap:16px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <div style="font-size:14px;color:var(--text-muted)">🏛️ Logos définis par l'administrateur :</div>
+        <div id="logo-univ-preview-admin" style="min-width:48px"></div>
+        <div id="logo-entite-preview-admin" style="min-width:48px"></div>
       </div>
       <div class="sep"></div>
       <div style="font-size:15px;font-weight:600;margin-bottom:12px">🔐 Sécurité</div>
@@ -875,13 +908,10 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
           <button class="btn btn-sm" onclick="downloadCandidatsTemplate()">⬇ Modèle Excel</button>
         </div>
       </div>
-      <div class="alert alert-info" style="font-size:12px">Colonnes : <strong>Matricule, Nom, Prénom, DateNaissance, Filière (EHA / GTE / HYAS), Email</strong></div>
+      <div class="alert alert-info" style="font-size:12px">Colonnes : <strong>Matricule, Nom, Prénom, DateNaissance, Filière, Email</strong></div>
       <!-- Filtre par filière -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" id="fil-filiere-btns">
         <button class="btn btn-sm active-filiere" id="fil-btn-all" onclick="filterFiliere('all',this)">Toutes les filières</button>
-        <button class="btn btn-sm" id="fil-btn-EHA" onclick="filterFiliere('EHA',this)">EHA</button>
-        <button class="btn btn-sm" id="fil-btn-GTE" onclick="filterFiliere('GTE',this)">GTE</button>
-        <button class="btn btn-sm" id="fil-btn-HYAS" onclick="filterFiliere('HYAS',this)">HYAS</button>
       </div>
       <div id="candidats-table-wrap"><div class="alert alert-warning">Chargement...</div></div>
     </div>
@@ -896,11 +926,8 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
         </div>
       </div>
       <!-- Filtre filière résultats -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" id="res-filiere-btns">
         <button class="btn btn-sm" id="res-fil-all" onclick="filterResultats('all',this)" style="background:var(--blue);color:#fff;border-color:var(--blue)">Toutes</button>
-        <button class="btn btn-sm" id="res-fil-EHA" onclick="filterResultats('EHA',this)">EHA</button>
-        <button class="btn btn-sm" id="res-fil-GTE" onclick="filterResultats('GTE',this)">GTE</button>
-        <button class="btn btn-sm" id="res-fil-HYAS" onclick="filterResultats('HYAS',this)">HYAS</button>
       </div>
       <div id="stats-grid" class="stats-5" style="margin-bottom:1.5rem"></div>
       <div id="results-matrix-wrap"><div class="alert alert-warning">Chargement...</div></div>
@@ -910,7 +937,7 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
     <div id="tab-exports" class="admin-tab" style="display:none">
       <div class="section-title">Génération des documents</div>
       <div class="alert alert-info" style="margin-bottom:1.5rem;font-size:13px">
-        📁 Les copies individuelles sont téléchargées en <strong>ZIP</strong>. Les relevés de notes sont générés <strong>par filière</strong> (EHA, GTE, HYAS).
+        📁 Les copies individuelles sont téléchargées en <strong>ZIP</strong>. Les relevés de notes sont générés <strong>par filière</strong>.
       </div>
 
       <!-- Import Notes CC -->
@@ -1363,7 +1390,40 @@ create policy "admins_write" on admins for all    to anon using (true) with chec
     <div id="sa-tab-hierarchie" class="admin-tab" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px">
         <div class="section-title" style="margin:0">🏛️ Hiérarchie universitaire</div>
-        <button class="btn btn-primary btn-sm" onclick="saShowAddUniversite()">+ Université</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="downloadHierarchieTemplate()">⬇ Modèle Excel</button>
+          <button class="btn btn-sm btn-success" onclick="document.getElementById('hier-excel-input').click()">📤 Importer Excel</button>
+          <input type="file" id="hier-excel-input" accept=".xlsx,.xls" style="display:none" onchange="importHierarchieExcel(this)">
+          <button class="btn btn-primary btn-sm" onclick="saShowAddUniversite()">+ Université</button>
+        </div>
+      </div>
+      <!-- Logos universités/entités -->
+      <div class="card" style="background:#F0F9FF;border:1px solid #BFDBFE;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px">🖼️ Logos des universités et entités</div>
+        <div class="grid-2">
+          <div class="field">
+            <label class="lbl">Logo Université</label>
+            <select id="sa-logo-univ-target" style="margin-bottom:6px">
+              <option value="">— Sélectionner une université —</option>
+            </select>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-sm" onclick="document.getElementById('sa-logo-univ-file').click()">📤 Uploader logo</button>
+              <input type="file" id="sa-logo-univ-file" accept="image/*" style="display:none" onchange="saUploadLogo(this,'universite')">
+            </div>
+            <div id="sa-logo-univ-preview" style="margin-top:8px"></div>
+          </div>
+          <div class="field">
+            <label class="lbl">Logo Entité</label>
+            <select id="sa-logo-entite-target" style="margin-bottom:6px">
+              <option value="">— Sélectionner une entité —</option>
+            </select>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-sm" onclick="document.getElementById('sa-logo-entite-file').click()">📤 Uploader logo</button>
+              <input type="file" id="sa-logo-entite-file" accept="image/*" style="display:none" onchange="saUploadLogo(this,'entite')">
+            </div>
+            <div id="sa-logo-entite-preview" style="margin-top:8px"></div>
+          </div>
+        </div>
       </div>
       <div id="sa-hierarchie-list"><div class="alert alert-warning">Chargement...</div></div>
     </div>
@@ -1474,16 +1534,40 @@ let adminAuth = false;
 let currentFiliereFilter = 'all';
 let currentResFiliereFilter = 'all';
 
-const FILIERES = ['EHA', 'GTE', 'HYAS'];
-const FILIERE_OPTIONS = {
-  'EHA': 'Eau, Hygiène et Assainissement',
-  'GTE': "Gestion et Traitement de l'Eau",
-  'HYAS': 'Hydraulique et Assainissement'
-};
+// Filières dynamiques — chargées depuis Supabase selon le parcours de l'enseignant
+let FILIERES = [];
+let FILIERE_OPTIONS = {};
 
-// ════════════════════════════════════════
-// SETUP
-// ════════════════════════════════════════
+// Charger les filières dynamiquement pour l'enseignant connecté
+async function loadFilieresEnseignant() {
+  if (!currentAdmin) return;
+  // Extraire les filières depuis les candidats de l'épreuve active (plus précis que les parcours)
+  let filieresFromCandidats = [];
+  if (CFG && CFG.id) {
+    const cands = await DB.select("candidats", "exam_config_id=eq."+CFG.id+"&select=filiere").catch(()=>[]) || [];
+    filieresFromCandidats = [...new Set(cands.map(c => (c.filiere||'').toUpperCase()).filter(Boolean))];
+  }
+  // Fallback : filières depuis les parcours si pas encore de candidats
+  if (!filieresFromCandidats.length) {
+    const parcoursList = await DB.select("parcours", "admin_id=eq."+currentAdmin.id+"&select=id") || [];
+    if (parcoursList.length) {
+      const pIds = parcoursList.map(p => "parcours_id.eq."+p.id).join(",");
+      const pf = await DB.select("parcours_filieres", "or=("+pIds+")&select=filiere_id") || [];
+      const fIds = [...new Set(pf.map(x => x.filiere_id))];
+      if (fIds.length) {
+        const orF = "or=("+fIds.map(id=>"id.eq."+id).join(",")+")";
+        const filiereRows = await DB.select("filieres", orF+"&select=code,nom") || [];
+        FILIERE_OPTIONS = {};
+        filiereRows.forEach(f => { FILIERE_OPTIONS[f.code.toUpperCase()] = f.nom; });
+        filieresFromCandidats = filiereRows.map(f => f.code.toUpperCase());
+      }
+    }
+  }
+  FILIERES = filieresFromCandidats;
+  renderFiliereButtons();
+}
+
+
 async function testAndSaveSupabase() {
   const url = document.getElementById('sb-url').value.trim().replace(/\/$/, '');
   const key = document.getElementById('sb-key').value.trim();
@@ -1567,6 +1651,10 @@ function goTo(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
+  // Ne pas persister les pages de composition ou résultat
+  if (!['pg-epreuve','pg-resultat'].includes(id)) {
+    sessionStorage.setItem("currentPage", id);
+  }
 }
 
 function switchTab(btn, tabId) {
@@ -1723,11 +1811,18 @@ function copyAlterSQL() {
     .then(() => toast('SQL copié !', 'success'));
 }
 
+function genUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 function addQuestion() {
   const num = QUESTIONS.length + 1;
-  const id = 'Q' + num;
-  QUESTIONS.push({ id, num, texte:'Nouvelle question '+num, obligatoire:true, ordre:num-1,
-    sousQuestions: ['A','B','C','D'].map((l,i) => ({id:id+l,question_id:id,texte:l+'. Option '+l,correcte:i===0,pts_v:0.25,pts_f:-0.25,ordre:i}))
+  const id  = genUUID();
+  QUESTIONS.push({ id, num, texte:'Nouvelle question '+num, ordre:num-1,
+    sousQuestions: ['A','B','C','D'].map((l,i) => ({id:genUUID(),question_id:id,texte:l+'. Option '+l,correcte:i===0,pts_v:0.25,pts_f:-0.25,ordre:i}))
   });
   renderQBuilder();
 }
@@ -1746,39 +1841,61 @@ function removeQuestion(qi) {
 }
 
 async function saveQuestions() {
+  if (!CFG || !CFG.id) { toast('Sélectionnez une épreuve', 'warn'); return; }
   try {
-    // Étape 1 : récupérer tous les IDs de questions existantes
-    const existingQs = await DB.select('questions', (currentAdmin?'admin_id=eq.'+currentAdmin.id+'&':'')+'select=id').catch(()=>[]) || [];
+    toast('Sauvegarde en cours...', 'info');
 
-    // Étape 2 : supprimer toutes les sous-questions existantes une par une
+    // ── Étape 1 : supprimer TOUTES les questions existantes de cette épreuve
+    // (les sous-questions se suppriment en cascade grâce à la FK on delete cascade)
+    const existingQs = await DB.select('questions',
+      'exam_config_id=eq.'+CFG.id+'&select=id').catch(()=>[]) || [];
+
+    // Supprimer sous-questions d'abord (au cas où cascade pas active)
     for (const eq of existingQs) {
       await DB.delete('sous_questions', 'question_id=eq.'+eq.id).catch(()=>{});
     }
-    // Étape 3 : supprimer toutes les questions existantes
+    // Supprimer les questions
     for (const eq of existingQs) {
       await DB.delete('questions', 'id=eq.'+eq.id).catch(()=>{});
     }
 
-    // Étape 4 : insérer les nouvelles questions puis leurs sous-questions
+    // ── Étape 2 : Insérer les questions UNE PAR UNE, attendre la confirmation,
+    // PUIS insérer les sous-questions de cette question
+    // On réassigne des UUIDs frais pour éviter tout conflit avec d'anciens enregistrements
     for (const q of QUESTIONS) {
-      await DB.upsert('questions', {
-        id: q.id, num: q.num, texte: q.texte,
-        obligatoire: q.obligatoire!==false,
-        ordre: q.ordre||q.num-1,
-        image_url: q.image_url||'',
-        html_content: q.html_content||'',
-        admin_id: currentAdmin ? currentAdmin.id : null
+      const freshQId = genUUID(); // UUID frais à chaque save
+      q.id = freshQId;            // Met à jour l'objet en mémoire aussi
+
+      // INSERT la question (pas upsert — on vient de tout supprimer)
+      await DB.insert('questions', {
+        id: freshQId,
+        num: q.num,
+        texte: q.texte,
+        ordre: q.ordre || q.num - 1,
+        image_url: q.image_url || '',
+        html_content: q.html_content || '',
+        admin_id: currentAdmin ? currentAdmin.id : null,
+        exam_config_id: CFG.id
       });
-      for (const sq of (q.sousQuestions||[])) {
-        await DB.upsert('sous_questions', {
-          id: sq.id, question_id: q.id, texte: sq.texte,
-          correcte: !!sq.correcte, pts_v: sq.pts_v??0.25,
-          pts_f: sq.pts_f??-0.25, ordre: sq.ordre||0
+
+      // INSERT les sous-questions de cette question (question confirmée en base)
+      for (const sq of (q.sousQuestions || [])) {
+        const freshSqId = genUUID();
+        sq.id = freshSqId;
+        sq.question_id = freshQId;
+        await DB.insert('sous_questions', {
+          id: freshSqId,
+          question_id: freshQId,
+          texte: sq.texte,
+          correcte: !!sq.correcte,
+          pts_v: sq.pts_v ?? 0.25,
+          pts_f: sq.pts_f ?? -0.25,
+          ordre: sq.ordre || 0
         });
       }
     }
-    toast('Épreuve enregistrée ('+QUESTIONS.length+' questions)', 'success');
-  } catch(e) { toast('Erreur: '+e.message, 'error'); }
+    toast('Épreuve enregistrée — ' + QUESTIONS.length + ' question(s)', 'success');
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
 }
 
 async function parseQuestionsExcel(input) {
@@ -1789,11 +1906,11 @@ async function parseQuestionsExcel(input) {
       const wb = XLSX.read(e.target.result, {type:'binary'});
       const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
       QUESTIONS = data.map((row,i) => {
-        const qId = 'Q'+(i+1);
+        const qId = genUUID();
         const corrects = String(row['Correct']||'A').toUpperCase().split(/[,\/\s]+/);
-        return { id:qId, num:i+1, texte:String(row['TexteQ']||'Question '+(i+1)), obligatoire:true, ordre:i,
+        return { id:qId, num:i+1, texte:String(row['TexteQ']||'Question '+(i+1)), ordre:i,
           sousQuestions: ['A','B','C','D'].map((l,j) => ({
-            id:qId+l, question_id:qId,
+            id:genUUID(), question_id:qId,
             texte:l+'. '+String(row['Choix'+l]||''),
             correcte:corrects.includes(l),
             pts_v:parseFloat(String(row['PtsV']||'0.25').replace(',','.'))||0.25,
@@ -1832,34 +1949,29 @@ function filterFiliere(f, btn) {
 }
 
 async function renderCandidatsTable() {
-  if (currentAdmin) CANDIDATS = await DB.select('candidats','admin_id=eq.'+currentAdmin.id+'&order=nom.asc') || [];
-  const copies = await DB.select('copies','select=matricule').catch(()=>[]) || [];
+  if (currentAdmin && CFG && CFG.id)
+    CANDIDATS = await DB.select('candidats','exam_config_id=eq.'+CFG.id+'&order=nom.asc') || [];
+  const copies = await DB.select('copies', CFG && CFG.id ? 'exam_config_id=eq.'+CFG.id+'&select=matricule' : 'select=matricule').catch(()=>[]) || [];
   const deposes = new Set(copies.map(c=>c.matricule));
   const wrap = document.getElementById('candidats-table-wrap');
   // Exclure compte TEST
   const candidatsAffich = CANDIDATS.filter(c => c.matricule !== 'TEST');
   if (!candidatsAffich.length) { wrap.innerHTML='<div class="alert alert-warning">Aucun étudiant importé.</div>'; return; }
 
-  // Compteurs par filière — affichés en haut
+  // Compteurs dynamiques par filière
   const totalAll = candidatsAffich.length;
-  const cntEHA = candidatsAffich.filter(c=>(c.filiere||'').toUpperCase()==='EHA').length;
-  const cntGTE = candidatsAffich.filter(c=>(c.filiere||'').toUpperCase()==='GTE').length;
-  const cntHYAS = candidatsAffich.filter(c=>(c.filiere||'').toUpperCase()==='HYAS').length;
-
+  const colors = ['#EFF6FF:#BFDBFE:#1E40AF','#D1FAE5:#6EE7B7:#065F46','#FEF3C7:#FDE68A:#92400E','#F3E8FF:#C4B5FD:#5B21B6','#FCE7F3:#F9A8D4:#831843'];
   let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
     <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#1E40AF">
       Total : ${totalAll} étudiant(s)
-    </div>
-    <div style="background:#DBEAFE;border:1px solid #93C5FD;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:500;color:#1D4ED8">
-      EHA : ${cntEHA}
-    </div>
-    <div style="background:#D1FAE5;border:1px solid #6EE7B7;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:500;color:#065F46">
-      GTE : ${cntGTE}
-    </div>
-    <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:500;color:#92400E">
-      HYAS : ${cntHYAS}
-    </div>
-  </div>`;
+    </div>`;
+  const filSet = [...new Set(candidatsAffich.map(c=>(c.filiere||'').toUpperCase()).filter(Boolean))];
+  filSet.forEach((f, i) => {
+    const cnt = candidatsAffich.filter(c=>(c.filiere||'').toUpperCase()===f).length;
+    const [bg,border,color] = (colors[i%colors.length]).split(':');
+    html += `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:8px 14px;font-size:12px;font-weight:500;color:${color}">${f} : ${cnt}</div>`;
+  });
+  html += '</div>';
 
   const filtered = currentFiliereFilter === 'all' ? candidatsAffich : candidatsAffich.filter(c => (c.filiere||'').toUpperCase() === currentFiliereFilter);
   if (!filtered.length) { wrap.innerHTML=html+`<div class="alert alert-warning">Aucun étudiant dans la filière ${currentFiliereFilter}.</div>`; return; }
@@ -1869,8 +1981,9 @@ async function renderCandidatsTable() {
   </tr></thead><tbody>`;
   filtered.forEach(c => {
     const ok = deposes.has(c.matricule);
-    const fil = c.filiere || '';
-    const filBadge = fil === 'EHA' ? 'badge-blue' : fil === 'GTE' ? 'badge-green' : fil === 'HYAS' ? 'badge-amber' : 'badge-gray';
+    const fil = (c.filiere||'').toUpperCase();
+    const badgeColors = ['badge-blue','badge-green','badge-amber','badge-purple','badge-pink'];
+    const filBadge = fil ? (badgeColors[filSet.indexOf(fil) % badgeColors.length] || 'badge-gray') : 'badge-gray';
     html+=`<tr><td><code style="font-size:11px">${c.matricule}</code></td>
       <td><strong>${c.nom}</strong></td><td>${c.prenom||''}</td>
       <td><span class="badge ${filBadge}">${fil||'—'}</span></td>
@@ -1890,34 +2003,76 @@ async function parseCandidatsExcel(input) {
     try {
       const wb = XLSX.read(e.target.result,{type:'binary'});
       const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      const rows = data.map(r => ({
-        matricule:String(r['Matricule']||r['matricule']||'').trim(),
-        nom:String(r['Nom']||r['nom']||'').toUpperCase().trim(),
-        prenom:String(r['Prénom']||r['Prenom']||r['prenom']||'').trim(),
-        date_naissance:'',
-        filiere:String(r['Filière']||r['Filiere']||r['filiere']||'').trim().toUpperCase(),
-        email:String(r['Email']||r['email']||'').trim()
-      })).filter(c=>c.matricule&&c.nom);
+      const rows = data.map(r => {
+        const ddn = String(r['Date naissance']||r['date_naissance']||r['DateNaissance']||'').trim();
+        return {
+          matricule: String(r['Matricule']||r['matricule']||'').trim(),
+          nom:       String(r['Nom']||r['nom']||'').toUpperCase().trim(),
+          prenom:    String(r['Prénom']||r['Prenom']||r['prenom']||'').trim(),
+          date_naissance: ddn || null,
+          filiere:   String(r['Filière']||r['Filiere']||r['filiere']||'').trim().toUpperCase(),
+          email:     String(r['Email']||r['email']||'').trim()
+        };
+      }).filter(c=>c.matricule&&c.nom);
 
       // Dédoublonner par matricule (garder le dernier)
       const seen = new Map();
       rows.forEach(r => seen.set(r.matricule, r));
       const unique = Array.from(seen.values());
 
-      // Envoyer un par un pour éviter le conflit ON CONFLICT
+      // Précharger les filières pour le lookup filiere_id
+      const allFilieres = await DB.select('filieres', 'select=id,code,nom') || [];
+
+      if (!CFG || !CFG.id) { toast('Sélectionnez une épreuve avant d\'importer', 'warn'); return; }
+
+      // INSERT + UPDATE séquentiel (évite les problèmes de contrainte unique)
       let count = 0;
+      let updated = 0;
       for (const row of unique) {
+        // Résoudre filiere_id à partir du code filière
+        let filiere_id = null;
+        if (row.filiere) {
+          const match = allFilieres.find(f =>
+            f.code.toUpperCase() === row.filiere.toUpperCase() ||
+            (f.nom && f.nom.toUpperCase() === row.filiere.toUpperCase())
+          );
+          if (match) filiere_id = match.id;
+        }
+        const payload = {
+          ...row, filiere_id,
+          admin_id: currentAdmin ? currentAdmin.id : null,
+          exam_config_id: CFG.id
+        };
         try {
-          await DB.upsert('candidats', { ...row, admin_id: currentAdmin ? currentAdmin.id : null }, 'matricule');
+          await DB.insert('candidats', payload);
           count++;
-        } catch(err) {
-          console.warn('Skip matricule '+row.matricule+':', err.message);
+        } catch(insertErr) {
+          // Doublon → mettre à jour les infos du candidat existant
+          const isdup = insertErr.message &&
+            (insertErr.message.includes('duplicate') ||
+             insertErr.message.includes('unique') ||
+             insertErr.message.includes('23505'));
+          if (isdup) {
+            try {
+              await DB.update('candidats',
+                'exam_config_id=eq.'+CFG.id+'&matricule=eq.'+encodeURIComponent(row.matricule),
+                { nom: row.nom, prenom: row.prenom||'', filiere: row.filiere||'',
+                  filiere_id, email: row.email||'',
+                  date_naissance: row.date_naissance||null }
+              );
+              count++; updated++;
+            } catch(upErr) {
+              console.warn('Update échoué '+row.matricule+':', upErr.message);
+            }
+          } else {
+            console.warn('Skip '+row.matricule+':', insertErr.message);
+          }
         }
       }
       await renderCandidatsTable();
-      CANDIDATS = await DB.select('candidats','order=nom.asc') || [];
-      toast(count+' étudiants importés en base', 'success');
-      if (count < unique.length) toast((unique.length-count)+' ligne(s) ignorée(s) (doublon)', 'warn');
+      CANDIDATS = await DB.select('candidats', 'exam_config_id=eq.'+CFG.id+'&order=nom.asc') || [];
+      const msg = count + ' étudiant(s) importé(s)' + (updated ? ' (dont '+updated+' mis à jour)' : '');
+      toast(msg, 'success');
     } catch(e) { toast('Erreur: '+e.message,'error'); }
   };
   reader.readAsBinaryString(file); input.value='';
@@ -1925,7 +2080,10 @@ async function parseCandidatsExcel(input) {
 
 async function deleteCandidat(mat) {
   openModal('Supprimer', 'Supprimer l\'étudiant '+mat+' ?', async () => {
-    await DB.delete('candidats','matricule=eq.'+mat).catch(()=>{});
+    const filter = CFG && CFG.id
+      ? 'matricule=eq.'+mat+'&exam_config_id=eq.'+CFG.id
+      : 'matricule=eq.'+mat+'&admin_id=eq.'+currentAdmin.id;
+    await DB.delete('candidats', filter).catch(()=>{});
     closeModal(); renderCandidatsTable();
   });
 }
@@ -1987,10 +2145,11 @@ async function validerIdentite() {
     }
   }
   try {
-    const existing = await DB.select('copies','matricule=eq.'+currentCandidat.matricule);
+    const cfgFilter = CFG && CFG.id ? '&exam_config_id=eq.'+CFG.id : '';
+    const existing = await DB.select('copies','matricule=eq.'+currentCandidat.matricule+cfgFilter);
     if (existing && existing.length) {
       if (isTest) {
-        await DB.delete('copies', 'matricule=eq.TEST');
+        await DB.delete('copies', 'matricule=eq.TEST'+(CFG && CFG.id ? '&exam_config_id=eq.'+CFG.id : ''));
         toast('Mode TEST — ancienne copie supprimée automatiquement', 'info');
       } else {
         err.textContent = 'Vous avez déjà déposé votre copie pour cet examen.';
@@ -2120,10 +2279,14 @@ async function deposerCopie() {
   try {
     await DB.insert('copies', {
       matricule: currentCandidat.matricule,
+      nom: currentCandidat.nom || '',
+      prenom: currentCandidat.prenom || '',
+      filiere: currentCandidat.filiere || '',
       reponses: repCand,
       note_brute: sur20,
       note_sur_bareme: sur20,
-      admin_id: selAdminId || (currentAdmin ? currentAdmin.id : null)
+      admin_id: selAdminId || (currentAdmin ? currentAdmin.id : null),
+      exam_config_id: CFG ? CFG.id : null
     });
     document.getElementById('res-note').innerHTML = `${sur20.toFixed(2)}<span style="font-size:32px;color:var(--text-muted);font-weight:400">/${CFG.bareme||20}</span>`;
     document.getElementById('res-mention').textContent = getMention(sur20);
@@ -2201,7 +2364,8 @@ function getMention(n) {
 // ════════════════════════════════════════
 function filterResultats(f, btn) {
   currentResFiliereFilter = f;
-  ['all','EHA','GTE','HYAS'].forEach(x => {
+  // Réinitialiser tous les boutons dynamiques + le bouton "Toutes"
+  ['all', ...FILIERES].forEach(x => {
     const b = document.getElementById('res-fil-'+x);
     if (b) { b.style.background=''; b.style.color=''; b.style.borderColor=''; }
   });
@@ -2212,9 +2376,18 @@ function filterResultats(f, btn) {
 
 async function loadResultats() {
   try {
-    COPIES = await DB.select('copies','order=date_depot.asc') || [];
-    await loadCandidats();
-    await loadQuestions();
+    if (!CFG || !CFG.id) return;
+    COPIES     = await DB.select('copies',    'exam_config_id=eq.'+CFG.id+'&order=date_depot.asc') || [];
+    CANDIDATS  = await DB.select('candidats', 'exam_config_id=eq.'+CFG.id+'&order=nom.asc') || [];
+    const qs   = await DB.select('questions', 'exam_config_id=eq.'+CFG.id+'&order=ordre.asc') || [];
+    let sqs = [];
+    if (qs.length) {
+      const orClause = "or=(" + qs.map(q => "question_id.eq."+q.id).join(",") + ")";
+      sqs = await DB.select("sous_questions", orClause + "&order=ordre.asc") || [];
+    }
+    QUESTIONS = qs.map(q => ({
+      ...q, sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
+    }));
     renderResultatsTable();
   } catch(e) { toast('Erreur chargement résultats: '+e.message,'error'); }
 }
@@ -2261,7 +2434,8 @@ function renderResultatsTable() {
     const mention = getMention(note);
     const mentionClass = note >= 12 ? 'badge-green' : 'badge-red';
     const fil = cand.filiere || '';
-    const filBadge = fil==='EHA'?'badge-blue':fil==='GTE'?'badge-green':fil==='HYAS'?'badge-amber':'badge-gray';
+    const _filBadges=['badge-blue','badge-green','badge-amber','badge-purple'];
+    const _filIdx = FILIERES.indexOf(fil); const filBadge = _filIdx>=0?_filBadges[_filIdx%_filBadges.length]:'badge-gray';
     html+=`<tr>
       <td><code style="font-size:12px">${cop.matricule}</code></td>
       <td><strong>${cand.nom||'?'}</strong> ${cand.prenom||''}</td>
@@ -2278,9 +2452,22 @@ function renderResultatsTable() {
 // EXPORTS
 // ════════════════════════════════════════
 async function ensureData() {
-  if (!COPIES.length) COPIES = await DB.select('copies',(currentAdmin?'admin_id=eq.'+currentAdmin.id+'&':'')+'order=date_depot.asc').catch(()=>[]) || [];
-  if (!CANDIDATS.length) await loadCandidats();
-  if (!QUESTIONS.length) await loadQuestions();
+  if (!CFG || !CFG.id) return;
+  if (!COPIES.length)
+    COPIES = await DB.select('copies','exam_config_id=eq.'+CFG.id+'&order=date_depot.asc').catch(()=>[]) || [];
+  if (!CANDIDATS.length)
+    CANDIDATS = await DB.select('candidats','exam_config_id=eq.'+CFG.id+'&order=nom.asc').catch(()=>[]) || [];
+  if (!QUESTIONS.length) {
+    const qs = await DB.select('questions','exam_config_id=eq.'+CFG.id+'&order=ordre.asc').catch(()=>[]) || [];
+    let sqs = [];
+    if (qs.length) {
+      const orClause = "or=(" + qs.map(q => "question_id.eq."+q.id).join(",") + ")";
+      sqs = await DB.select("sous_questions", orClause + "&order=ordre.asc").catch(()=>[]) || [];
+    }
+    QUESTIONS = qs.map(q => ({
+      ...q, sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
+    }));
+  }
 }
 
 function getNomFichier(cand) {
@@ -2395,8 +2582,8 @@ function downloadModeleCC() {
 async function buildReleveExcelINE(filiere, candsFil, copiesFil, notesCC) {
   const optionLabel = FILIERE_OPTIONS[filiere] || filiere;
   const wb = new ExcelJS.Workbook();
-  const names = {'EHA':'Notes_Master 1 EHA','GTE':'Master1_GTE','HYAS':'Notes_Master 1 HYAS'};
-  const ws = wb.addWorksheet((names[filiere]||filiere).substring(0,31));
+  const wsName = ('Notes_'+(CFG.niveau||'Niveau')+'_'+filiere).substring(0,31);
+  const ws = wb.addWorksheet(wsName);
 
   // ── Largeurs colonnes exactes mesurées sur modèle INE
   ws.columns = [
@@ -3305,6 +3492,16 @@ async function loadLogos() {
   if (CFG.logo_entite) {
     try { LOGO_DROITE_B64 = await urlToBase64(CFG.logo_entite); } catch(e) {}
   }
+  // Afficher les previews read-only dans l'espace enseignant
+  const pU = document.getElementById("logo-univ-preview-admin");
+  const pE = document.getElementById("logo-entite-preview-admin");
+  if (pU) pU.innerHTML = LOGO_GAUCHE_B64 ? `<img src="${LOGO_GAUCHE_B64}" style="height:44px;border-radius:6px;border:1px solid var(--gray-mid)" title="Logo Université">` : '<span style="font-size:12px;color:var(--text-muted)">Aucun logo université</span>';
+  if (pE) pE.innerHTML = LOGO_DROITE_B64 ? `<img src="${LOGO_DROITE_B64}" style="height:44px;border-radius:6px;border:1px solid var(--gray-mid)" title="Logo Entité">` : '<span style="font-size:12px;color:var(--text-muted)">Aucun logo entité</span>';
+  // Synchroniser les champs hidden (utilisés par saveConfigNew et PDF)
+  const cu = document.getElementById("c-logo-univ");
+  const ce = document.getElementById("c-logo-entite");
+  if (cu) cu.value = CFG.logo_universite || "";
+  if (ce) ce.value = CFG.logo_entite || "";
 }
 
 function urlToBase64(url) {
@@ -3328,38 +3525,147 @@ function urlToBase64(url) {
 // ════════════════════════════════════════
 // LOAD ADMIN DATA
 // ════════════════════════════════════════
-async function loadAdminData() {
+// ALL_EPREUVES = liste de toutes les exam_config de l'enseignant
+let ALL_EPREUVES = [];
+
+async function loadAdminData(cfgId) {
   if (!currentAdmin) return;
-  const rows = await DB.select("exam_config", "admin_id=eq." + currentAdmin.id + "&select=*");
-  if (rows && rows.length) {
-    CFG = rows[0];
-  } else {
+  // Charger toutes les épreuves de l'enseignant
+  ALL_EPREUVES = await DB.select("exam_config", "admin_id=eq." + currentAdmin.id + "&order=created_at.asc") || [];
+
+  if (!ALL_EPREUVES.length) {
+    // Créer une première épreuve vide
     const res = await DB.insert("exam_config", {
       admin_id: currentAdmin.id,
-      ecole:"", institut:"", matiere:"", niveau:"",
-      annee:"", date_exam:"", heure:"08:00", duree:90,
+      ecole:"", institut:"", matiere:"Nouvelle épreuve", niveau:"",
+      annee:"", date_exam: null, heure:"08:00", duree:90,
       session:"Normale", bareme:20, consigne:"",
-      enseignant:"", statut:"ferme",
+      enseignant: currentAdmin.nom || "", statut:"ferme",
       email_verification:false, resend_key:"", smtp_from:"",
       logo_universite:"", logo_entite:""
     });
-    CFG = (res && res[0]) ? res[0] : { statut:"ferme", bareme:20, duree:90 };
+    const newCfg = (res && res[0]) ? res[0] : null;
+    if (newCfg) ALL_EPREUVES = [newCfg];
   }
-  CANDIDATS = await DB.select("candidats", "admin_id=eq." + currentAdmin.id + "&order=nom.asc") || [];
+
+  // Choisir la config active : cfgId fourni, ou la première
+  if (cfgId) {
+    CFG = ALL_EPREUVES.find(e => e.id === cfgId) || ALL_EPREUVES[0];
+  } else {
+    // Priorité : épreuve ouverte, sinon la plus récente
+    CFG = ALL_EPREUVES.find(e => e.statut === "ouvert") || ALL_EPREUVES[ALL_EPREUVES.length - 1];
+  }
+
+  // Mettre à jour le sélecteur
+  renderEpreuveSelector();
+
+  // Charger candidats et questions pour cette épreuve
+  await loadEpreuveData();
+}
+
+function renderEpreuveSelector() {
+  const bar = document.getElementById("epreuve-selector-bar");
+  const sel = document.getElementById("epreuve-select");
+  if (!bar || !sel) return;
+  // Toujours afficher la barre (même avec 1 seule épreuve, pour permettre d'en créer une autre)
+  bar.style.display = "flex";
+  sel.innerHTML = ALL_EPREUVES.map(e =>
+    `<option value="${e.id}" ${CFG && e.id === CFG.id ? "selected" : ""}>` +
+    `${e.matiere || "Sans titre"} — ${e.statut === "ouvert" ? "🟢 Ouverte" : "🔴 Fermée"}` +
+    (e.date_exam ? ` (${e.date_exam})` : "") +
+    `</option>`
+  ).join("");
+}
+
+async function switchEpreuve(cfgId) {
+  if (!cfgId || cfgId === CFG?.id) return;
+  CFG = ALL_EPREUVES.find(e => e.id === cfgId) || CFG;
+  QUESTIONS = []; CANDIDATS = []; COPIES = [];
+  await loadEpreuveData();
+  await loadFilieresEnseignant();
+  loadConfigFormNew();
+  renderQBuilder();
+  renderCandidatsTable();
+  FILIERES = [...new Set(CANDIDATS.map(c => (c.filiere||'').toUpperCase()).filter(Boolean))];
+  renderFiliereButtons();
+  toast("Épreuve chargée : " + (CFG.matiere || "Sans titre"), "success");
+}
+
+async function createNewEpreuve() {
+  const matiere = prompt("Nom de la nouvelle épreuve (ex: Mathématiques M1) :");
+  if (!matiere || !matiere.trim()) return;
+  try {
+    const pcs = await DB.select("parcours", "admin_id=eq."+currentAdmin.id+"&select=id&limit=1") || [];
+    const res = await DB.insert("exam_config", {
+      admin_id: currentAdmin.id,
+      matiere: matiere.trim(),
+      ecole:"", institut:"", niveau:"", annee:"",
+      date_exam: null, heure:"08:00", duree:90,
+      session:"Normale", bareme:20, consigne:"",
+      enseignant: currentAdmin.nom || "", statut:"ferme",
+      email_verification:false, resend_key:"", smtp_from:"",
+      logo_universite: CFG.logo_universite || "",
+      logo_entite: CFG.logo_entite || "",
+      parcours_id: pcs.length ? pcs[0].id : null
+    });
+    if (res && res[0]) {
+      ALL_EPREUVES.push(res[0]);
+      CFG = res[0];
+      QUESTIONS = []; COPIES = [];
+      CANDIDATS = await DB.select("candidats", "admin_id=eq." + currentAdmin.id + "&order=nom.asc") || [];
+      renderEpreuveSelector();
+      loadConfigFormNew();
+      renderQBuilder();
+      renderCandidatsTable();
+      toast("Épreuve créée : " + matiere.trim(), "success");
+    }
+  } catch(e) { toast("Erreur : " + e.message, "error"); }
+}
+
+async function deleteCurrentEpreuve() {
+  if (ALL_EPREUVES.length <= 1) { toast("Vous ne pouvez pas supprimer la seule épreuve.", "warn"); return; }
+  openModal("Supprimer l'épreuve", `Supprimer définitivement "${CFG.matiere || "cette épreuve"}" et toutes ses questions/copies ?`, async () => {
+    try {
+      const delId = CFG.id;
+      // Supprimer dans l'ordre : sous-questions → questions → candidats → copies → exam_config
+      // (Les FK cascade gèrent automatiquement grâce à on delete cascade)
+      await DB.delete("exam_config", "id=eq." + delId);
+      ALL_EPREUVES = ALL_EPREUVES.filter(e => e.id !== delId);
+      CFG = ALL_EPREUVES[ALL_EPREUVES.length - 1];
+      await loadEpreuveData();
+      renderEpreuveSelector();
+      loadConfigFormNew();
+      renderCandidatsTable();
+      closeModal();
+      toast("Épreuve supprimée", "success");
+    } catch(e) { toast("Erreur : " + e.message, "error"); closeModal(); }
+  });
+}
+
+async function loadEpreuveData() {
+  if (!currentAdmin || !CFG || !CFG.id) return;
+  // Tout filtré par exam_config_id = CFG.id (isolation totale par épreuve)
+  CANDIDATS = await DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc") || [];
   if (!CANDIDATS.find(c => c.matricule === "TEST")) {
-    await DB.upsert("candidats", {
+    await DB.insert("candidats", {
       matricule:"TEST", nom:"COMPTE", prenom:"Test",
       filiere:"TEST", email:"test@plateforme.local",
-      admin_id: currentAdmin.id
-    }, "matricule").catch(() => {});
-    CANDIDATS = await DB.select("candidats", "admin_id=eq." + currentAdmin.id + "&order=nom.asc") || [];
+      admin_id: currentAdmin.id,
+      exam_config_id: CFG.id
+    }).catch(() => {}); // ignore si déjà présent
+    CANDIDATS = await DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc") || [];
   }
-  const qs  = await DB.select("questions", "admin_id=eq." + currentAdmin.id + "&order=ordre.asc") || [];
-  const sqs = await DB.select("sous_questions", "order=ordre.asc") || [];
+  const qs = await DB.select("questions", "exam_config_id=eq." + CFG.id + "&order=ordre.asc") || [];
+  let sqs = [];
+  if (qs.length) {
+    const orClause = "or=(" + qs.map(q => "question_id.eq."+q.id).join(",") + ")";
+    sqs = await DB.select("sous_questions", orClause + "&order=ordre.asc") || [];
+  }
   QUESTIONS = qs.map(q => ({
     ...q, image_url: q.image_url||"", html_content: q.html_content||"",
     sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
   }));
+  COPIES = await DB.select("copies", "exam_config_id=eq." + CFG.id + "&order=date_depot.asc") || [];
   await loadLogos();
 }
 
@@ -3395,15 +3701,22 @@ async function doAdminLoginNew() {
     adminAuth    = true;
     document.getElementById("admin-pwd").value = "";
     if (identEl) identEl.value = "";
+    // Persister la session
+    sessionStorage.setItem("currentAdmin", JSON.stringify(admin));
     if (admin.role === "superadmin") {
+      sessionStorage.setItem("currentPage", "pg-superadmin");
       goTo("pg-superadmin");
       saLoadStats(); saLoadComptes();
     } else {
-      await loadAdminData();
-      loadConfigFormNew();
+      // Afficher la page AVANT de charger les données (DOM doit exister pour renderEpreuveSelector)
       const chip = document.getElementById("admin-name-chip");
       if (chip) chip.textContent = "\uD83D\uDC64 " + (admin.nom || admin.identifiant);
+      sessionStorage.setItem("currentPage", "pg-admin");
       goTo("pg-admin");
+      await loadAdminData();
+      await loadFilieresEnseignant();
+      loadConfigFormNew();
+      renderQBuilder();
       renderCandidatsTable();
     }
   } catch(e) {
@@ -3415,7 +3728,10 @@ async function doAdminLoginNew() {
 function adminLogoutNew() {
   adminAuth = false; currentAdmin = null;
   CFG = {}; QUESTIONS = []; CANDIDATS = []; COPIES = [];
+  FILIERES = []; FILIERE_OPTIONS = {};
   LOGO_GAUCHE_B64 = null; LOGO_DROITE_B64 = null;
+  sessionStorage.removeItem("currentAdmin");
+  sessionStorage.removeItem("currentPage");
   goTo("pg-home");
 }
 
@@ -3442,16 +3758,37 @@ function loadConfigFormNew() {
     st.textContent = CFG.statut === "ouvert" ? "\uD83D\uDFE2 Examen OUVERT" : "\uD83D\uDD34 Examen FERM\u00C9";
     st.className   = CFG.statut === "ouvert" ? "badge badge-green" : "badge badge-red";
   }
+  // Infos parcours pré-remplies par le super admin
+  const parcoursInfo = document.getElementById("cfg-parcours-info");
+  if (parcoursInfo) {
+    if (CFG.parcours_id) {
+      const ecole = CFG.ecole || CFG.institut || "";
+      const niveau = CFG.niveau || "";
+      parcoursInfo.style.display = "block";
+      parcoursInfo.innerHTML = "\uD83D\uDCCD Parcours assigné" +
+        (ecole ? " — <strong>" + ecole + "</strong>" : "") +
+        (niveau ? " / " + niveau : "") +
+        " — logos et informations pré-chargés par l\'administrateur.";
+    } else {
+      parcoursInfo.style.display = "block";
+      parcoursInfo.className = "alert alert-warning";
+      parcoursInfo.innerHTML = "\u26A0\uFE0F Aucun parcours assigné par l\'administrateur — cette épreuve ne sera pas visible par les étudiants tant qu\'un parcours ne lui est pas lié.";
+    }
+  }
 }
 
 async function saveConfigNew() {
   if (!currentAdmin) return;
-  const newPwd = v("c-pwd-admin");
+  const newPwd   = v("c-pwd-admin");
+  const dateVal  = v("c-date");
+  const heureVal = v("c-heure");
   const data = {
     admin_id: currentAdmin.id,
     ecole: v("c-ecole"), institut: v("c-institut"), matiere: v("c-matiere"),
-    niveau: v("c-niveau"), annee: v("c-annee"), date_exam: v("c-date"),
-    heure: v("c-heure"), duree: parseInt(v("c-duree"))||90,
+    niveau: v("c-niveau"), annee: v("c-annee"),
+    date_exam: dateVal  || null,
+    heure:     heureVal || null,
+    duree: parseInt(v("c-duree"))||90,
     session: v("c-session"), bareme: parseInt(v("c-bareme"))||20,
     consigne: v("c-consigne"), enseignant: v("c-enseignant"),
     logo_universite: v("c-logo-univ"), logo_entite: v("c-logo-entite"),
@@ -3460,6 +3797,15 @@ async function saveConfigNew() {
     statut: CFG.statut || "ferme"
   };
   try {
+    // Lier automatiquement au parcours de l'enseignant s'il n'est pas encore renseigné
+    if (!CFG.parcours_id) {
+      try {
+        const pcs = await DB.select("parcours", "admin_id=eq."+currentAdmin.id+"&select=id&limit=1") || [];
+        if (pcs.length) data.parcours_id = pcs[0].id;
+      } catch(_e) {}
+    } else {
+      data.parcours_id = CFG.parcours_id;
+    }
     if (CFG.id) {
       await DB.update("exam_config", "id=eq." + CFG.id, data);
     } else {
@@ -4183,7 +4529,7 @@ function switchTabSA(btn, tabId) {
   btn.classList.add("active");
   const el = document.getElementById(tabId); if (el) el.style.display = "block";
   if (tabId === "sa-tab-comptes")    saLoadComptes();
-  if (tabId === "sa-tab-hierarchie") saLoadHierarchie();
+  if (tabId === "sa-tab-hierarchie") { saLoadHierarchie(); saLoadLogoSelectors(); }
   if (tabId === "sa-tab-parcours")   saLoadParcours();
   if (tabId === "sa-tab-universites") saLoadUniversites();
   if (tabId === "sa-tab-niveaux")    saLoadNiveaux();
@@ -4339,6 +4685,9 @@ async function saShowAddUniversite() {
 }
 async function saDeleteUniversite(id, nom) {
   openModal("Supprimer", `Supprimer l'université "${nom}" et toute sa hiérarchie ?`, async () => {
+    // Cascade : supprimer les parcours liés
+    const pcs = await DB.select("parcours", "universite_id=eq."+id+"&select=id").catch(()=>[]) || [];
+    for (const p of pcs) { await DB.delete("parcours_filieres","parcours_id=eq."+p.id).catch(()=>{}); await DB.delete("parcours","id=eq."+p.id).catch(()=>{}); }
     await DB.delete("universites", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
   });
 }
@@ -4350,6 +4699,8 @@ async function saAddEntite2(univId, univNom) {
 }
 async function saDeleteEntite(id, nom) {
   openModal("Supprimer", `Supprimer l'entité "${nom}" ?`, async () => {
+    const pcs = await DB.select("parcours", "entite_id=eq."+id+"&select=id").catch(()=>[]) || [];
+    for (const p of pcs) { await DB.delete("parcours_filieres","parcours_id=eq."+p.id).catch(()=>{}); await DB.delete("parcours","id=eq."+p.id).catch(()=>{}); }
     await DB.delete("entites", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
   });
 }
@@ -4361,6 +4712,8 @@ async function saAddDept(entiteId, entiteNom) {
 }
 async function saDeleteDept(id, nom) {
   openModal("Supprimer", `Supprimer le département "${nom}" ?`, async () => {
+    const pcs = await DB.select("parcours", "departement_id=eq."+id+"&select=id").catch(()=>[]) || [];
+    for (const p of pcs) { await DB.delete("parcours_filieres","parcours_id=eq."+p.id).catch(()=>{}); await DB.delete("parcours","id=eq."+p.id).catch(()=>{}); }
     await DB.delete("departements", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
   });
 }
@@ -4373,6 +4726,8 @@ async function saAddNiveau2(deptId, deptNom) {
 }
 async function saDeleteNiveau(id, nom) {
   openModal("Supprimer", `Supprimer "${nom}" ?`, async () => {
+    const pcs = await DB.select("parcours", "niveau_id=eq."+id+"&select=id").catch(()=>[]) || [];
+    for (const p of pcs) { await DB.delete("parcours_filieres","parcours_id=eq."+p.id).catch(()=>{}); await DB.delete("parcours","id=eq."+p.id).catch(()=>{}); }
     await DB.delete("niveaux", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
   });
 }
@@ -4387,6 +4742,8 @@ async function saAddFiliere(niveauId, deptId, niveauNom) {
 }
 async function saDeleteFiliere(id, code) {
   openModal("Supprimer", `Supprimer la filière "${code}" ?`, async () => {
+    // Supprimer les liaisons parcours_filieres
+    await DB.delete("parcours_filieres", "filiere_id=eq."+id).catch(()=>{});
     await DB.delete("filieres", "id=eq." + id); closeModal(); toast("Supprimé", "success"); saLoadHierarchie();
   });
 }
@@ -4512,6 +4869,19 @@ async function saCreateParcours() {
   if (!filiereIds.length) { toast("Sélectionnez au moins une filière", "warn"); return; }
 
   try {
+    // Vérifier qu'un parcours identique n'existe pas déjà
+    const existing = await DB.select("parcours",
+      "universite_id=eq."+univId+"&entite_id=eq."+entiteId+"&departement_id=eq."+deptId+"&niveau_id=eq."+niveauId+"&admin_id=eq."+adminId+"&select=id"
+    ) || [];
+    if (existing.length) {
+      // Vérifier si les filières sont exactement les mêmes
+      const pf = await DB.select("parcours_filieres", "parcours_id=eq."+existing[0].id+"&select=filiere_id") || [];
+      const existingFIds = pf.map(x => x.filiere_id).sort().join(",");
+      const newFIds = [...filiereIds].sort().join(",");
+      if (existingFIds === newFIds) {
+        toast("Un parcours identique existe déjà pour cet enseignant.", "warn"); return;
+      }
+    }
     const res = await DB.insert("parcours", {
       universite_id: univId, entite_id: entiteId,
       departement_id: deptId, niveau_id: niveauId, admin_id: adminId
@@ -4521,7 +4891,46 @@ async function saCreateParcours() {
     for (const fId of filiereIds) {
       await DB.insert("parcours_filieres", { parcours_id: pId, filiere_id: fId }).catch(() => {});
     }
-    toast("Parcours créé !", "success");
+
+    // ── Créer automatiquement une exam_config pré-remplie pour l'enseignant ──
+    // Récupérer les infos pour pré-remplir
+    const univData    = await DB.select("universites", "id=eq."+univId+"&select=nom,logo_url").catch(()=>[]) || [];
+    const entiteData  = await DB.select("entites",     "id=eq."+entiteId+"&select=nom,logo_url").catch(()=>[]) || [];
+    const niveauData  = await DB.select("niveaux",     "id=eq."+niveauId+"&select=nom").catch(()=>[]) || [];
+    const filNoms     = await Promise.all(filiereIds.map(fId =>
+      DB.select("filieres","id=eq."+fId+"&select=nom,code").then(r => r && r[0] ? r[0].nom+' ('+r[0].code+')' : '').catch(()=>'')
+    ));
+    const adminData   = await DB.select("admins", "id=eq."+adminId+"&select=nom").catch(()=>[]) || [];
+
+    const cfgRes = await DB.insert("exam_config", {
+      admin_id:        adminId,
+      parcours_id:     pId,
+      ecole:           univData[0]?.nom || "",
+      institut:        entiteData[0]?.nom || "",
+      niveau:          niveauData[0]?.nom || "",
+      matiere:         "",   // L'enseignant remplit la matière
+      annee:           new Date().getFullYear()+"",
+      heure:           "08:00",
+      duree:           90,
+      session:         "Normale",
+      bareme:          20,
+      consigne:        "",
+      enseignant:      adminData[0]?.nom || "",
+      statut:          "ferme",
+      email_verification: false,
+      resend_key:      "",
+      smtp_from:       "",
+      logo_universite: univData[0]?.logo_url || "",
+      logo_entite:     entiteData[0]?.logo_url || ""
+    }).catch(e => { console.warn("exam_config auto:", e.message); return null; });
+
+    const cfgId = cfgRes && cfgRes[0] ? cfgRes[0].id : null;
+    const niveauNom = niveauData[0]?.nom || "";
+    const filLabel  = filNoms.filter(Boolean).join(", ");
+    const ensNom = (adminData[0] && adminData[0].nom) ? adminData[0].nom : "l'enseignant";
+    const msgNiveau = niveauNom ? " — " + niveauNom : "";
+    const msgFil = filLabel ? " (" + filLabel + ")" : "";
+    toast("Parcours créé ! Épreuve pré-configurée pour " + ensNom + msgNiveau + msgFil, "success");
     document.getElementById("sa-parcours-form").style.display = "none";
     saLoadParcours();
   } catch(e) { toast("Erreur: " + e.message, "error"); }
@@ -4535,8 +4944,164 @@ async function saDeleteParcours(id) {
   });
 }
 
-// — Fonctions de compatibilité pour l'ancien système —
-async function saLoadUniversites() { saLoadHierarchie(); }
+// ════════════════════════════════════════
+// SUPER ADMIN — LOGOS
+// ════════════════════════════════════════
+async function saLoadLogoSelectors() {
+  const univs   = await DB.select("universites", "order=nom.asc&select=id,nom") || [];
+  const entites = await DB.select("entites",     "order=nom.asc&select=id,nom") || [];
+  const selU = document.getElementById("sa-logo-univ-target");
+  const selE = document.getElementById("sa-logo-entite-target");
+  if (selU) selU.innerHTML = "<option value=''>— Université —</option>"
+    + univs.map(u => `<option value="${u.id}">${escH(u.nom)}</option>`).join("");
+  if (selE) selE.innerHTML = "<option value=''>— Entité —</option>"
+    + entites.map(e => `<option value="${e.id}">${escH(e.nom)}</option>`).join("");
+}
+
+async function saUploadLogo(input, type) {
+  const file = input.files[0]; if (!file) return;
+  const targetId = type === 'universite'
+    ? document.getElementById("sa-logo-univ-target")?.value
+    : document.getElementById("sa-logo-entite-target")?.value;
+  if (!targetId) { toast("Sélectionnez d'abord une " + (type === 'universite' ? "université" : "entité"), "warn"); return; }
+
+  // Capturer le fichier et réinitialiser l'input immédiatement
+  const capturedFile = file;
+  input.value = "";
+
+  try {
+    // Lire en base64 avec une vraie Promise (évite les conflits de callbacks)
+    const b64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error("Lecture fichier échouée"));
+      reader.readAsDataURL(capturedFile);
+    });
+
+    const table = type === 'universite' ? "universites" : "entites";
+    await DB.update(table, "id=eq." + targetId, { logo_url: b64 });
+
+    const previewId = "sa-logo-" + (type === 'universite' ? "univ" : "entite") + "-preview";
+    const preview = document.getElementById(previewId);
+    if (preview) preview.innerHTML = `<img src="${b64}" style="height:50px;border-radius:6px;border:1px solid var(--gray-mid)">`;
+
+    toast((type === 'universite' ? "Logo université" : "Logo entité") + " uploadé ✓", "success");
+    await saPropagateLogo(targetId, type, b64);
+  } catch(err) { toast("Erreur upload: " + err.message, "error"); }
+}
+
+async function saPropagateLogo(entityId, type, b64) {
+  try {
+    // Trouver les parcours liés à cette entité/université
+    const field    = type === 'universite' ? 'universite_id' : 'entite_id';
+    const logoField = type === 'universite' ? 'logo_universite' : 'logo_entite';
+    const parcours = await DB.select("parcours", field + "=eq." + entityId + "&select=admin_id") || [];
+    const adminIds = [...new Set(parcours.map(p => p.admin_id).filter(Boolean))];
+    for (const aId of adminIds) {
+      await DB.update("exam_config", "admin_id=eq." + aId, { [logoField]: b64 }).catch(() => {});
+    }
+    if (adminIds.length) toast("Logo propagé à " + adminIds.length + " enseignant(s)", "success");
+  } catch(e) { console.warn("Propagation logo:", e.message); }
+}
+
+// ════════════════════════════════════════
+// SUPER ADMIN — IMPORT EXCEL HIÉRARCHIE
+// ════════════════════════════════════════
+function downloadHierarchieTemplate() {
+  const wb   = XLSX.utils.book_new();
+  const data = [
+    ["Université","Entité","Département","Niveau","Ordre Niveau","Code Filière","Nom Filière","Ordre Filière"],
+    ["Université X","Institut A","Département GEA","Master 1",4,"EHA","Eau Hygiène Assainissement",1],
+    ["Université X","Institut A","Département GEA","Master 1",4,"GTE","Gestion Traitement Eau",2],
+    ["Université X","Institut A","Département GEA","Licence 3",3,"GC","Génie Civil",1],
+    ["Université Y","Faculté B","Département Info","Master 2",5,"SIR","Systèmes Info",1],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:20},{wch:15},{wch:20},{wch:12},{wch:13},{wch:13},{wch:30},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, "Hiérarchie");
+  XLSX.writeFile(wb, "modele_hierarchie_universitaire.xlsx");
+}
+
+async function importHierarchieExcel(input) {
+  const file = input.files[0]; if (!file) return;
+  input.value = "";
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const wb   = XLSX.read(e.target.result, { type:'binary' });
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      if (!data.length) { toast("Fichier vide", "warn"); return; }
+
+      toast("Import en cours...", "info");
+      let stats = { univs:0, entites:0, depts:0, niveaux:0, filieres:0 };
+
+      // Caches pour éviter les doublons
+      const univCache   = {};
+      const entiteCache = {};
+      const deptCache   = {};
+      const niveauCache = {};
+
+      for (const row of data) {
+        const univNom    = String(row["Université"]||"").trim();
+        const entiteNom  = String(row["Entité"]||"").trim();
+        const deptNom    = String(row["Département"]||"").trim();
+        const niveauNom  = String(row["Niveau"]||"").trim();
+        const niveauOrdre = parseInt(row["Ordre Niveau"]||0);
+        const filCode    = String(row["Code Filière"]||"").trim().toUpperCase();
+        const filNom     = String(row["Nom Filière"]||"").trim();
+        const filOrdre   = parseInt(row["Ordre Filière"]||0);
+
+        if (!univNom || !entiteNom || !deptNom || !niveauNom || !filCode) continue;
+
+        // Université
+        if (!univCache[univNom]) {
+          const ex = await DB.select("universites", "nom=eq." + encodeURIComponent(univNom) + "&select=id");
+          if (ex && ex.length) { univCache[univNom] = ex[0].id; }
+          else { const r = await DB.insert("universites",{nom:univNom}); univCache[univNom]=r[0].id; stats.univs++; }
+        }
+        const univId = univCache[univNom];
+
+        // Entité
+        const entiteKey = univId + ":" + entiteNom;
+        if (!entiteCache[entiteKey]) {
+          const ex = await DB.select("entites", "universite_id=eq."+univId+"&nom=eq."+encodeURIComponent(entiteNom)+"&select=id");
+          if (ex && ex.length) { entiteCache[entiteKey] = ex[0].id; }
+          else { const r = await DB.insert("entites",{nom:entiteNom,universite_id:univId}); entiteCache[entiteKey]=r[0].id; stats.entites++; }
+        }
+        const entiteId = entiteCache[entiteKey];
+
+        // Département
+        const deptKey = entiteId + ":" + deptNom;
+        if (!deptCache[deptKey]) {
+          const ex = await DB.select("departements","entite_id=eq."+entiteId+"&nom=eq."+encodeURIComponent(deptNom)+"&select=id");
+          if (ex && ex.length) { deptCache[deptKey] = ex[0].id; }
+          else { const r = await DB.insert("departements",{nom:deptNom,entite_id:entiteId}); deptCache[deptKey]=r[0].id; stats.depts++; }
+        }
+        const deptId = deptCache[deptKey];
+
+        // Niveau
+        const niveauKey = deptId + ":" + niveauNom;
+        if (!niveauCache[niveauKey]) {
+          const ex = await DB.select("niveaux","departement_id=eq."+deptId+"&nom=eq."+encodeURIComponent(niveauNom)+"&select=id");
+          if (ex && ex.length) { niveauCache[niveauKey] = ex[0].id; }
+          else { const r = await DB.insert("niveaux",{nom:niveauNom,ordre:niveauOrdre,departement_id:deptId}); niveauCache[niveauKey]=r[0].id; stats.niveaux++; }
+        }
+        const niveauId = niveauCache[niveauKey];
+
+        // Filière
+        const exF = await DB.select("filieres","niveau_id=eq."+niveauId+"&code=eq."+encodeURIComponent(filCode)+"&select=id");
+        if (!exF || !exF.length) {
+          await DB.insert("filieres",{code:filCode,nom:filNom,ordre:filOrdre,niveau_id:niveauId,departement_id:deptId});
+          stats.filieres++;
+        }
+      }
+
+      toast(`✅ Importé : ${stats.univs} univ., ${stats.entites} entités, ${stats.depts} depts, ${stats.niveaux} niveaux, ${stats.filieres} filières`, "success");
+      saLoadHierarchie();
+    } catch(err) { toast("Erreur import: " + err.message, "error"); }
+  };
+  reader.readAsBinaryString(file);
+}
 async function saAddEntite(univId, univNom) { await saAddEntite2(univId, univNom); }
 async function saRemoveEntite(univId, entiteNom) { /* deprecated */ }
 async function saAddNiveau() {
@@ -4574,8 +5139,32 @@ async function saLoadActivity() {
   if(SB_URL&&SB_KEY){
     try{
       await initApp();
-      goTo('pg-home');
+      // Restaurer la session si l'utilisateur rafraîchit la page
+      const savedAdmin   = sessionStorage.getItem("currentAdmin");
+      const savedPage    = sessionStorage.getItem("currentPage");
+      if (savedAdmin && savedPage) {
+        const admin = JSON.parse(savedAdmin);
+        currentAdmin = admin;
+        adminAuth = true;
+        if (admin.role === "superadmin") {
+          goTo("pg-superadmin");
+          saLoadStats(); saLoadComptes();
+        } else {
+          const chip = document.getElementById("admin-name-chip");
+          if (chip) chip.textContent = "\uD83D\uDC64 " + (admin.nom || admin.identifiant);
+          goTo(savedPage || "pg-admin");
+          await loadAdminData();
+          await loadFilieresEnseignant();
+          loadConfigFormNew();
+          renderQBuilder();
+          renderCandidatsTable();
+        }
+      } else {
+        goTo('pg-home');
+      }
     } catch(e){
+      sessionStorage.removeItem("currentAdmin");
+      sessionStorage.removeItem("currentPage");
       goTo('pg-setup');
     }
   } else {
