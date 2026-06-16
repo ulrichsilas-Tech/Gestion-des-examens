@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -599,6 +601,7 @@ create table if not exists copies (
 create table if not exists tokens_composition (
   token uuid primary key default gen_random_uuid(),
   matricule text, admin_id uuid,
+  exam_config_id uuid references exam_config(id) on delete cascade,
   expires_at timestamptz, used boolean default false
 );
 
@@ -708,6 +711,8 @@ update sous_questions set correcte = correct where correcte is null and correct 
 alter table if exists questions add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
 alter table if exists candidats add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
 alter table if exists copies    add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
+-- Ajouter exam_config_id à tokens_composition si manquant
+alter table if exists tokens_composition add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
 -- Peupler exam_config_id pour les données existantes
 update questions q set exam_config_id = (select id from exam_config ec where ec.admin_id = q.admin_id limit 1) where q.exam_config_id is null;
 update candidats c set exam_config_id = (select id from exam_config ec where ec.admin_id = c.admin_id limit 1) where c.exam_config_id is null;
@@ -736,6 +741,8 @@ end $$;
           <div id="setup-err" class="alert alert-danger" style="display:none"></div>
           <div id="setup-ok" class="alert alert-success" style="display:none">✓ Connexion réussie ! Redirection...</div>
           <button class="btn btn-primary" onclick="testAndSaveSupabase()" id="btn-setup">🔌 Tester et connecter</button>
+          <button class="btn btn-secondary" onclick="generateShareLink()" style="margin-top:8px" title="Génère un lien à ouvrir sur un autre navigateur pour éviter de ressaisir les clés">🔗 Copier le lien de configuration</button>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px">Le lien de configuration vous permet d'ouvrir la plateforme déjà connectée sur n'importe quel appareil ou navigateur.</div>
         </div>
       </div>
     </div>
@@ -749,7 +756,7 @@ end $$;
   </div>
   <div class="home-hero">
     <h1>Bienvenue sur votre plateforme de gestion des examens</h1>
-    <p id="home-subtitle">Chargement de l'examen...</p>
+    <p id="home-subtitle">Sélectionnez un espace pour continuer</p>
     <div id="home-exam-status" class="exam-status-banner" style="display:none;max-width:500px;margin:0 auto 2rem"></div>
     <div class="home-cards">
       <div class="home-card" onclick="initSelectionPage();goTo('pg-candidat-select')">
@@ -765,7 +772,6 @@ end $$;
         <br><span class="badge badge-gray">Responsables</span>
       </div>
     </div>
-    <p style="margin-top:2rem;font-size:12px;color:var(--text-muted)" id="home-db-status"></p>
   </div>
 </div>
 
@@ -808,11 +814,15 @@ end $$;
   </div>
   <div class="container-wide">
     <!-- Sélecteur multi-épreuves -->
-    <div id="epreuve-selector-bar" style="background:var(--blue-light);border-radius:10px;padding:12px 16px;margin-bottom:16px;gap:12px;align-items:center;flex-wrap:wrap;display:none">
+    <div id="epreuve-selector-bar" style="background:var(--blue-light);border-radius:10px;padding:12px 16px;margin-bottom:16px;gap:10px;align-items:center;flex-wrap:wrap;display:none">
       <span style="font-size:14px;font-weight:600;color:var(--blue-dark)">📚 Épreuve active :</span>
       <select id="epreuve-select" onchange="switchEpreuve(this.value)" style="flex:1;min-width:200px;padding:6px 10px;border-radius:6px;border:1px solid var(--gray-mid);font-size:14px"></select>
-      <button class="btn btn-sm btn-success" onclick="createNewEpreuve()">+ Nouvelle épreuve</button>
-      <button class="btn btn-sm btn-danger" onclick="deleteCurrentEpreuve()">🗑 Supprimer</button>
+      <!-- Mini stats de l'épreuve active -->
+      <div id="epreuve-mini-stats" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-success" onclick="createNewEpreuve()">+ Nouvelle</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteCurrentEpreuve()">🗑</button>
+      </div>
     </div>
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab(this,'tab-config')">⚙️ Configuration</button>
@@ -909,6 +919,10 @@ end $$;
         </div>
       </div>
       <div class="alert alert-info" style="font-size:12px">Colonnes : <strong>Matricule, Nom, Prénom, DateNaissance, Filière, Email</strong></div>
+      <div id="migration-filiere-banner" style="display:none;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px">⚠️ <strong id="migration-count">0</strong> étudiant(s) sans filière liée — cela peut affecter l'identification.</span>
+        <button class="btn btn-sm" style="background:#F59E0B;color:#fff;border-color:#F59E0B" onclick="migrateFiliereIds()">🔧 Corriger automatiquement</button>
+      </div>
       <!-- Filtre par filière -->
       <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" id="fil-filiere-btns">
         <button class="btn btn-sm active-filiere" id="fil-btn-all" onclick="filterFiliere('all',this)">Toutes les filières</button>
@@ -930,6 +944,9 @@ end $$;
         <button class="btn btn-sm" id="res-fil-all" onclick="filterResultats('all',this)" style="background:var(--blue);color:#fff;border-color:var(--blue)">Toutes</button>
       </div>
       <div id="stats-grid" class="stats-5" style="margin-bottom:1.5rem"></div>
+      <div style="background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px;margin-bottom:16px">
+        <canvas id="notes-histogram" height="70" style="display:none"></canvas>
+      </div>
       <div id="results-matrix-wrap"><div class="alert alert-warning">Chargement...</div></div>
     </div>
 
@@ -976,6 +993,16 @@ end $$;
           <div class="action-card-icon">📧</div>
           <div class="action-card-title">Aperçu notifications</div>
           <div class="action-card-desc">Contenu des mails à envoyer</div>
+        </div>
+        <div class="action-card" onclick="exportToutesCopiesPDF()" style="border-color:#7C3AED">
+          <div class="action-card-icon" style="background:#F3E8FF">📦</div>
+          <div class="action-card-title" style="color:#7C3AED">Toutes les copies — PDF groupé</div>
+          <div class="action-card-desc">Un seul PDF avec toutes les copies composées</div>
+        </div>
+        <div class="action-card" onclick="genRapportEpreuve()" style="border-color:#1D4ED8">
+          <div class="action-card-icon" style="background:#EFF6FF">📊</div>
+          <div class="action-card-title" style="color:#1D4ED8">Rapport de synthèse PDF</div>
+          <div class="action-card-desc">Statistiques, moyenne, taux de réussite, classement</div>
         </div>
       </div>
       <div id="export-feedback"></div>
@@ -1097,7 +1124,7 @@ end $$;
       <div id="cand-err-sel" class="alert alert-danger" style="display:none"></div>
       <div style="position:relative;margin-bottom:16px">
         <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:18px">🔍</span>
-        <input id="cand-nom-sel" placeholder="Tapez les premières lettres de votre nom" autocomplete="off" style="text-transform:uppercase;width:100%;padding:14px 14px 14px 44px;border:2px solid #E5E7EB;border-radius:14px;font-size:15px;outline:none">
+        <input id="cand-nom-sel" placeholder="Tapez les premières lettres de votre nom" autocomplete="off" oninput="onNomInputSel(this.value)" style="text-transform:uppercase;width:100%;padding:14px 14px 14px 44px;border:2px solid #E5E7EB;border-radius:14px;font-size:15px;outline:none">
         <div id="nom-suggestions-sel" style="margin-top:6px"></div>
       </div>
       <div id="cand-preview-sel" style="display:none;background:linear-gradient(135deg,#F0FDF4,#ECFDF5);border:1.5px solid #6EE7B7;border-radius:16px;padding:16px;margin-bottom:16px">
@@ -1119,12 +1146,25 @@ end $$;
     <!-- Email envoyé -->
     <div id="sel-step-email" style="display:none;background:#fff;border-radius:20px;padding:32px 24px;box-shadow:0 8px 24px rgba(0,0,0,.08);text-align:center">
       <div style="width:80px;height:80px;background:#EFF6FF;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 20px">📧</div>
-      <h3 style="font-size:20px;font-weight:700;margin-bottom:8px">Email envoyé !</h3>
-      <p style="color:#64748B;font-size:14px;margin-bottom:20px">Un lien de composition a été envoyé à votre adresse email.<br>Cliquez dessus pour démarrer l'examen.</p>
-      <div style="background:#F0FDF4;border-radius:12px;padding:14px;margin-bottom:20px;font-size:13px;color:#065F46;text-align:left">
-        <strong>📌 Pas reçu ?</strong><br>• Vérifiez vos spams<br>• Contactez votre responsable d'examen
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:8px">Vérifiez votre boîte mail !</h3>
+      <p style="color:#64748B;font-size:14px;margin-bottom:6px">Un lien d'accès à l'examen a été envoyé à :</p>
+      <div id="email-sent-to" style="background:#EFF6FF;border-radius:10px;padding:10px 16px;margin-bottom:20px;font-weight:600;color:#1D4ED8;font-size:15px">—</div>
+      <p style="color:#64748B;font-size:13px;margin-bottom:20px">Cliquez sur le lien dans l'email pour démarrer votre examen.<br><strong>Ne partagez pas ce lien.</strong></p>
+      <!-- Minuteur -->
+      <div style="background:#F8FAFC;border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="font-size:12px;color:#64748B;margin-bottom:6px">Temps restant pour accéder à l'examen</div>
+        <div id="token-timer" style="font-size:28px;font-weight:700;color:#1D4ED8;font-variant-numeric:tabular-nums">—</div>
       </div>
-      <button class="btn btn-ghost" onclick="goTo('pg-home')" style="padding:12px 24px;background:transparent;border:1px solid #E5E7EB;border-radius:12px;cursor:pointer">← Retour à l'accueil</button>
+      <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:14px;margin-bottom:20px;font-size:13px;color:#92400E;text-align:left">
+        <strong>📌 Pas reçu l'email ?</strong><br>
+        • Vérifiez vos <strong>spams / courrier indésirable</strong><br>
+        • L'email peut prendre jusqu'à 2 minutes<br>
+        • Contactez votre responsable d'examen si le problème persiste
+      </div>
+      <!-- Bouton renvoi avec cooldown -->
+      <button id="btn-resend-token" onclick="reenvoyerToken()" style="background:#F1F5F9;color:#475569;border:1px solid #CBD5E1;padding:12px 20px;border-radius:12px;cursor:pointer;font-size:14px;margin-bottom:12px;width:100%">🔄 Renvoyer l'email</button>
+      <div id="resend-cooldown" style="display:none;font-size:12px;color:#94A3B8;margin-bottom:12px">Vous pourrez renvoyer dans <span id="resend-countdown">60</span>s</div>
+      <button onclick="goTo('pg-home')" style="background:transparent;border:1px solid #E5E7EB;color:#64748B;padding:12px 24px;border-radius:12px;cursor:pointer;font-size:14px;width:100%">← Retour à l'accueil</button>
     </div>
   </div>
 </div>
@@ -1376,6 +1416,7 @@ end $$;
       <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-hierarchie')">🏛️ Hiérarchie</button>
       <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-parcours')">🗺️ Parcours</button>
       <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-activity')">📈 Activité</button>
+      <button class="tab-btn" onclick="switchTabSA(this,'sa-tab-config')">⚙️ Configuration</button>
     </div>
     <div id="sa-tab-comptes" class="admin-tab">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
@@ -1474,8 +1515,78 @@ end $$;
     <div id="sa-tab-universites" class="admin-tab" style="display:none"><!-- kept for compat --></div>
     <div id="sa-tab-niveaux" class="admin-tab" style="display:none"><!-- kept for compat --></div>
     <div id="sa-tab-activity" class="admin-tab" style="display:none">
-      <div class="section-title">Activité récente</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div class="section-title" style="margin:0">📈 Activité récente</div>
+        <button class="btn btn-sm" onclick="saLoadActivity()">🔄 Actualiser</button>
+      </div>
+      <!-- Statistiques globales -->
+      <div id="sa-activity-stats" class="grid-4" style="margin-bottom:20px"></div>
+      <!-- Graphiques côte à côte -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div style="background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:12px">📅 Copies — 7 derniers jours</div>
+          <canvas id="sa-chart-copies" height="120"></canvas>
+        </div>
+        <div style="background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px">
+          <div style="font-weight:600;font-size:14px;margin-bottom:12px">🎓 Répartition par filière</div>
+          <canvas id="sa-chart-filieres" height="120"></canvas>
+          <div id="sa-chart-filieres-legend" style="margin-top:8px;font-size:11px;display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+      </div>
+      <!-- Tableau des 50 dernières copies -->
       <div id="sa-activity-list"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+
+    <div id="sa-tab-config" class="admin-tab" style="display:none">
+      <div class="section-title">⚙️ Configuration de la plateforme</div>
+
+      <div class="card" style="margin-bottom:20px;border-left:4px solid #1D4ED8">
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px">📧 Service d'envoi email (Resend)</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Cette configuration s'applique à toute la plateforme. Les enseignants n'ont pas besoin de configurer leur propre clé.</p>
+        <div class="grid-2">
+          <div class="field">
+            <label class="lbl">Clé API Resend</label>
+            <input id="sa-resend-key" type="password" placeholder="re_xxxxxxxxxxxxxxxxxxxx">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Depuis votre dashboard resend.com</div>
+          </div>
+          <div class="field">
+            <label class="lbl">Email expéditeur</label>
+            <input id="sa-smtp-from" placeholder="noreply@votredomaine.com">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Domaine vérifié dans Resend (SPF + DKIM)</div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="lbl">Nom affiché dans les emails</label>
+          <input id="sa-smtp-name" placeholder="ExamPlatform" value="ExamPlatform">
+        </div>
+        <div id="sa-email-config-status" style="margin-bottom:12px;display:none"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saSaveEmailConfig()">💾 Enregistrer</button>
+          <button class="btn btn-secondary" onclick="saTestEmail()">🧪 Envoyer un email de test</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;border-left:4px solid #F59E0B">
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px">🧹 Maintenance base de données</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Nettoyage des données de test créées automatiquement.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-warning" onclick="saCleanTestData()">🗑 Supprimer les données TEST</button>
+          <span id="sa-clean-status" style="font-size:13px;color:var(--text-muted)"></span>
+        </div>
+      </div>
+
+      <div class="card" style="border-left:4px solid #7C3AED">
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px">🔐 Sécurité</div>
+        <div class="field" style="margin-top:12px">
+          <label class="lbl">Nouveau mot de passe Super Admin</label>
+          <input type="password" id="sa-new-pwd" placeholder="Minimum 8 caractères">
+        </div>
+        <div class="field">
+          <label class="lbl">Confirmer le nouveau mot de passe</label>
+          <input type="password" id="sa-new-pwd2" placeholder="Répétez le mot de passe">
+        </div>
+        <button class="btn btn-primary" onclick="saChangePwd()">🔒 Changer le mot de passe</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1520,6 +1631,38 @@ const DB = {
 };
 
 // ════════════════════════════════════════
+// SÉCURITÉ — HACHAGE MOTS DE PASSE (bcryptjs)
+// ════════════════════════════════════════
+// Hasher un mot de passe (coût 10)
+async function hashPwd(plain) {
+  if (typeof dcodeIO !== 'undefined' && dcodeIO.bcrypt) {
+    return dcodeIO.bcrypt.hashSync(plain, 10);
+  }
+  if (typeof bcrypt !== 'undefined') {
+    return bcrypt.hashSync(plain, 10);
+  }
+  // Fallback si bcryptjs non chargé (ne devrait pas arriver)
+  return plain;
+}
+
+// Vérifier un mot de passe contre son hash (ou comparer en clair pour rétro-compat)
+function verifyPwd(plain, stored) {
+  if (!stored) return false;
+  // Hash bcrypt commence par $2a$ ou $2b$
+  if (stored.startsWith('$2')) {
+    try {
+      if (typeof dcodeIO !== 'undefined' && dcodeIO.bcrypt)
+        return dcodeIO.bcrypt.compareSync(plain, stored);
+      if (typeof bcrypt !== 'undefined')
+        return bcrypt.compareSync(plain, stored);
+    } catch(_) {}
+    return false;
+  }
+  // Rétro-compatibilité : comparaison en clair pour les anciens comptes
+  return plain === stored;
+}
+
+// ════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════
 let CFG = {};
@@ -1539,6 +1682,30 @@ let FILIERES = [];
 let FILIERE_OPTIONS = {};
 
 // Charger les filières dynamiquement pour l'enseignant connecté
+function renderFiliereButtons() {
+  // Injecter les boutons dynamiques dans les deux barres de filtre
+  // IDs réels dans le HTML : fil-filiere-btns (étudiants) et res-filiere-btns (résultats)
+  const configs = [
+    { containerId: 'fil-filiere-btns', filterFn: 'filterFiliere',  prefix: 'fil-btn-' },
+    { containerId: 'res-filiere-btns', filterFn: 'filterResultats', prefix: 'res-fil-' },
+  ];
+  for (const { containerId, filterFn, prefix } of configs) {
+    const el = document.getElementById(containerId);
+    if (!el) continue;
+    const all = ['all', ...FILIERES];
+    el.innerHTML = all.map(f => {
+      const isAll = f === 'all';
+      const label = isAll ? 'Toutes les filières' : (FILIERE_OPTIONS[f] || f);
+      const id = prefix + f;
+      return `<button class="btn btn-sm" id="${id}" style="margin:2px"
+        onclick="${filterFn}('${f}',this)">${label}</button>`;
+    }).join('');
+    // Activer "Toutes" par défaut
+    const allBtn = document.getElementById(prefix + 'all');
+    if (allBtn) { allBtn.style.background = 'var(--blue)'; allBtn.style.color = '#fff'; allBtn.style.borderColor = 'var(--blue)'; }
+  }
+}
+
 async function loadFilieresEnseignant() {
   if (!currentAdmin) return;
   // Extraire les filières depuis les candidats de l'épreuve active (plus précis que les parcours)
@@ -1578,8 +1745,7 @@ async function testAndSaveSupabase() {
   btn.disabled = true; btn.textContent = '⏳ Test en cours...';
   try {
     SB_URL = url; SB_KEY = key;
-    // CORRECTION : Tester avec une requête qui fonctionne toujours
-    await sbFetch('admins?limit=1&select=id');
+    await sbFetch('exam_config?id=eq.main&select=id');
     localStorage.setItem('sb_url', url);
     localStorage.setItem('sb_key', key);
     ok.style.display = 'flex';
@@ -1601,6 +1767,26 @@ function copySQL() {
 // ════════════════════════════════════════
 async function initApp() {
   try {
+    // ── Lire les clés depuis le hash URL (lien partageable entre navigateurs)
+    // Format : #cfg=BASE64(url|key)
+    if (window.location.hash && window.location.hash.startsWith('#cfg=')) {
+      try {
+        const encoded = window.location.hash.slice(5);
+        const decoded = atob(encoded);
+        const sep = decoded.indexOf('|');
+        if (sep > 0) {
+          const urlFromHash = decoded.slice(0, sep);
+          const keyFromHash = decoded.slice(sep + 1);
+          if (urlFromHash && keyFromHash) {
+            SB_URL = urlFromHash; SB_KEY = keyFromHash;
+            localStorage.setItem('sb_url', SB_URL);
+            localStorage.setItem('sb_key', SB_KEY);
+            // Nettoyer le hash de l'URL (ne pas exposer les clés dans l'historique)
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+        }
+      } catch(_e) {}
+    }
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get("token");
     if (token) { await handleTokenAccess(token); return; }
@@ -1610,7 +1796,22 @@ async function initApp() {
   } catch(e) {
     const dbStatus = document.getElementById("home-db-status");
     if (dbStatus) dbStatus.innerHTML = "<span class=\"status-dot red\"></span>Erreur: " + e.message;
+    throw e;
   }
+}
+
+// Générer un lien partageable contenant les clés encodées dans le hash
+function generateShareLink() {
+  const url = localStorage.getItem('sb_url') || SB_URL;
+  const key = localStorage.getItem('sb_key') || SB_KEY;
+  if (!url || !key) { toast('Configurez d\'abord la connexion Supabase', 'warn'); return; }
+  const encoded = btoa(url + '|' + key);
+  const shareUrl = window.location.origin + window.location.pathname + '#cfg=' + encoded;
+  navigator.clipboard.writeText(shareUrl)
+    .then(() => toast('Lien copié ! Ouvrez-le dans n\'importe quel navigateur.', 'success'))
+    .catch(() => {
+      prompt('Copiez ce lien et ouvrez-le dans un autre navigateur :', shareUrl);
+    });
 }
 
 async function loadConfig() {
@@ -1843,59 +2044,59 @@ function removeQuestion(qi) {
 
 async function saveQuestions() {
   if (!CFG || !CFG.id) { toast('Sélectionnez une épreuve', 'warn'); return; }
+  const t0 = Date.now();
   try {
     toast('Sauvegarde en cours...', 'info');
 
-    // ── Étape 1 : supprimer TOUTES les questions existantes de cette épreuve
-    // (les sous-questions se suppriment en cascade grâce à la FK on delete cascade)
-    const existingQs = await DB.select('questions',
-      'exam_config_id=eq.'+CFG.id+'&select=id').catch(()=>[]) || [];
+    // ── Étape 1 : récupérer les IDs existants
+    const existingQs = await DB.select('questions', 'exam_config_id=eq.'+CFG.id+'&select=id').catch(()=>[]) || [];
 
-    // Supprimer sous-questions d'abord (au cas où cascade pas active)
-    for (const eq of existingQs) {
-      await DB.delete('sous_questions', 'question_id=eq.'+eq.id).catch(()=>{});
-    }
-    // Supprimer les questions
-    for (const eq of existingQs) {
-      await DB.delete('questions', 'id=eq.'+eq.id).catch(()=>{});
+    // ── Étape 2 : supprimer sous-questions puis questions (en parallèle par question)
+    if (existingQs.length) {
+      await Promise.all(existingQs.map(eq =>
+        DB.delete('sous_questions', 'question_id=eq.'+eq.id).catch(()=>{})
+      ));
+      await Promise.all(existingQs.map(eq =>
+        DB.delete('questions', 'id=eq.'+eq.id).catch(()=>{})
+      ));
     }
 
-    // ── Étape 2 : Insérer les questions UNE PAR UNE, attendre la confirmation,
-    // PUIS insérer les sous-questions de cette question
-    // On réassigne des UUIDs frais pour éviter tout conflit avec d'anciens enregistrements
+    if (!QUESTIONS.length) { toast('Épreuve enregistrée — 0 question', 'success'); return; }
+
+    // ── Étape 3 : préparer les données avec UUIDs frais
+    const qRows  = [];
+    const sqRows = [];
     for (const q of QUESTIONS) {
-      const freshQId = genUUID(); // UUID frais à chaque save
-      q.id = freshQId;            // Met à jour l'objet en mémoire aussi
-
-      // INSERT la question (pas upsert — on vient de tout supprimer)
-      await DB.insert('questions', {
-        id: freshQId,
-        num: q.num,
-        texte: q.texte,
-        ordre: q.ordre || q.num - 1,
+      const qId = genUUID();
+      q.id = qId;
+      qRows.push({
+        id: qId, num: q.num, texte: q.texte,
+        ordre: q.ordre ?? q.num - 1,
         image_url: q.image_url || '',
         html_content: q.html_content || '',
         admin_id: currentAdmin ? currentAdmin.id : null,
         exam_config_id: CFG.id
       });
-
-      // INSERT les sous-questions de cette question (question confirmée en base)
       for (const sq of (q.sousQuestions || [])) {
-        const freshSqId = genUUID();
-        sq.id = freshSqId;
-        sq.question_id = freshQId;
-        await DB.insert('sous_questions', {
-          id: freshSqId,
-          question_id: freshQId,
-          texte: sq.texte,
-          correcte: !!sq.correcte,
-          pts_v: sq.pts_v ?? 0.25,
-          pts_f: sq.pts_f ?? -0.25,
-          ordre: sq.ordre || 0
+        const sqId = genUUID();
+        sq.id = sqId; sq.question_id = qId;
+        sqRows.push({
+          id: sqId, question_id: qId,
+          texte: sq.texte, correcte: !!sq.correcte,
+          pts_v: sq.pts_v ?? 0.25, pts_f: sq.pts_f ?? -0.25,
+          ordre: sq.ordre ?? 0
         });
       }
     }
-    toast('Épreuve enregistrée — ' + QUESTIONS.length + ' question(s)', 'success');
+
+    // ── Étape 4 : insérer TOUTES les questions en un seul appel batch
+    await DB.insert('questions', qRows);
+
+    // ── Étape 5 : insérer TOUTES les sous-questions en un seul appel batch
+    if (sqRows.length) await DB.insert('sous_questions', sqRows);
+
+    const ms = Date.now() - t0;
+    toast('Épreuve enregistrée — ' + QUESTIONS.length + ' question(s) en ' + ms + 'ms', 'success');
   } catch(e) { toast('Erreur: ' + e.message, 'error'); }
 }
 
@@ -1949,12 +2150,41 @@ function filterFiliere(f, btn) {
   renderCandidatsTable();
 }
 
+async function migrateFiliereIds() {
+  if (!CFG || !CFG.id) { toast('Sélectionnez une épreuve', 'warn'); return; }
+  try {
+    const cands   = await DB.select('candidats', 'filiere_id=is.null&exam_config_id=eq.'+CFG.id+'&select=id,filiere') || [];
+    const filieres = await DB.select('filieres', 'select=id,code,nom') || [];
+    let fixed = 0;
+    for (const c of cands) {
+      if (!c.filiere) continue;
+      const f = filieres.find(x =>
+        x.code.toUpperCase() === c.filiere.toUpperCase() ||
+        (x.nom && x.nom.toUpperCase() === c.filiere.toUpperCase())
+      );
+      if (f) {
+        await DB.update('candidats', 'id=eq.'+c.id, { filiere_id: f.id }).catch(()=>{});
+        fixed++;
+      }
+    }
+    toast(fixed + ' étudiant(s) corrigé(s).', fixed > 0 ? 'success' : 'info');
+    renderCandidatsTable();
+  } catch(e) { toast('Erreur: ' + e.message, 'error'); }
+}
+
 async function renderCandidatsTable() {
   if (currentAdmin && CFG && CFG.id)
     CANDIDATS = await DB.select('candidats','exam_config_id=eq.'+CFG.id+'&order=nom.asc') || [];
   const copies = await DB.select('copies', CFG && CFG.id ? 'exam_config_id=eq.'+CFG.id+'&select=matricule' : 'select=matricule').catch(()=>[]) || [];
   const deposes = new Set(copies.map(c=>c.matricule));
   const wrap = document.getElementById('candidats-table-wrap');
+  // Vérifier si des candidats sans filiere_id existent → afficher le bandeau
+  const sansFiliere = CANDIDATS.filter(c => c.matricule !== 'TEST' && !c.filiere_id);
+  const banner = document.getElementById('migration-filiere-banner');
+  const countEl = document.getElementById('migration-count');
+  if (banner) banner.style.display = sansFiliere.length > 0 ? 'flex' : 'none';
+  if (countEl) countEl.textContent = sansFiliere.length;
+
   // Exclure compte TEST
   const candidatsAffich = CANDIDATS.filter(c => c.matricule !== 'TEST');
   if (!candidatsAffich.length) { wrap.innerHTML='<div class="alert alert-warning">Aucun étudiant importé.</div>'; return; }
@@ -2159,6 +2389,7 @@ async function validerIdentite() {
     }
   } catch(e) {}
   err.style.display = 'none';
+  await loadLogos();
   repCand = {};
   buildEpreuve();
   activerAntiTriche();
@@ -2170,6 +2401,13 @@ async function validerIdentite() {
 // ════════════════════════════════════════
 function buildEpreuve() {
   const c = currentCandidat;
+  // Fallback cache hors-ligne si QUESTIONS vide (coupure réseau momentanée)
+  if ((!QUESTIONS || !QUESTIONS.length) && CFG && CFG.id) {
+    try {
+      const cached = sessionStorage.getItem('offline_questions_'+CFG.id);
+      if (cached) { QUESTIONS = JSON.parse(cached); console.info('Questions chargées depuis le cache hors-ligne.'); }
+    } catch(_) {}
+  }
   document.getElementById('candidat-chip').textContent = c.nom+' '+(c.prenom||'');
   document.getElementById('ep-consigne').innerHTML = '<strong>📌 Consigne :</strong> '+escH(CFG.consigne||'');
   document.getElementById('ep-header').innerHTML = buildExamHeader(c);
@@ -2198,20 +2436,26 @@ function buildEpreuve() {
 }
 
 function buildExamHeader(c) {
+  // Logos depuis les variables globales chargées par loadLogos()
+  const _lgG = LOGO_GAUCHE_B64 || CFG.logo_universite || '';
+  const _lgD = LOGO_DROITE_B64 || CFG.logo_entite     || '';
+  const nomUniv   = CFG.ecole    || 'UAC';
+  const nomEntite = CFG.institut || 'INE';
+  const sousTitre = [nomUniv, nomEntite].filter(Boolean).join(' — ');
   return `<div class="exam-header-box">
     <div class="exam-header-top" style="grid-template-columns:80px 1fr 80px;align-items:center;gap:8px">
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-        <img src="${_lgG}" alt="Logo" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">
-        <span style="font-size:9px;font-weight:700;letter-spacing:.5px;opacity:.95">UAC</span>
+        ${_lgG ? `<img src="${_lgG}" alt="Logo" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">` : '<div style="width:54px;height:54px;border-radius:50%;background:#E5E7EB;display:flex;align-items:center;justify-content:center;font-size:20px">🏛️</div>'}
+        <span style="font-size:9px;font-weight:700;letter-spacing:.5px;opacity:.95;text-align:center;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(nomUniv)}">${escH(nomUniv)}</span>
       </div>
       <div class="center">
         ${escH(CFG.matiere||'').toUpperCase()}<br>
         <span style="font-size:12px;font-weight:400">${escH(CFG.session||'')} — ${escH(CFG.annee||'')}</span><br>
-        <span style="font-size:10px;font-weight:400;opacity:.85">UAC — INE</span>
+        <span style="font-size:10px;font-weight:400;opacity:.85">${escH(sousTitre)}</span>
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-        <img src="${_lgD}" alt="Logo" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">
-        <span style="font-size:9px;font-weight:700;letter-spacing:.5px;opacity:.95">INE</span>
+        ${_lgD ? `<img src="${_lgD}" alt="Logo" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff;padding:2px;display:block">` : '<div style="width:54px;height:54px;border-radius:50%;background:#E5E7EB;display:flex;align-items:center;justify-content:center;font-size:20px">🎓</div>'}
+        <span style="font-size:9px;font-weight:700;letter-spacing:.5px;opacity:.95;text-align:center;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(nomEntite)}">${escH(nomEntite)}</span>
       </div>
     </div>
     <div class="exam-header-body">
@@ -2447,6 +2691,36 @@ function renderResultatsTable() {
   });
   html+='</tbody></table></div>';
   document.getElementById('results-matrix-wrap').innerHTML=html;
+  renderNotesHistogram();
+}
+
+function renderNotesHistogram() {
+  const canvas = document.getElementById('notes-histogram');
+  if (!canvas || typeof Chart === 'undefined') return;
+  const cops = COPIES.filter(c => c.matricule !== 'TEST' && c.note_sur_bareme != null);
+  if (!cops.length) { canvas.style.display = 'none'; return; }
+  canvas.style.display = 'block';
+  const bareme = CFG.bareme || 20;
+  const step = bareme <= 20 ? 2 : 5;
+  const bins = [];
+  for (let i = 0; i < bareme; i += step) bins.push(i);
+  bins.push(bareme);
+  const labels = bins.slice(0,-1).map((b,i) => b+'-'+bins[i+1]);
+  const counts = labels.map((_,i) => cops.filter(c => c.note_sur_bareme >= bins[i] && c.note_sur_bareme < bins[i+1]).length);
+  const colors = bins.slice(0,-1).map(b => b >= bareme/2 ? '#059669' : b >= bareme*0.4 ? '#F59E0B' : '#EF4444');
+  if (window._notesChart) { try { window._notesChart.destroy(); } catch(_){} }
+  window._notesChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: "Nombre d'etudiants", data: counts, backgroundColor: colors, borderRadius: 4, borderWidth: 0 }] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, title: { display: true, text: 'Distribution des notes', font: { size: 14 } } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: "Nb etudiants" } },
+        x: { title: { display: true, text: 'Notes / ' + bareme } }
+      }
+    }
+  });
 }
 
 // ════════════════════════════════════════
@@ -2594,10 +2868,10 @@ async function buildReleveExcelINE(filiere, candsFil, copiesFil, notesCC) {
 
   // ── L1-L8 : entêtes fusionnées A:F
   const rowsNoir = [
-    `INSTITUT NATIONAL DE L'EAU`,
-    `Département de Génie de l'Eau et Assainissement`,
+    (CFG.ecole    || "Université").toUpperCase(),
+    (CFG.institut || "Institut"),
     `Option : ${optionLabel}`,
-    ` Année académique : ${CFG.annee||''}`,
+    `Année académique : ${CFG.annee||''}`,
     `Année d'étude : ${CFG.niveau||''}`
   ];
   const rowsBleu = [
@@ -2752,9 +3026,9 @@ function buildRelevePDFINEPage(doc, filiere, candsFil, copiesFil) {
   const optionLabel = FILIERE_OPTIONS[filiere] || filiere;
 
   doc.setFontSize(12); doc.setFont(undefined,'bold');
-  doc.text("INSTITUT NATIONAL DE L'EAU", W/2, 18, {align:'center'});
+  doc.text((CFG.ecole || "Université").toUpperCase(), W/2, 18, {align:'center'});
   doc.setFontSize(10); doc.setFont(undefined,'normal');
-  doc.text("Département de Génie de l'Eau et Assainissement", W/2, 24, {align:'center'});
+  doc.text(CFG.institut || "Institut", W/2, 24, {align:'center'});
   doc.text(`Option : ${optionLabel}`, W/2, 30, {align:'center'});
   doc.text(`Année académique : ${CFG.annee||''}`, W/2, 36, {align:'center'});
   doc.text(`Année d'étude : ${CFG.niveau||''}`, W/2, 42, {align:'center'});
@@ -2918,6 +3192,28 @@ async function genCopiesComposees() {
   toast('ZIP copies composées téléchargé','success');
 }
 
+// ── EXPORT TOUTES COPIES — PDF GROUPÉ ──
+async function exportToutesCopiesPDF() {
+  await ensureData();
+  if (!COPIES.length) { toast("Aucune copie à exporter.", "warn"); return; }
+  await preloadLogos();
+  await preloadQuestionImages();
+  toast("Génération du PDF groupé en cours...", "info");
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ format: "a4", unit: "mm" });
+    let first = true;
+    for (const cop of COPIES) {
+      if (!first) doc.addPage();
+      first = false;
+      buildPDFCopie(doc, cop, false);
+    }
+    const matiere = (CFG.matiere || "examen").replace(/[^a-zA-Z0-9_-]/g, "_");
+    doc.save("toutes_copies_" + matiere + "_" + getMonthFr() + ".pdf");
+    toast("PDF groupé téléchargé — " + COPIES.length + " copie(s).", "success");
+  } catch(e) { toast("Erreur : " + e.message, "error"); }
+}
+
 // ── COPIES CORRIGÉES — ZIP ──
 async function genCopiesCorrigees() {
   await ensureData();
@@ -2977,21 +3273,22 @@ function buildPDFCopie(doc, cop, corriger) {
   doc.circle(_lgX_uac, _lgCY, _lgR, 'F');
   try { doc.addImage(window._LOGO_UAC_CLIPPED||LOGO_UAC_B64, 'PNG', _lgX_uac-_lgR, _lgCY-_lgR, _lgR*2, _lgR*2); } catch(e) {}
   doc.setFontSize(5.5); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
-  doc.text('UAC', _lgX_uac, _lgCY+_lgR+3.5, {align:'center'});
+  doc.text(cleanText(CFG.ecole||'UAC').substring(0,10), _lgX_uac, _lgCY+_lgR+3.5, {align:'center'});
 
   // Logo INE : cercle blanc de fond + image pré-clippée PNG circulaire
   doc.setFillColor(255,255,255);
   doc.circle(_lgX_ine, _lgCY, _lgR, 'F');
   try { doc.addImage(window._LOGO_INE_CLIPPED||LOGO_INE_B64, 'PNG', _lgX_ine-_lgR, _lgCY-_lgR, _lgR*2, _lgR*2); } catch(e) {}
   doc.setFontSize(5.5); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
-  doc.text('INE', _lgX_ine, _lgCY+_lgR+3.5, {align:'center'});
+  doc.text(cleanText(CFG.institut||'INE').substring(0,10), _lgX_ine, _lgCY+_lgR+3.5, {align:'center'});
 
   // Centre : matière + session (aucun doublon)
   doc.setFontSize(11); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
   doc.text(cleanText((CFG.matiere||'').toUpperCase()), W/2, y+13, {align:'center'});
   doc.setFontSize(7.5); doc.setFont(undefined,'normal');
   doc.text(cleanText(CFG.session||'')+' — '+cleanText(CFG.annee||''), W/2, y+20, {align:'center'});
-  doc.setFontSize(6); doc.text('UAC — INE', W/2, y+26, {align:'center'});
+  const _pdfSousTitre = [CFG.ecole||'UAC', CFG.institut||'INE'].filter(Boolean).join(' — ');
+  doc.setFontSize(6); doc.text(cleanText(_pdfSousTitre), W/2, y+26, {align:'center'});
   y += 33;
 
   // ── Infos examen
@@ -3210,9 +3507,11 @@ ${CFG.institut||''}
 // ════════════════════════════════════════
 // UTILITAIRES
 // ════════════════════════════════════════
-function openModal(title,body,onOk,cancelLbl,okLbl){
+function openModal(title,body,onOk,cancelLbl,okLbl,isHtml){
   document.getElementById('modal-title').textContent=title;
-  document.getElementById('modal-body').textContent=body;
+  // isHtml=true : contenu HTML interprété (ex: checkboxes), sinon texte brut
+  const bodyEl = document.getElementById('modal-body');
+  if (isHtml) { bodyEl.innerHTML = body; } else { bodyEl.textContent = body; }
   document.getElementById('modal-ok').textContent=okLbl||'Confirmer';
   document.getElementById('modal-ok').onclick=onOk;
   document.getElementById('modal').style.display='flex';
@@ -3568,13 +3867,33 @@ function renderEpreuveSelector() {
   const bar = document.getElementById("epreuve-selector-bar");
   const sel = document.getElementById("epreuve-select");
   if (!bar || !sel) return;
-  // Toujours afficher la barre (même avec 1 seule épreuve, pour permettre d'en créer une autre)
   bar.style.display = "flex";
   sel.innerHTML = ALL_EPREUVES.map(e =>
     `<option value="${e.id}" ${CFG && e.id === CFG.id ? "selected" : ""}>` +
     `${e.matiere || "Sans titre"} — ${e.statut === "ouvert" ? "🟢 Ouverte" : "🔴 Fermée"}` +
     (e.date_exam ? ` (${e.date_exam})` : "") +
     `</option>`
+  ).join("");
+  // Mettre à jour les mini stats de l'épreuve active
+  renderEpreuveMiniStats();
+}
+
+function renderEpreuveMiniStats() {
+  const el = document.getElementById("epreuve-mini-stats");
+  if (!el || !CFG) return;
+  const nbCands  = CANDIDATS.filter(c => c.matricule !== "TEST").length;
+  const nbCopies = COPIES.filter(c => c.matricule !== "TEST").length;
+  const statut   = CFG.statut === "ouvert";
+  const pct      = nbCands > 0 ? Math.round((nbCopies / nbCands) * 100) : 0;
+  el.innerHTML = [
+    { icon:"👥", val: nbCands,  label:"inscrits",   color:"#1D4ED8" },
+    { icon:"📝", val: nbCopies, label:"copies",      color:"#059669" },
+    { icon:"📊", val: pct+"%",  label:"taux dépôt", color:"#7C3AED" },
+  ].map(s =>
+    `<div style="background:#fff;border-radius:8px;padding:5px 10px;text-align:center;min-width:70px;border:1px solid #E2E8F0">
+      <div style="font-size:15px;font-weight:700;color:${s.color}">${s.icon} ${s.val}</div>
+      <div style="font-size:10px;color:#64748B">${s.label}</div>
+    </div>`
   ).join("");
 }
 
@@ -3625,7 +3944,15 @@ async function createNewEpreuve() {
 
 async function deleteCurrentEpreuve() {
   if (ALL_EPREUVES.length <= 1) { toast("Vous ne pouvez pas supprimer la seule épreuve.", "warn"); return; }
-  openModal("Supprimer l'épreuve", `Supprimer définitivement "${CFG.matiere || "cette épreuve"}" et toutes ses questions/copies ?`, async () => {
+  // Compter les copies déposées pour cet épreuve
+  let nbCopies = 0;
+  try {
+    const copCheck = await DB.select("copies", "exam_config_id=eq."+CFG.id+"&select=id") || [];
+    nbCopies = copCheck.length;
+  } catch(_e) {}
+  const warn = nbCopies > 0 ? " ⚠️ " + nbCopies + " copie(s) déposée(s) seront supprimées définitivement." : "";
+  const titre = CFG.matiere || "cette épreuve";
+  openModal("Supprimer l'épreuve", 'Supprimer définitivement "' + titre + '" et toutes ses questions/copies ?' + warn, async () => {
     try {
       const delId = CFG.id;
       // Supprimer dans l'ordre : sous-questions → questions → candidats → copies → exam_config
@@ -3645,17 +3972,13 @@ async function deleteCurrentEpreuve() {
 
 async function loadEpreuveData() {
   if (!currentAdmin || !CFG || !CFG.id) return;
-  // Tout filtré par exam_config_id = CFG.id (isolation totale par épreuve)
+  
+  // Chargement simple sans création automatique
   CANDIDATS = await DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc") || [];
-  if (!CANDIDATS.find(c => c.matricule === "TEST")) {
-    await DB.insert("candidats", {
-      matricule:"TEST", nom:"COMPTE", prenom:"Test",
-      filiere:"TEST", email:"test@plateforme.local",
-      admin_id: currentAdmin.id,
-      exam_config_id: CFG.id
-    }).catch(() => {}); // ignore si déjà présent
-    CANDIDATS = await DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc") || [];
-  }
+  
+  // Optionnel : filtre pour cacher les TEST existants (s'ils sont déjà en base)
+  CANDIDATS = CANDIDATS.filter(c => c.matricule !== "TEST" && (c.filiere||"").toUpperCase() !== "TEST");
+  
   const qs = await DB.select("questions", "exam_config_id=eq." + CFG.id + "&order=ordre.asc") || [];
   let sqs = [];
   if (qs.length) {
@@ -3667,12 +3990,29 @@ async function loadEpreuveData() {
     sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
   }));
   COPIES = await DB.select("copies", "exam_config_id=eq." + CFG.id + "&order=date_depot.asc") || [];
+  COPIES = COPIES.filter(c => c.matricule !== "TEST");
   await loadLogos();
+  // Mettre à jour les mini stats après chargement
+  renderEpreuveMiniStats();
 }
 
 // ════════════════════════════════════════
 // AUTH LOGIN / LOGOUT
 // ════════════════════════════════════════
+// Suivi des tentatives de login (sessionStorage)
+function getLoginAttempts(identifiant) {
+  try {
+    const data = JSON.parse(sessionStorage.getItem("login_attempts_" + identifiant) || "{}");
+    return data;
+  } catch(_) { return {}; }
+}
+function setLoginAttempts(identifiant, data) {
+  sessionStorage.setItem("login_attempts_" + identifiant, JSON.stringify(data));
+}
+function resetLoginAttempts(identifiant) {
+  sessionStorage.removeItem("login_attempts_" + identifiant);
+}
+
 async function doAdminLoginNew() {
   const identEl = document.getElementById("admin-identifiant");
   const identifiant = identEl ? identEl.value.trim() : "";
@@ -3683,6 +4023,14 @@ async function doAdminLoginNew() {
     err.textContent = "Identifiant et mot de passe requis.";
     err.style.display = "flex"; return;
   }
+  // Vérifier blocage
+  const attempts = getLoginAttempts(identifiant);
+  if (attempts.blockedUntil && new Date() < new Date(attempts.blockedUntil)) {
+    const remainSec = Math.ceil((new Date(attempts.blockedUntil) - new Date()) / 1000);
+    const remainMin = Math.ceil(remainSec / 60);
+    err.textContent = "Compte temporairement bloqué. Réessayez dans " + remainMin + " minute(s).";
+    err.style.display = "flex"; return;
+  }
   try {
     const rows = await DB.select("admins", "identifiant=eq." + encodeURIComponent(identifiant) + "&select=*");
     if (!rows || !rows.length) {
@@ -3690,10 +4038,23 @@ async function doAdminLoginNew() {
       err.style.display = "flex"; return;
     }
     const admin = rows[0];
-    if (admin.pwd !== pwd) {
-      err.textContent = "Mot de passe incorrect.";
+    if (!verifyPwd(pwd, admin.pwd)) {
+      // Incrémenter les tentatives de connexion
+      const att = getLoginAttempts(identifiant);
+      att.count = (att.count || 0) + 1;
+      if (att.count >= 5) {
+        att.blockedUntil = new Date(Date.now() + 5 * 60000).toISOString();
+        att.count = 0;
+        setLoginAttempts(identifiant, att);
+        err.textContent = "Trop de tentatives échouées. Compte bloqué 5 minutes.";
+      } else {
+        setLoginAttempts(identifiant, att);
+        err.textContent = "Mot de passe incorrect. " + (5 - att.count) + " tentative(s) restante(s).";
+      }
       err.style.display = "flex"; return;
     }
+    // Réinitialiser les tentatives après succès
+    resetLoginAttempts(identifiant);
     if (!admin.valide) {
       err.textContent = "Compte en attente de validation par le super administrateur.";
       err.style.display = "flex"; return;
@@ -3783,19 +4144,28 @@ async function saveConfigNew() {
   const newPwd   = v("c-pwd-admin");
   const dateVal  = v("c-date");
   const heureVal = v("c-heure");
+  // Champs que l'enseignant peut éditer directement
   const data = {
     admin_id: currentAdmin.id,
-    ecole: v("c-ecole"), institut: v("c-institut"), matiere: v("c-matiere"),
-    niveau: v("c-niveau"), annee: v("c-annee"),
-    date_exam: dateVal  || null,
-    heure:     heureVal || null,
-    duree: parseInt(v("c-duree"))||90,
-    session: v("c-session"), bareme: parseInt(v("c-bareme"))||20,
-    consigne: v("c-consigne"), enseignant: v("c-enseignant"),
-    logo_universite: v("c-logo-univ"), logo_entite: v("c-logo-entite"),
-    resend_key: v("c-resend-key"), smtp_from: v("c-smtp-from"),
-    email_verification: document.getElementById("c-email-verif")?.checked || false,
-    statut: CFG.statut || "ferme"
+    matiere:  v("c-matiere") || CFG.matiere || "",
+    date_exam: dateVal || null,
+    heure:     heureVal || CFG.heure || "08:00",
+    duree:     parseInt(v("c-duree"))  || CFG.duree  || 90,
+    session:   v("c-session")  || CFG.session  || "Normale",
+    bareme:    parseInt(v("c-bareme")) || CFG.bareme  || 20,
+    consigne:  v("c-consigne"),
+    enseignant: v("c-enseignant") || CFG.enseignant || "",
+    statut:    CFG.statut || "ferme",
+    // Champs pré-remplis par le super admin : conserver la valeur existante si le champ est vide
+    ecole:     v("c-ecole")     || CFG.ecole     || "",
+    institut:  v("c-institut")  || CFG.institut  || "",
+    niveau:    v("c-niveau")    || CFG.niveau    || "",
+    annee:     v("c-annee")     || CFG.annee     || "",
+    logo_universite: v("c-logo-univ")   || CFG.logo_universite || "",
+    logo_entite:     v("c-logo-entite") || CFG.logo_entite     || "",
+    resend_key:  v("c-resend-key")  || CFG.resend_key  || "",
+    smtp_from:   v("c-smtp-from")   || CFG.smtp_from   || "",
+    email_verification: document.getElementById("c-email-verif")?.checked || CFG.email_verification || false,
   };
   try {
     // Lier automatiquement au parcours de l'enseignant s'il n'est pas encore renseigné
@@ -3815,9 +4185,10 @@ async function saveConfigNew() {
     }
     Object.assign(CFG, data);
     if (newPwd && newPwd.length >= 8) {
-      await DB.update("admins", "id=eq." + currentAdmin.id, { pwd: newPwd });
+      const newPwdHash = await hashPwd(newPwd);
+      await DB.update("admins", "id=eq." + currentAdmin.id, { pwd: newPwdHash });
       document.getElementById("c-pwd-admin").value = "";
-      currentAdmin.pwd = newPwd;
+      currentAdmin.pwd = newPwdHash;
     }
     await loadLogos();
     toast("Configuration enregistr\u00e9e", "success");
@@ -3830,9 +4201,120 @@ async function setExamStatutNew(statut) {
     await DB.update("exam_config", "id=eq." + CFG.id, { statut });
     CFG.statut = statut;
     loadConfigFormNew();
-    toast(statut === "ouvert" ? "\u2705 Examen ouvert" : "\uD83D\uDD12 Examen ferm\u00e9",
-          statut === "ouvert" ? "success" : "warn");
+    if (statut === "ouvert") {
+      toast("\u2705 Examen ouvert", "success");
+    } else {
+      toast("\uD83D\uDD12 Examen ferm\u00e9", "warn");
+      const cops = (COPIES || []).filter(c => c.matricule !== "TEST");
+      if (cops.length > 0) {
+        setTimeout(() => {
+          openModal("Rapport de cl\u00f4ture",
+            "L'\u00e9preuve est ferm\u00e9e. Voulez-vous g\u00e9n\u00e9rer un rapport PDF de synth\u00e8se ?",
+            () => { closeModal(); genRapportEpreuve(); },
+            "Plus tard", "G\u00e9n\u00e9rer le rapport"
+          );
+        }, 600);
+      }
+    }
   } catch(e) { toast("Erreur: " + e.message, "error"); }
+}
+
+async function genRapportEpreuve() {
+  await ensureData();
+  if (!window.jspdf) { toast("jsPDF non charge.", "error"); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ format: "a4", unit: "mm" });
+  const W = 210; const M = 20;
+  const cops = COPIES.filter(c => c.matricule !== "TEST" && c.note_sur_bareme != null);
+  const insc = CANDIDATS.filter(c => c.matricule !== "TEST").length;
+  const notes = cops.map(c => Number(c.note_sur_bareme));
+  const bareme = CFG.bareme || 20;
+  const moy = notes.length ? (notes.reduce((a,b)=>a+b,0)/notes.length).toFixed(2) : "-";
+  const max = notes.length ? Math.max.apply(null, notes).toFixed(2) : "-";
+  const min = notes.length ? Math.min.apply(null, notes).toFixed(2) : "-";
+  const taux = insc > 0 ? ((cops.length/insc)*100).toFixed(1)+"%" : "-";
+  const demi = bareme/2;
+  const reuss = notes.filter(n => n >= demi).length;
+  const tauxR = cops.length > 0 ? ((reuss/cops.length)*100).toFixed(1)+"%" : "-";
+
+  doc.setFillColor(29, 78, 216);
+  doc.rect(0, 0, W, 34, "F");
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(16); doc.setFont(undefined,"bold");
+  doc.text("ExamPlatform - Rapport de cloture", W/2, 12, {align:"center"});
+  doc.setFontSize(10); doc.setFont(undefined,"normal");
+  doc.text((CFG.ecole||"")+(CFG.institut?" - "+CFG.institut:""), W/2, 20, {align:"center"});
+  doc.text((CFG.matiere||"")+" - "+(CFG.niveau||"")+" - "+(CFG.date_exam||""), W/2, 27, {align:"center"});
+
+  doc.setTextColor(0,0,0);
+  let y = 44;
+
+  const stats = [
+    ["Inscrits", insc],
+    ["Copies deposees", cops.length],
+    ["Taux de depot", taux],
+    ["Moyenne", moy+"/"+bareme],
+    ["Note max", max+"/"+bareme],
+    ["Note min", min+"/"+bareme],
+    ["Taux reussite (>= "+demi+")", tauxR]
+  ];
+  doc.setFillColor(239,246,255);
+  doc.rect(M, y-6, W-2*M, 10, "F");
+  doc.setFontSize(12); doc.setFont(undefined,"bold");
+  doc.text("Statistiques generales", M+4, y);
+  y += 10;
+  doc.setFontSize(10); doc.setFont(undefined,"normal");
+  stats.forEach(function(row, i) {
+    var label = row[0]; var val = row[1];
+    if (i % 2 === 0) { doc.setFillColor(248,250,252); doc.rect(M, y-4, W-2*M, 9, "F"); }
+    doc.text(label, M+4, y);
+    doc.setFont(undefined,"bold");
+    doc.text(String(val), W-M-4, y, {align:"right"});
+    doc.setFont(undefined,"normal");
+    y += 9;
+  });
+  y += 6;
+
+  if (cops.length) {
+    doc.setFillColor(239,246,255);
+    doc.rect(M, y-6, W-2*M, 10, "F");
+    doc.setFontSize(12); doc.setFont(undefined,"bold");
+    doc.text("Detail par etudiant", M+4, y);
+    y += 10;
+    doc.setFontSize(9); doc.setFont(undefined,"bold");
+    doc.text("Matricule", M+2, y);
+    doc.text("Nom et Prenom", M+38, y);
+    doc.text("Filiere", M+95, y);
+    doc.text("Note", W-M-4, y, {align:"right"});
+    doc.setFont(undefined,"normal");
+    y += 7;
+    var sorted = cops.slice().sort(function(a,b){ return (b.note_sur_bareme||0)-(a.note_sur_bareme||0); });
+    var row = 0;
+    for (var i2 = 0; i2 < sorted.length; i2++) {
+      var cop = sorted[i2];
+      if (y > 272) { doc.addPage(); y = 20; }
+      if (row % 2 === 0) { doc.setFillColor(249,250,251); doc.rect(M, y-4, W-2*M, 8, "F"); }
+      var n = Number(cop.note_sur_bareme).toFixed(2);
+      doc.setTextColor(0,0,0);
+      doc.text((cop.matricule||"").substring(0,14), M+2, y);
+      doc.text(((cop.nom||"")+" "+(cop.prenom||"")).trim().substring(0,24), M+38, y);
+      doc.text((cop.filiere||"").substring(0,12), M+95, y);
+      var ok = cop.note_sur_bareme >= demi;
+      if (ok) doc.setTextColor(5,150,105); else doc.setTextColor(220,38,38);
+      doc.setFont(undefined,"bold");
+      doc.text(n+"/"+bareme, W-M-4, y, {align:"right"});
+      doc.setTextColor(0,0,0);
+      doc.setFont(undefined,"normal");
+      y += 8; row++;
+    }
+  }
+
+  doc.setFontSize(8); doc.setTextColor(148,163,184);
+  doc.text("Genere le "+new Date().toLocaleString("fr-FR")+" - ExamPlatform", W/2, 287, {align:"center"});
+
+  const fname = "rapport_"+(CFG.matiere||"epreuve").replace(/[^a-zA-Z0-9_]/g,"_")+".pdf";
+  doc.save(fname);
+  toast("Rapport telecharge : "+fname, "success");
 }
 
 // Upload logo to Supabase Storage
@@ -4111,12 +4593,27 @@ async function selLoadEpreuve() {
       return;
     }
 
-    // Récupérer toutes les épreuves (ouvertes ET fermées) de ces enseignants
+    // Récupérer les épreuves liées EXACTEMENT à ces parcours (via parcours_id)
     let allCfgs = [];
-    for (const aId of adminIds) {
-      const cfgs = await DB.select("exam_config", "admin_id=eq." + aId + "&select=*") || [];
-      allCfgs = allCfgs.concat(cfgs);
+    for (const pId of parcoursIds) {
+      // D'abord chercher les épreuves directement liées à ce parcours
+      const cfgsParParcours = await DB.select("exam_config",
+        "parcours_id=eq." + pId + "&select=*") || [];
+      allCfgs = allCfgs.concat(cfgsParParcours);
     }
+    // Fallback : si aucune épreuve liée par parcours_id, chercher par admin_id
+    // (pour les épreuves créées avant le système de parcours_id)
+    if (!allCfgs.length) {
+      for (const aId of adminIds) {
+        const cfgs = await DB.select("exam_config", "admin_id=eq." + aId + "&select=*") || [];
+        allCfgs = allCfgs.concat(cfgs);
+      }
+    }
+    // Dédupliquer par id
+    allCfgs = allCfgs.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
+
+    // Exclure les épreuves sans matière définie (ex: épreuves de test vides)
+    allCfgs = allCfgs.filter(e => e.matiere && e.matiere.trim() !== "");
 
     if (!allCfgs.length) {
       if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve configurée.</strong>"; infoEl.style.display = "block"; }
@@ -4177,14 +4674,23 @@ async function chargerConfigMatiere(configId) {
       selAdminId = cfg.admin_id;
       CFG = cfg;
       
-      // Charger les candidats de cette matière
-      CANDIDATS = await DB.select("candidats", 
-        "admin_id=eq." + selAdminId + "&order=nom.asc"
+      // Charger les candidats de CETTE épreuve (filtre par exam_config_id)
+      // Exclure les candidats TEST dès la requête
+      const allCands = await DB.select("candidats",
+        "exam_config_id=eq." + cfg.id + "&order=nom.asc"
       ) || [];
-      
-      // Charger les questions
-      const qs = await DB.select("questions", "admin_id=eq." + selAdminId + "&order=ordre.asc") || [];
-      const sqs = await DB.select("sous_questions", "order=ordre.asc") || [];
+      CANDIDATS = allCands.filter(c =>
+        c.matricule !== "TEST" &&
+        (c.filiere||"").toUpperCase() !== "TEST"
+      );
+
+      // Charger les questions de CETTE épreuve
+      const qs = await DB.select("questions", "exam_config_id=eq." + cfg.id + "&order=ordre.asc") || [];
+      let sqs = [];
+      if (qs.length) {
+        const orClause = "or=(" + qs.map(q => "question_id.eq."+q.id).join(",") + ")";
+        sqs = await DB.select("sous_questions", orClause + "&order=ordre.asc") || [];
+      }
       QUESTIONS = qs.map(q => ({
         ...q,
         sousQuestions: sqs.filter(sq => sq.question_id === q.id)
@@ -4239,10 +4745,28 @@ function onNomInputSel(val) {
   const cp = document.getElementById("cand-preview-sel"); if (cp) cp.style.display = "none";
   if (sug) sug.innerHTML = "";
   if (val.length < 2) return;
+
+  // Cas spécial : compte TEST — objet fictif en mémoire, bypass base de données
+  // Accessible en tapant "TEST" ou "COMP" (début de COMPTE)
+  if ("TEST".startsWith(val) || "COMPTE".startsWith(val)) {
+    // Créer un candidat TEST virtuel lié à l'épreuve active
+    window._testCandVirtuel = {
+      matricule: "TEST", nom: "COMPTE", prenom: "Test",
+      filiere: "TEST", email: "test@plateforme.local",
+      exam_config_id: CFG ? CFG.id : null, filiere_id: null
+    };
+    if (sug) sug.innerHTML = "<div class=\"suggestions\">"
+      + `<div class="suggestion-item" style="border-left:3px solid #F59E0B" onclick="selectCandidatSel('__TEST__')"><strong>COMPTE Test</strong> — <span style="color:#F59E0B;font-size:12px">🔧 Mode test enseignant</span></div>`
+      + "</div>";
+    return;
+  }
+
   const found = CANDIDATS.filter(c => {
+    // Exclure toujours le compte TEST et les filières TEST des vrais étudiants
     if (c.matricule === "TEST") return false;
+    if ((c.filiere||"").toUpperCase() === "TEST") return false;
     if (!c.nom || !c.nom.toUpperCase().startsWith(val)) return false;
-    // Filtrer par filière : priorité à filiere_id, sinon par code
+    // Filtrer par filière sélectionnée
     if (selFiliere) {
       if (selFiliere.id && c.filiere_id) return c.filiere_id === selFiliere.id;
       if (selFiliere.code) return (c.filiere||"").toUpperCase() === selFiliere.code.toUpperCase();
@@ -4256,7 +4780,11 @@ function onNomInputSel(val) {
 }
 
 function selectCandidatSel(mat) {
-  const c = CANDIDATS.find(x => x.matricule === mat); if (!c) return;
+  // Candidat TEST virtuel (pas en base)
+  let c = mat === "__TEST__"
+    ? (window._testCandVirtuel || { matricule:"TEST", nom:"COMPTE", prenom:"Test", filiere:"TEST", email:"test@plateforme.local" })
+    : CANDIDATS.find(x => x.matricule === mat);
+  if (!c) return;
   currentCandidat = c;
   const sug = document.getElementById("nom-suggestions-sel"); if (sug) sug.innerHTML = "";
   const cn  = document.getElementById("cand-nom-sel");    if (cn)  cn.value = c.nom;
@@ -4269,79 +4797,260 @@ function selectCandidatSel(mat) {
 }
 
 async function validerIdentiteSel() {
-  if (!currentCandidat) return;
-  
-  const err = document.getElementById("cand-err-sel");
+  if (!currentCandidat) { toast("Veuillez sélectionner votre nom dans la liste.", "warn"); return; }
+
+  const err    = document.getElementById("cand-err-sel");
+  const btn    = document.getElementById("btn-valider-sel");
   const isTest = currentCandidat.matricule === "TEST";
-  
-  // Vérifier que l'étudiant n'a pas déjà composé
+
+  if (err) err.style.display = "none";
+  if (btn) { btn.disabled = true; btn.textContent = "Envoi en cours..."; }
+
   try {
-    const af = selAdminId ? "&admin_id=eq." + selAdminId : "";
-    const exist = await DB.select("copies", "matricule=eq." + currentCandidat.matricule + af);
-    if (exist && exist.length) {
+    // Vérifier que l'épreuve est bien ouverte
+    if (!CFG || !CFG.id) {
+      showErrSel(err, btn, "Épreuve introuvable. Recommencez depuis l'accueil."); return;
+    }
+    if (CFG.statut !== "ouvert") {
+      showErrSel(err, btn, "Cette épreuve est actuellement fermée."); return;
+    }
+
+    // Vérifier que des questions existent
+    if (!QUESTIONS || !QUESTIONS.length) {
+      showErrSel(err, btn, "Cette épreuve ne contient pas encore de questions. Contactez votre enseignant."); return;
+    }
+
+    // Vérifier copie déjà déposée
+    const cfgFilter = "&exam_config_id=eq." + CFG.id;
+    const exist = await DB.select("copies", "matricule=eq." + currentCandidat.matricule + cfgFilter).catch(() => []) || [];
+    if (exist.length) {
       if (isTest) {
-        await DB.delete("copies", "matricule=eq.TEST" + (selAdminId ? "&admin_id=eq." + selAdminId : ""));
-        toast("Mode TEST — copie supprimée", "info");
+        // Supprimer l'éventuelle copie TEST précédente (si elle existe en base)
+        await DB.delete("copies", "matricule=eq.TEST" + cfgFilter).catch(() => {});
+        toast("Mode TEST — prêt pour une nouvelle composition.", "info");
       } else {
-        if (err) {
-          err.textContent = "Vous avez déjà déposé votre copie pour cette épreuve.";
-          err.style.display = "flex";
-        }
-        return;
+        showErrSel(err, btn, "Vous avez déjà composé pour cette épreuve."); return;
       }
     }
-  } catch(e) {}
-  
-  if (err) err.style.display = "none";
-  
-  // Envoi email ou accès direct
-  if (CFG && CFG.email_verification && currentCandidat.email && !isTest) {
+
+    // Compte TEST : accès direct sans email
+    if (isTest) {
+      await loadLogos();
+      repCand = {};
+      buildEpreuve();
+      activerAntiTriche();
+      goTo("pg-epreuve");
+      return;
+    }
+
+    // Vérifier que l'étudiant a un email
+    if (!currentCandidat.email || !currentCandidat.email.trim()) {
+      showErrSel(err, btn,
+        "Votre adresse email n'est pas enregistrée. Contactez votre enseignant pour régulariser votre inscription.");
+      return;
+    }
+
+    // Vérifier que la clé Resend est configurée
+    if (!CFG.resend_key) {
+      showErrSel(err, btn,
+        "Le service d'envoi email n'est pas configuré pour cette épreuve. Contactez votre enseignant.");
+      return;
+    }
+
+    // Envoyer le lien par email — flux unique et obligatoire
     await sendCompositionToken();
-    return;
+
+  } catch(e) {
+    toast("Erreur : " + e.message, "error");
+    if (btn) { btn.disabled = false; btn.textContent = "✓ Continuer vers l'identification"; }
   }
-  
-  repCand = {};
-  buildEpreuve();  // Cette fonction doit exister
-  activerAntiTriche();  // Cette fonction doit exister
-  goTo("pg-epreuve");
+}
+
+function showErrSel(err, btn, msg) {
+  if (err) { err.textContent = msg; err.style.display = "flex"; }
+  if (btn) { btn.disabled = false; btn.textContent = "✓ Continuer vers l'identification"; }
 }
 // ════════════════════════════════════════
 // EMAIL VERIFICATION
 // ════════════════════════════════════════
-async function sendCompositionToken() {
-  try {
-    const expiresAt = new Date(Date.now() + (CFG.duree + 30) * 60000).toISOString();
-    const res       = await DB.insert("tokens_composition", {
-      matricule: currentCandidat.matricule,
-      admin_id:  selAdminId,
-      expires_at: expiresAt,
-      used: false
-    });
-    const token = res && res[0] ? res[0].token : null;
-    if (!token) { toast("Erreur g\u00e9n\u00e9ration token", "error"); return; }
-    const link  = window.location.origin + window.location.pathname + "?token=" + token;
-    const subj  = "Lien acc\u00e8s examen \u2014 " + (CFG.matiere || "");
-    const txt   = "Bonjour " + currentCandidat.nom + ",\n\nVotre lien : " + link + "\n\nLien valable jusqu\u2019\u00e0 la fin de l\u2019\u00e9preuve. Ne pas partager.";
-    const htm   = "<div style=\"font-family:sans-serif;padding:24px\"><h2 style=\"color:#1D4ED8\">ExamPlatform</h2>"
-      + "<p>Bonjour <strong>" + escH(currentCandidat.nom) + "</strong>,</p>"
-      + "<p>Lien pour votre examen de <strong>" + escH(CFG.matiere||"") + "</strong> :</p>"
-      + "<p><a href=\"" + link + "\" style=\"background:#1D4ED8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block\">Acc\u00e9der \u00e0 l\u2019examen</a></p>"
-      + "<p style=\"color:#6B7280;font-size:13px\">Lien valable jusqu\u2019\u00e0 la fin de l\u2019\u00e9preuve. Ne pas partager.</p></div>";
-    await sendEmailResend(currentCandidat.email, subj, txt, htm);
-    selShowStep(5);
-    const s5 = document.getElementById("sel-step5");   if (s5) s5.style.display = "none";
-    const se = document.getElementById("sel-step-email"); if (se) se.style.display = "block";
-  } catch(e) { toast("Erreur envoi email: " + e.message, "error"); }
+// ════════════════════════════════════════
+// HELPERS EMAIL COMPOSITION
+// ════════════════════════════════════════
+let _tokenTimerInt    = null;
+let _tokenExpiresAt   = null;
+let _resendCooldownInt = null;
+
+// Masquer partiellement l'email : jean.dupont@gmail.com → jea***@gmail.com
+function masquerEmail(email) {
+  if (!email || !email.includes("@")) return email || "—";
+  const [local, domain] = email.split("@");
+  const visible = local.substring(0, Math.min(3, local.length));
+  return visible + "***@" + domain;
 }
 
-async function sendEmailResend(to, subject, text, html) {
-  if (!CFG.resend_key) { toast("Cl\u00e9 Resend non configur\u00e9e", "warn"); return; }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "Authorization": "Bearer " + CFG.resend_key, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: CFG.smtp_from || "noreply@examplatform.com", to, subject, text, html })
+// Timer affiché sur la page email envoyé
+function demarrerTokenTimer(expiresAt) {
+  if (_tokenTimerInt) clearInterval(_tokenTimerInt);
+  const timerEl = document.getElementById("token-timer");
+  function maj() {
+    const reste = Math.max(0, new Date(expiresAt) - new Date());
+    const mins  = Math.floor(reste / 60000);
+    const secs  = Math.floor((reste % 60000) / 1000);
+    if (timerEl) {
+      timerEl.textContent = String(mins).padStart(2,"0") + ":" + String(secs).padStart(2,"0");
+      timerEl.style.color = reste < 300000 ? "#EF4444" : "#1D4ED8";
+    }
+    if (reste <= 0) { clearInterval(_tokenTimerInt); if (timerEl) timerEl.textContent = "Expiré"; }
+  }
+  maj();
+  _tokenTimerInt = setInterval(maj, 1000);
+}
+
+// Bouton renvoi avec cooldown 60s
+function activerBoutonRenvoi() {
+  const btn   = document.getElementById("btn-resend-token");
+  const info  = document.getElementById("resend-cooldown");
+  const cntEl = document.getElementById("resend-countdown");
+  if (!btn) return;
+  btn.disabled = false;
+  if (_resendCooldownInt) clearInterval(_resendCooldownInt);
+  btn.onclick = async () => {
+    btn.disabled = true;
+    if (info) info.style.display = "block";
+    let secs = 60;
+    if (cntEl) cntEl.textContent = secs;
+    _resendCooldownInt = setInterval(() => {
+      secs--;
+      if (cntEl) cntEl.textContent = secs;
+      if (secs <= 0) {
+        clearInterval(_resendCooldownInt);
+        btn.disabled = false;
+        if (info) info.style.display = "none";
+      }
+    }, 1000);
+    try {
+      await sendCompositionToken();
+      toast("Email renvoyé ✓", "success");
+    } catch(e) {
+      toast("Erreur renvoi : " + e.message, "error");
+      btn.disabled = false;
+    }
+  };
+}
+
+async function sendCompositionToken() {
+  const dureeMins = (CFG.duree || 90) + 30;
+  const expiresAt = new Date(Date.now() + dureeMins * 60000).toISOString();
+  _tokenExpiresAt = expiresAt;
+
+  const res = await DB.insert("tokens_composition", {
+    matricule:      currentCandidat.matricule,
+    admin_id:       selAdminId,
+    exam_config_id: CFG ? CFG.id : null,
+    expires_at:     expiresAt,
+    used:           false
   });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || "Erreur Resend"); }
+  const token = res && res[0] ? res[0].token : null;
+  if (!token) throw new Error("Impossible de générer le lien d'accès.");
+
+  const link     = window.location.origin + window.location.pathname + "?token=" + token;
+  const prenom   = currentCandidat.prenom || "";
+  const nom      = currentCandidat.nom    || "";
+  const nomCplt  = (prenom + " " + nom).trim();
+  const ecole    = CFG.ecole    || "ExamPlatform";
+  const institut = CFG.institut || "";
+  const niveau   = CFG.niveau   || "";
+  const subj     = "\uD83C\uDF93 Votre lien d'acc\u00e8s \u2014 " + (CFG.matiere || "Examen");
+
+  const htm = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:32px 0">
+<tr><td align="center"><table width="560" cellpadding="0" cellspacing="0"
+  style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+  <tr><td style="background:linear-gradient(135deg,#1D4ED8,#2563EB);padding:28px 32px;text-align:center">
+    <div style="font-size:32px;margin-bottom:8px">\uD83C\uDF93</div>
+    <div style="color:#fff;font-size:22px;font-weight:700">ExamPlatform</div>
+    <div style="color:#BFDBFE;font-size:13px;margin-top:4px">${escH(ecole)}${institut?" \u2014 "+escH(institut):""}</div>
+  </td></tr>
+  <tr><td style="padding:32px">
+    <p style="margin:0 0 16px;font-size:16px;color:#1E293B">Bonjour <strong>${escH(nomCplt)}</strong>,</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6">
+      Vous \u00eates inscrit(e) \u00e0 l'\u00e9preuve de
+      <strong>${escH(CFG.matiere||"")}</strong>${niveau?" \u2014 "+escH(niveau):""}.<br>
+      Cliquez sur le bouton ci-dessous pour d\u00e9marrer votre examen.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-bottom:24px">
+      <a href="${link}"
+        style="background:#1D4ED8;color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;display:inline-block">
+        \uD83D\uDCDD Acc\u00e9der \u00e0 l'examen
+      </a>
+    </td></tr></table>
+    <div style="background:#F8FAFC;border-radius:10px;padding:14px 16px;margin-bottom:20px;border-left:4px solid #1D4ED8">
+      <div style="font-size:12px;color:#64748B;margin-bottom:6px">Vos informations</div>
+      <div style="font-size:14px;color:#1E293B"><strong>Matricule :</strong> ${escH(currentCandidat.matricule)}</div>
+      <div style="font-size:14px;color:#1E293B"><strong>Fili\u00e8re :</strong> ${escH(currentCandidat.filiere||"\u2014")}</div>
+    </div>
+    <div style="background:#FFFBEB;border-radius:10px;padding:14px 16px;margin-bottom:20px;border:1px solid #FDE68A">
+      <p style="margin:0 0 8px;font-size:13px;color:#92400E;font-weight:600">\u26A0\uFE0F Informations importantes</p>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:#92400E;line-height:1.8">
+        <li>Ce lien est <strong>personnel et unique</strong> \u2014 ne le partagez pas.</li>
+        <li>Il sera <strong>invalide apr\u00e8s utilisation</strong>.</li>
+        <li>Il expire dans <strong>${dureeMins} minutes</strong>.</li>
+        <li>Assurez-vous d'\u00eatre dans un endroit calme avant de cliquer.</li>
+      </ul>
+    </div>
+    <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0">
+      Si le bouton ne fonctionne pas, copiez ce lien :<br>
+      <span style="color:#1D4ED8;word-break:break-all">${link}</span>
+    </p>
+  </td></tr>
+  <tr><td style="background:#F8FAFC;padding:16px 32px;text-align:center;border-top:1px solid #E2E8F0">
+    <p style="margin:0;font-size:11px;color:#94A3B8">ExamPlatform \u2014 Cet email est g\u00e9n\u00e9r\u00e9 automatiquement.</p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+
+  const txt = "Bonjour " + nomCplt + ",\n\n"
+    + "Votre lien d'acc\u00e8s \u00e0 l'examen de " + (CFG.matiere||"") + " :\n"
+    + link + "\n\nMatricule : " + currentCandidat.matricule
+    + "\nCe lien est personnel, invalide apr\u00e8s utilisation et expire dans " + dureeMins + " minutes.\n\nExamPlatform";
+
+  await sendEmailResend(currentCandidat.email, subj, txt, htm);
+
+  // Afficher page email envoyé
+  [1,2,3,4,5,6,7].forEach(n => {
+    const el = document.getElementById("sel-step" + n);
+    if (el) el.style.display = "none";
+  });
+  const emailPage = document.getElementById("sel-step-email");
+  if (emailPage) emailPage.style.display = "block";
+
+  // Afficher email masqué
+  const emailEl = document.getElementById("email-sent-to");
+  if (emailEl) emailEl.textContent = masquerEmail(currentCandidat.email);
+
+  // Démarrer timer
+  demarrerTokenTimer(expiresAt);
+  activerBoutonRenvoi();
+}
+
+// Edge Function Supabase — relaie vers Resend sans blocage CORS
+const EDGE_SEND_EMAIL = "https://ucnxauigwhuiaxdgpwrt.supabase.co/functions/v1/send-email";
+
+async function sendEmailResend(to, subject, text, html, resendKey, smtpFrom) {
+  const globalFrom = localStorage.getItem('sa_smtp_from') || '';
+  const globalName = localStorage.getItem('sa_smtp_name') || 'ExamPlatform';
+  const rawFrom = smtpFrom || globalFrom || (CFG ? CFG.smtp_from : '') || 'noreply@aazconsulting.net';
+  const from = globalName ? globalName + ' <' + rawFrom + '>' : rawFrom;
+  // Appel via Edge Function (api.resend.com bloque les appels directs depuis le navigateur)
+  const res = await fetch(EDGE_SEND_EMAIL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to, subject, text, html })
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error || e.message || "Erreur envoi email (code " + res.status + ")");
+  }
 }
 
 async function handleTokenAccess(token) {
@@ -4353,14 +5062,29 @@ async function handleTokenAccess(token) {
     if (new Date(tk.expires_at) < new Date()) { toast("Ce lien a expir\u00e9.", "warn"); goTo("pg-home"); return; }
     await DB.update("tokens_composition", "token=eq." + token, { used: true });
     selAdminId = tk.admin_id;
-    const cfgs = await DB.select("exam_config", "admin_id=eq." + selAdminId + "&select=*");
+    // Charger l'épreuve spécifique liée au token (via exam_config_id si disponible)
+    const cfgId = tk.exam_config_id || null;
+    let cfgs;
+    if (cfgId) {
+      cfgs = await DB.select("exam_config", "id=eq." + cfgId + "&select=*");
+    } else {
+      cfgs = await DB.select("exam_config", "admin_id=eq." + selAdminId + "&select=*&limit=1");
+    }
     if (!cfgs || !cfgs.length) { toast("\u00C9preuve introuvable.", "error"); goTo("pg-home"); return; }
     CFG = cfgs[0];
     if (CFG.statut !== "ouvert") { toast("L\u2019\u00e9preuve est ferm\u00e9e.", "warn"); goTo("pg-home"); return; }
-    CANDIDATS  = await DB.select("candidats",    "admin_id=eq." + selAdminId + "&order=nom.asc") || [];
-    const qs   = await DB.select("questions",    "admin_id=eq." + selAdminId + "&order=ordre.asc") || [];
-    const sqs  = await DB.select("sous_questions", "order=ordre.asc") || [];
-    QUESTIONS  = qs.map(q => ({ ...q, sousQuestions: sqs.filter(sq => sq.question_id === q.id) }));
+    // Charger candidats et questions filtrés par exam_config_id
+    CANDIDATS = await DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc") || [];
+    const qs  = await DB.select("questions", "exam_config_id=eq." + CFG.id + "&order=ordre.asc") || [];
+    let sqs = [];
+    if (qs.length) {
+      const orClause = "or=(" + qs.map(q => "question_id.eq."+q.id).join(",") + ")";
+      sqs = await DB.select("sous_questions", orClause + "&order=ordre.asc") || [];
+    }
+    QUESTIONS = qs.map(q => ({ ...q, sousQuestions: sqs.filter(sq => sq.question_id === q.id) }));
+    try {
+      sessionStorage.setItem('offline_questions_'+CFG.id, JSON.stringify(QUESTIONS));
+    } catch(_) {}
     await loadLogos();
     currentCandidat = CANDIDATS.find(c => c.matricule === tk.matricule);
     if (!currentCandidat) { toast("\u00C9tudiant introuvable.", "error"); goTo("pg-home"); return; }
@@ -4389,7 +5113,8 @@ async function createAccount() {
   try {
     const ex = await DB.select("admins", "identifiant=eq." + encodeURIComponent(identifiant) + "&select=id");
     if (ex && ex.length) { err.textContent = "Cet identifiant est d\u00e9j\u00e0 utilis\u00e9."; err.style.display = "flex"; return; }
-    await DB.insert("admins", { identifiant, nom, email, pwd, role:"enseignant", valide:false });
+    const pwdHash = await hashPwd(pwd);
+    await DB.insert("admins", { identifiant, nom, email, pwd: pwdHash, role:"enseignant", valide:false });
     ok.textContent = "\u2713 Compte cr\u00e9\u00e9 ! En attente de validation.";
     ok.style.display = "flex";
     ["reg-identifiant","reg-nom","reg-email","reg-pwd","reg-pwd2"].forEach(id => {
@@ -4469,9 +5194,10 @@ async function requestPasswordReset() {
           text: "Bonjour " + admin.nom + ",\n\nVotre code de r\u00e9initialisation de mot de passe est :\n\n" + code + "\n\nCe code est valable 1 heure.\n\nSi vous n\'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.\n\nExamPlatform",
           html: "<div style=\"font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px\"><div style=\"background:#1D4ED8;color:#fff;padding:20px;border-radius:8px 8px 0 0;text-align:center\"><h2 style=\"margin:0\">ExamPlatform</h2></div><div style=\"background:#fff;border:1px solid #E5E7EB;border-top:none;padding:24px;border-radius:0 0 8px 8px\"><p>Bonjour <strong>" + escH(admin.nom) + "</strong>,</p><p>Votre code de r\u00e9initialisation de mot de passe :</p><div style=\"background:#EFF6FF;border-radius:8px;padding:20px;text-align:center;margin:20px 0\"><span style=\"font-size:36px;font-weight:700;letter-spacing:8px;color:#1D4ED8\">" + code + "</span></div><p style=\"color:#6B7280;font-size:13px\">Ce code est valable <strong>1 heure</strong>.</p><p style=\"color:#6B7280;font-size:13px\">Si vous n\'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.</p></div></div>"
         };
-        const res = await fetch("https://api.resend.com/emails", {
+        // Utiliser la Edge Function (evite les blocages CORS)
+        const res = await fetch(EDGE_SEND_EMAIL, {
           method: "POST",
-          headers: { "Authorization": "Bearer " + resendKey, "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(emailBody)
         });
         if (res.ok) {
@@ -4511,7 +5237,8 @@ async function confirmPasswordReset() {
     const tokens = await DB.select("reset_tokens", "token=eq." + code + "&admin_id=eq." + resetAdminId + "&used=eq.false&select=*");
     if (!tokens || !tokens.length) { err.textContent = "Code invalide ou expir\u00e9."; err.style.display = "flex"; return; }
     if (new Date(tokens[0].expires_at) < new Date()) { err.textContent = "Code expir\u00e9."; err.style.display = "flex"; return; }
-    await DB.update("admins", "id=eq." + resetAdminId, { pwd: newpwd });
+    const newpwdHash = await hashPwd(newpwd);
+    await DB.update("admins", "id=eq." + resetAdminId, { pwd: newpwdHash });
     await DB.update("reset_tokens", "token=eq." + code, { used: true });
     const ok = document.getElementById("reset-ok");
     if (ok) { ok.textContent = "\u2713 Mot de passe r\u00e9initialis\u00e9 !"; ok.style.display = "flex"; }
@@ -4535,6 +5262,99 @@ function switchTabSA(btn, tabId) {
   if (tabId === "sa-tab-universites") saLoadUniversites();
   if (tabId === "sa-tab-niveaux")    saLoadNiveaux();
   if (tabId === "sa-tab-activity")   saLoadActivity();
+  if (tabId === "sa-tab-config")     saLoadEmailConfig();
+}
+
+// ════════════════════════════════════════
+// SUPER ADMIN — CONFIGURATION PLATEFORME
+// ════════════════════════════════════════
+const SA_CFG_KEY  = 'sa_resend_key';
+const SA_CFG_FROM = 'sa_smtp_from';
+const SA_CFG_NAME = 'sa_smtp_name';
+
+function saLoadEmailConfig() {
+  // La cle Resend est stockee dans la Edge Function Supabase (securite)
+  // Ici on configure uniquement l'email expediteur et le nom affiche
+  const keyEl  = document.getElementById('sa-resend-key');
+  const fromEl = document.getElementById('sa-smtp-from');
+  const nameEl = document.getElementById('sa-smtp-name');
+  // Masquer le champ cle API (plus necesaire ici)
+  if (keyEl) {
+    keyEl.closest('.field') && (keyEl.closest('.field').style.display = 'none');
+  }
+  if (fromEl) fromEl.value = localStorage.getItem(SA_CFG_FROM) || 'noreply@aazconsulting.net';
+  if (nameEl) nameEl.value = localStorage.getItem(SA_CFG_NAME) || 'ExamPlatform';
+  const st = document.getElementById('sa-email-config-status');
+  if (st) {
+    const from = localStorage.getItem(SA_CFG_FROM);
+    st.style.display = 'block';
+    st.className = 'alert alert-success';
+    st.innerHTML = from
+      ? '<strong>Email configure</strong> — Expediteur : ' + from
+        + '<br><small>Cle Resend stockee securisee dans la Edge Function Supabase.</small>'
+      : '<strong>Email pre-configure</strong> avec noreply@aazconsulting.net. Cliquez Enregistrer pour confirmer.';
+  }
+}
+
+async function saSaveEmailConfig() {
+  // La cle Resend est dans la Edge Function — ici on sauvegarde uniquement from/name
+  const from = (document.getElementById('sa-smtp-from')?.value || '').trim() || 'noreply@aazconsulting.net';
+  const name = (document.getElementById('sa-smtp-name')?.value || '').trim() || 'ExamPlatform';
+  if (!from.includes('@')) { toast('Email expediteur invalide.', 'warn'); return; }
+  localStorage.setItem(SA_CFG_FROM, from);
+  localStorage.setItem(SA_CFG_NAME, name);
+  toast('Configuration email enregistree.', 'success');
+  saLoadEmailConfig();
+}
+
+async function saTestEmail() {
+  const from = localStorage.getItem(SA_CFG_FROM) || '';
+  if (!from) { toast("Configurez d'abord l'email expediteur.", 'warn'); return; }
+  // Chercher l'email du super admin pour le test
+  const admRow = await DB.select('admins', 'identifiant=eq.admin&select=email').catch(()=>[]) || [];
+  const dest = admRow[0] ? admRow[0].email : null;
+  if (!dest) { toast('Ajoutez un email au compte super admin (champ email dans la table admins) pour tester.', 'warn'); return; }
+  try {
+    const htm = '<div style="font-family:Arial;padding:24px">'
+      + '<h2 style="color:#1D4ED8">Test ExamPlatform</h2>'
+      + '<p>La configuration email fonctionne correctement.</p>'
+      + '<p>Expediteur : <strong>' + from + '</strong></p>'
+      + '<p>Domaine : <strong>aazconsulting.net</strong></p>'
+      + '<p>Service : <strong>Resend via Edge Function Supabase</strong></p></div>';
+    await sendEmailResend(dest, 'Test configuration email - ExamPlatform', '', htm);
+    toast('Email de test envoye a ' + dest + ' !', 'success');
+  } catch(e) { toast('Echec test email : ' + e.message, 'error'); }
+}
+
+async function saCleanTestData() {
+  openModal('Nettoyage donnees TEST', 'Supprimer tous les candidats et copies avec matricule/filiere "TEST" ?', async () => {
+    try {
+      let total = 0;
+      const copTest = await DB.select('copies', 'matricule=eq.TEST&select=id') || [];
+      for (const c of copTest) { await DB.delete('copies', 'id=eq.'+c.id).catch(()=>{}); total++; }
+      const candTest = await DB.select('candidats', 'matricule=eq.TEST&select=id') || [];
+      for (const c of candTest) { await DB.delete('candidats', 'id=eq.'+c.id).catch(()=>{}); total++; }
+      await DB.delete('tokens_composition', 'matricule=eq.TEST').catch(()=>{});
+      closeModal();
+      const st = document.getElementById('sa-clean-status');
+      if (st) st.textContent = total + ' entree(s) supprimee(s) avec succes.';
+      toast(total + ' donnee(s) TEST supprimee(s).', 'success');
+    } catch(e) { toast('Erreur : '+e.message, 'error'); closeModal(); }
+  });
+}
+
+async function saChangePwd() {
+  const p1 = document.getElementById('sa-new-pwd')?.value || '';
+  const p2 = document.getElementById('sa-new-pwd2')?.value || '';
+  if (!p1 || p1.length < 8) { toast('Mot de passe trop court (min 8 caracteres).', 'warn'); return; }
+  if (p1 !== p2) { toast('Les mots de passe ne correspondent pas.', 'warn'); return; }
+  try {
+    const hash = await hashPwd(p1);
+    await DB.update('admins', 'identifiant=eq.admin', { pwd: hash });
+    document.getElementById('sa-new-pwd').value = '';
+    document.getElementById('sa-new-pwd2').value = '';
+    toast('Mot de passe super admin mis a jour.', 'success');
+  } catch(e) { toast('Erreur : '+e.message, 'error'); }
 }
 
 async function saLoadStats() {
@@ -4591,7 +5411,29 @@ function saFilterAdmins(f, btn) {
 async function saValiderCompte(id) {
   openModal("Valider ce compte", "Activer ce compte enseignant ?", async () => {
     await DB.update("admins", "id=eq." + id, { valide: true });
-    toast("Compte valid\u00e9", "success"); closeModal(); saLoadComptes();
+    toast("Compte validé", "success"); closeModal(); saLoadComptes();
+    // Email de notification (optionnel — ne bloque pas si Resend non configuré)
+    try {
+      const admRow = await DB.select("admins", "id=eq."+id+"&select=nom,identifiant,email") || [];
+      const ens = admRow[0];
+      const cfgs = await DB.select("exam_config", "admin_id=eq."+id+"&select=resend_key,smtp_from&limit=1") || [];
+      const rk   = cfgs[0] ? cfgs[0].resend_key : "";
+      const from = cfgs[0] ? cfgs[0].smtp_from  : "";
+      if (ens && ens.email && rk && from) {
+        const htm = "<!DOCTYPE html><html><body style=\"font-family:Arial,sans-serif;background:#F1F5F9;padding:32px 0\">"
+          + "<table width=\"560\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:0 auto;background:#fff;border-radius:16px;overflow:hidden\">"
+          + "<tr><td style=\"background:linear-gradient(135deg,#1D4ED8,#2563EB);padding:24px 32px;text-align:center\">"
+          + "<div style=\"font-size:28px\">\uD83C\uDF93</div>"
+          + "<div style=\"color:#fff;font-size:20px;font-weight:700\">ExamPlatform</div></td></tr>"
+          + "<tr><td style=\"padding:32px\">"
+          + "<p style=\"font-size:16px;color:#1E293B\">Bonjour <strong>" + escH(ens.nom||ens.identifiant) + "</strong>,</p>"
+          + "<p style=\"color:#475569\">Votre compte enseignant a été <strong style=\"color:#059669\">validé</strong> par l'administrateur.</p>"
+          + "<p style=\"color:#475569\">Identifiant de connexion : <strong>" + escH(ens.identifiant) + "</strong></p>"
+          + "<p style=\"font-size:12px;color:#94A3B8;margin-top:24px\">ExamPlatform — notification automatique</p>"
+          + "</td></tr></table></body></html>";
+        await sendEmailResend(ens.email, "\u2705 Votre compte ExamPlatform a \u00e9t\u00e9 valid\u00e9", "", htm, rk, from);
+      }
+    } catch(_e) {}
   });
 }
 
@@ -4768,7 +5610,7 @@ async function saLoadParcours() {
     if (!parcours.length) { wrap.innerHTML = "<div class='alert alert-warning'>Aucun parcours. Cliquez sur \"+ Créer un parcours\".</div>"; return; }
 
     wrap.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr>"
-      + "<th>Université</th><th>Entité</th><th>Département</th><th>Niveau</th><th>Filières</th><th>Enseignant</th><th>Action</th>"
+      + "<th>Université</th><th>Entité</th><th>Département</th><th>Niveau</th><th>Filières</th><th>Enseignant</th><th>Épreuves</th><th>Action</th>"
       + "</tr></thead><tbody>"
       + parcours.map(p => {
           const u  = univs.find(x => x.id === p.universite_id);
@@ -4785,11 +5627,60 @@ async function saLoadParcours() {
             <td style="font-size:12px">${n ? escH(n.nom) : "—"}</td>
             <td>${pf || "—"}</td>
             <td style="font-size:12px">${a ? escH(a.nom || a.identifiant) : "<span class='badge badge-red'>Non assigné</span>"}</td>
+            <td><button class="btn btn-secondary btn-sm" onclick="saVoirEpreuvesParParcours('${p.id}','${p.admin_id||""}')">📋 Épreuves</button></td>
             <td><button class="btn btn-danger btn-sm" onclick="saDeleteParcours('${p.id}')">✕</button></td>
           </tr>`;
         }).join("")
       + "</tbody></table></div>";
   } catch(e) { wrap.innerHTML = `<div class="alert alert-danger">Erreur: ${e.message}</div>`; }
+}
+
+async function saVoirEpreuvesParParcours(parcoursId, adminId) {
+  if (!adminId) { toast("Ce parcours n'a pas d'enseignant assigné.", "warn"); return; }
+  try {
+    // Chercher les épreuves de cet enseignant
+    const cfgs = await DB.select("exam_config", "admin_id=eq."+adminId+"&order=created_at.asc&select=id,matiere,statut,parcours_id") || [];
+    if (!cfgs.length) { toast("Aucune épreuve trouvée pour cet enseignant.", "warn"); return; }
+
+    // Construire le modal de sélection
+    let bodyHtml = "<p style='margin-bottom:12px;font-size:13px'>Sélectionnez les épreuves à lier à ce parcours :</p>";
+    bodyHtml += "<div style='max-height:300px;overflow-y:auto'>";
+    cfgs.forEach(cfg => {
+      const linked = cfg.parcours_id === parcoursId;
+      const linkedOther = cfg.parcours_id && cfg.parcours_id !== parcoursId;
+      const label = cfg.matiere || "Sans titre";
+      const badge = linked ? "<span class='badge badge-green'>✓ Ce parcours</span>"
+                   : linkedOther ? "<span class='badge badge-amber'>Autre parcours</span>"
+                   : "<span class='badge badge-gray'>Non lié</span>";
+      bodyHtml += "<div style='display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #f0f0f0'>"
+        + "<input type='checkbox' id='ep-link-"+cfg.id+"' " + (linked ? "checked" : "") + ">"
+        + "<label for='ep-link-"+cfg.id+"' style='flex:1;cursor:pointer'>" + escH(label) + "</label>"
+        + badge
+        + "</div>";
+    });
+    bodyHtml += "</div>";
+
+    openModal("Épreuves du parcours", bodyHtml, async () => {}, 'Annuler', 'Confirmer', true);
+    // Remplacer l'onclick après injection HTML
+    document.getElementById('modal-ok').onclick = async () => {
+      let updated = 0;
+      for (const cfg of cfgs) {
+        const cb = document.getElementById("ep-link-"+cfg.id);
+        if (!cb) continue;
+        const shouldLink = cb.checked;
+        const isLinked   = cfg.parcours_id === parcoursId;
+        if (shouldLink && !isLinked) {
+          await DB.update("exam_config", "id=eq."+cfg.id, { parcours_id: parcoursId }).catch(()=>{});
+          updated++;
+        } else if (!shouldLink && isLinked) {
+          await DB.update("exam_config", "id=eq."+cfg.id, { parcours_id: null }).catch(()=>{});
+          updated++;
+        }
+      }
+      closeModal();
+      toast(updated + " épreuve(s) mise(s) à jour.", updated > 0 ? "success" : "info");
+    };
+  } catch(e) { toast("Erreur : " + e.message, "error"); }
 }
 
 async function saShowCreateParcours() {
@@ -5120,14 +6011,125 @@ async function saLoadNiveaux() {
 
 async function saLoadActivity() {
   try {
-    const copies = await DB.select("copies", "order=date_depot.desc&select=matricule,date_depot,admin_id&limit=50") || [];
-    const admins = await DB.select("admins", "role=eq.enseignant&select=id,nom") || [];
-    const wrap   = document.getElementById("sa-activity-list"); if (!wrap) return;
-    if (!copies.length) { wrap.innerHTML = "<div class=\"alert alert-warning\">Aucune activit\u00e9.</div>"; return; }
-    wrap.innerHTML = "<div class=\"tbl-wrap\"><table class=\"tbl\"><thead><tr><th>Matricule</th><th>Enseignant</th><th>Date</th></tr></thead><tbody>"
+    // Charger les 50 dernières copies avec plus de détails
+    const copies   = await DB.select("copies",      "order=date_depot.desc&select=*&limit=50") || [];
+    const admins   = await DB.select("admins",      "role=eq.enseignant&select=id,nom,identifiant") || [];
+    const epreuves = await DB.select("exam_config", "select=id,matiere,niveau,statut,admin_id") || [];
+    const wrap     = document.getElementById("sa-activity-list"); if (!wrap) return;
+
+    // ── Stats globales
+    const statsEl = document.getElementById("sa-activity-stats");
+    const today = new Date().toISOString().slice(0,10);
+    const copiesToday = copies.filter(c => c.date_depot && c.date_depot.startsWith(today)).length;
+    const moyGlob = copies.length
+      ? (copies.reduce((s,c) => s + (c.note_sur_bareme||0), 0) / copies.length).toFixed(2)
+      : "—";
+    const adminsActifs = new Set(copies.map(c => c.admin_id)).size;
+    if (statsEl) statsEl.innerHTML = [
+      { n: copies.length,  l: "Copies (50 dern.)", c: "var(--blue)"  },
+      { n: copiesToday,    l: "Aujourd'hui",        c: "var(--green)" },
+      { n: moyGlob,        l: "Moyenne globale",    c: "var(--amber)" },
+      { n: adminsActifs,   l: "Enseignants actifs", c: "var(--blue)"  },
+    ].map(s => `<div class="stat-super"><div class="num" style="color:${s.c}">${s.n}</div><div class="lbl">${s.l}</div></div>`).join("");
+
+    // ── Graphique copies par jour (7 derniers jours) via Chart.js
+    const canvas = document.getElementById("sa-chart-copies");
+    if (canvas) {
+      // Préparer les 7 derniers jours
+      const days = Array.from({length:7}, (_,i) => {
+        const d = new Date(); d.setDate(d.getDate() - (6-i));
+        return d.toISOString().slice(0,10);
+      });
+      const counts = days.map(d => copies.filter(c => c.date_depot && c.date_depot.startsWith(d)).length);
+      const labels = days.map(d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}));
+
+      // Détruire les graphiques précédents si existants
+      if (window._saChart)      { try { window._saChart.destroy(); }      catch(_){} }
+      if (window._saChartFil)   { try { window._saChartFil.destroy(); }   catch(_){} }
+      if (typeof Chart !== 'undefined') {
+        window._saChart = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Copies déposées',
+              data: counts,
+              backgroundColor: 'rgba(29,78,216,0.7)',
+              borderColor: 'rgba(29,78,216,1)',
+              borderWidth: 1,
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f0f4ff' } },
+              x: { grid: { display: false } }
+            }
+          }
+        });
+      }
+    }
+
+    // ── Graphique camembert filières
+    const canvasFil = document.getElementById("sa-chart-filieres");
+    if (canvasFil && typeof Chart !== 'undefined') {
+      // Compter les copies par filière
+      const filCount = {};
+      copies.forEach(c => {
+        const fil = (c.filiere || "—").toUpperCase();
+        filCount[fil] = (filCount[fil] || 0) + 1;
+      });
+      const filLabels  = Object.keys(filCount);
+      const filData    = filLabels.map(k => filCount[k]);
+      const palette    = ["#1D4ED8","#059669","#D97706","#7C3AED","#DC2626","#0891B2","#65A30D","#C026D3"];
+      const filColors  = filLabels.map((_, i) => palette[i % palette.length]);
+
+      window._saChartFil = new Chart(canvasFil.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: filLabels,
+          datasets: [{ data: filData, backgroundColor: filColors, borderWidth: 2 }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ctx.label + " : " + ctx.raw + " copie(s)" } }
+          }
+        }
+      });
+      // Légende manuelle
+      const leg = document.getElementById("sa-chart-filieres-legend");
+      if (leg) leg.innerHTML = filLabels.map((l, i) =>
+        `<span style="display:inline-flex;align-items:center;gap:4px">
+          <span style="width:10px;height:10px;border-radius:50%;background:${filColors[i]};display:inline-block"></span>
+          <span>${l} (${filData[i]})</span>
+        </span>`
+      ).join("");
+    }
+
+    // ── Tableau détaillé
+    if (!copies.length) { wrap.innerHTML = "<div class='alert alert-warning'>Aucune activité.</div>"; return; }
+    wrap.innerHTML = "<div class='tbl-wrap'><table class='tbl'><thead><tr>"
+      + "<th>Matricule</th><th>Étudiant</th><th>Filière</th><th>Matière</th><th>Note</th><th>Enseignant</th><th>Date</th>"
+      + "</tr></thead><tbody>"
       + copies.map(c => {
-          const a = admins.find(x => x.id === c.admin_id);
-          return `<tr><td><code>${escH(c.matricule)}</code></td><td>${a ? escH(a.nom) : "\u2014"}</td><td style="font-size:12px">${new Date(c.date_depot).toLocaleString("fr-FR")}</td></tr>`;
+          const a   = admins.find(x => x.id === c.admin_id);
+          const ep  = c.exam_config_id ? epreuves.find(e => e.id === c.exam_config_id) : null;
+          const note = c.note_sur_bareme != null ? Number(c.note_sur_bareme).toFixed(2) : '—';
+          const noteColor = c.note_sur_bareme >= 12 ? 'color:var(--green);font-weight:700'
+                          : c.note_sur_bareme != null ? 'color:var(--red);font-weight:700' : '';
+          return `<tr>
+            <td><code style="font-size:11px">${escH(c.matricule||'—')}</code></td>
+            <td style="font-size:12px"><strong>${escH(c.nom||'')}</strong> ${escH(c.prenom||'')}</td>
+            <td><span class="badge badge-blue" style="font-size:10px">${escH(c.filiere||'—')}</span></td>
+            <td style="font-size:12px">${ep ? escH(ep.matiere||'—') : '—'}</td>
+            <td style="text-align:center;${noteColor}">${note}</td>
+            <td style="font-size:12px">${a ? escH(a.nom||a.identifiant) : '—'}</td>
+            <td style="font-size:11px;color:var(--text-muted)">${c.date_depot ? new Date(c.date_depot).toLocaleString('fr-FR') : '—'}</td>
+          </tr>`;
         }).join("")
       + "</tbody></table></div>";
   } catch(e) { toast("Erreur: " + e.message, "error"); }
@@ -5137,41 +6139,49 @@ async function saLoadActivity() {
 // DÉMARRAGE
 // ════════════════════════════════════════
 (async function start(){
-  if(SB_URL&&SB_KEY){
-    try{
-      await initApp();
-      // Restaurer la session si l'utilisateur rafraîchit la page
-      const savedAdmin   = sessionStorage.getItem("currentAdmin");
-      const savedPage    = sessionStorage.getItem("currentPage");
-      if (savedAdmin && savedPage) {
-        const admin = JSON.parse(savedAdmin);
-        currentAdmin = admin;
-        adminAuth = true;
-        if (admin.role === "superadmin") {
-          goTo("pg-superadmin");
-          saLoadStats(); saLoadComptes();
-        } else {
-          const chip = document.getElementById("admin-name-chip");
-          if (chip) chip.textContent = "\uD83D\uDC64 " + (admin.nom || admin.identifiant);
-          goTo(savedPage || "pg-admin");
+  document.body.style.visibility = 'visible';
+  if (!SB_URL || !SB_KEY) { goTo('pg-setup'); return; }
+
+  // Tenter la connexion DB — si échec on va au setup
+  try { await initApp(); } catch(e) { goTo('pg-setup'); return; }
+
+  // Restaurer la session indépendamment de initApp
+  const savedAdmin = sessionStorage.getItem("currentAdmin");
+  const savedPage  = sessionStorage.getItem("currentPage");
+
+  if (savedAdmin) {
+    try {
+      const admin = JSON.parse(savedAdmin);
+      currentAdmin = admin;
+      adminAuth    = true;
+      if (admin.role === "superadmin") {
+        goTo("pg-superadmin");
+        saLoadStats().catch(()=>{}); saLoadComptes().catch(()=>{});
+      } else {
+        const chip = document.getElementById("admin-name-chip");
+        if (chip) chip.textContent = "\uD83D\uDC64 " + (admin.nom || admin.identifiant);
+        goTo(savedPage || "pg-admin");
+        // Charger les données — erreur non fatale (ne supprime pas la session)
+        try {
           await loadAdminData();
           await loadFilieresEnseignant();
           loadConfigFormNew();
           renderQBuilder();
           renderCandidatsTable();
+        } catch(loadErr) {
+          console.warn("Erreur chargement données:", loadErr.message);
+          toast("Certaines données n'ont pas pu être chargées.", "warn");
         }
-      } else {
-        goTo('pg-home');
       }
-    } catch(e){
+    } catch(parseErr) {
+      // Session corrompue — nettoyer et aller à l'accueil
       sessionStorage.removeItem("currentAdmin");
       sessionStorage.removeItem("currentPage");
-      goTo('pg-setup');
+      goTo('pg-home');
     }
   } else {
-    goTo('pg-setup');
+    goTo('pg-home');
   }
-  document.body.style.visibility='visible';
 })();
 // Fonction pour passer manuellement à l'étape 7
 function goToStep7() {
