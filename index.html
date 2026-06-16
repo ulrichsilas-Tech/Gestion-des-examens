@@ -2554,12 +2554,67 @@ async function deposerCopie() {
     document.getElementById('res-mention').textContent = getMention(sur20);
     document.getElementById('res-detail').textContent = '';
     goTo('pg-resultat');
+    // Envoyer automatiquement l'email de résultat à l'étudiant (non bloquant)
+    envoyerEmailResultat(sur20).catch(e => console.warn('Email résultat non envoyé:', e.message));
   } catch(e) {
     if (e.message.includes('unique') || e.message.includes('duplicate')) {
       toast('Copie déjà déposée pour cet étudiant.', 'warn');
       goTo('pg-home');
     } else { toast('Erreur dépôt: '+e.message, 'error'); }
   }
+}
+
+// Envoie automatiquement un email avec le résultat à l'étudiant après dépôt de copie
+async function envoyerEmailResultat(noteSur20) {
+  if (!currentCandidat || !currentCandidat.email || currentCandidat.matricule === 'TEST') return;
+  const bareme   = CFG.bareme || 20;
+  const mention  = getMention(noteSur20);
+  const pourcent = Math.round((noteSur20 / bareme) * 100);
+  const reussite = noteSur20 >= bareme / 2;
+  const couleur  = reussite ? '#059669' : '#DC2626';
+  const nomCplt  = ((currentCandidat.prenom||'') + ' ' + (currentCandidat.nom||'')).trim();
+
+  const subj = (reussite ? '✅' : '📋') + ' Résultat de votre examen — ' + (CFG.matiere || '');
+
+  const htm = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>'
+    + '<body style="margin:0;padding:0;background:#F1F5F9;font-family:Arial,sans-serif">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:32px 0">'
+    + '<tr><td align="center"><table width="560" cellpadding="0" cellspacing="0" '
+    + 'style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">'
+    + '<tr><td style="background:linear-gradient(135deg,#1D4ED8,#2563EB);padding:28px 32px;text-align:center">'
+    + '<div style="font-size:32px;margin-bottom:8px">🎓</div>'
+    + '<div style="color:#fff;font-size:22px;font-weight:700">ExamPlatform</div>'
+    + '<div style="color:#BFDBFE;font-size:13px;margin-top:4px">' + escH(CFG.ecole||'') + (CFG.institut?' — '+escH(CFG.institut):'') + '</div>'
+    + '</td></tr>'
+    + '<tr><td style="padding:32px">'
+    + '<p style="margin:0 0 16px;font-size:16px;color:#1E293B">Bonjour <strong>' + escH(nomCplt) + '</strong>,</p>'
+    + '<p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6">Votre copie de <strong>' + escH(CFG.matiere||'') + '</strong> a été corrigée automatiquement. Voici votre résultat :</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-bottom:20px">'
+    + '<div style="background:' + (reussite?'#ECFDF5':'#FEF2F2') + ';border-radius:16px;padding:24px;display:inline-block;min-width:200px">'
+    + '<div style="font-size:42px;font-weight:800;color:' + couleur + '">' + noteSur20.toFixed(2) + '<span style="font-size:20px;color:#94A3B8">/' + bareme + '</span></div>'
+    + '<div style="font-size:14px;color:' + couleur + ';font-weight:600;margin-top:6px">' + escH(mention) + '</div>'
+    + '<div style="font-size:12px;color:#94A3B8;margin-top:4px">' + pourcent + '%</div>'
+    + '</div></td></tr></table>'
+    + '<div style="background:#F8FAFC;border-radius:10px;padding:14px 16px;margin-bottom:20px;border-left:4px solid #1D4ED8">'
+    + '<div style="font-size:12px;color:#64748B;margin-bottom:4px">Détails</div>'
+    + '<div style="font-size:14px;color:#1E293B"><strong>Matricule :</strong> ' + escH(currentCandidat.matricule) + '</div>'
+    + '<div style="font-size:14px;color:#1E293B"><strong>Filière :</strong> ' + escH(currentCandidat.filiere||'—') + '</div>'
+    + '<div style="font-size:14px;color:#1E293B"><strong>Date :</strong> ' + new Date().toLocaleString('fr-FR') + '</div>'
+    + '</div>'
+    + '<p style="font-size:12px;color:#94A3B8;text-align:center;margin:0">Ce résultat est généré automatiquement par la plateforme.<br>Pour toute contestation, contactez votre enseignant.</p>'
+    + '</td></tr>'
+    + '<tr><td style="background:#F8FAFC;padding:16px 32px;text-align:center;border-top:1px solid #E2E8F0">'
+    + '<p style="margin:0;font-size:11px;color:#94A3B8">ExamPlatform — Cet email est généré automatiquement.</p>'
+    + '</td></tr></table></td></tr></table></body></html>';
+
+  const txt = 'Bonjour ' + nomCplt + ',\n\n'
+    + 'Votre copie de ' + (CFG.matiere||'') + ' a été corrigée automatiquement.\n\n'
+    + 'Note : ' + noteSur20.toFixed(2) + '/' + bareme + ' (' + pourcent + '%) — ' + mention + '\n\n'
+    + 'Matricule : ' + currentCandidat.matricule + '\n'
+    + 'Date : ' + new Date().toLocaleString('fr-FR') + '\n\n'
+    + 'ExamPlatform';
+
+  await sendEmailResend(currentCandidat.email, subj, txt, htm);
 }
 
 function calculerNote() {
@@ -6158,6 +6213,15 @@ async function saLoadActivity() {
 (async function start(){
   document.body.style.visibility = 'visible';
   if (!SB_URL || !SB_KEY) { goTo('pg-setup'); return; }
+
+  // Si l'URL contient un token de composition, le traiter en priorité
+  // et arrêter complètement l'exécution de start() pour ne pas écraser pg-epreuve
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _token = _urlParams.get("token");
+  if (_token) {
+    try { await initApp(); } catch(e) { goTo('pg-setup'); }
+    return; // Ne JAMAIS continuer vers la logique de session ci-dessous
+  }
 
   // Tenter la connexion DB — si échec on va au setup
   try { await initApp(); } catch(e) { goTo('pg-setup'); return; }
