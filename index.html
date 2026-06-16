@@ -1597,8 +1597,25 @@ end $$;
 // ════════════════════════════════════════
 // SUPABASE CLIENT
 // ════════════════════════════════════════
-let SB_URL = localStorage.getItem('sb_url') || '';
-let SB_KEY = localStorage.getItem('sb_key') || '';
+// Clés publiques (anon/publishable) intégrées en dur — l'étudiant n'a JAMAIS
+// à configurer Supabase manuellement, peu importe le navigateur ou l'appareil.
+// Ce sont des clés "anon" conçues pour être exposées côté client (RLS gère la sécurité).
+const SB_URL_DEFAULT = "https://ucnxauigwhuiaxdgpwrt.supabase.co";
+const SB_KEY_DEFAULT = "sb_publishable_dYPeHWDgdzmhTrbxTKZjJw_vHbHKeLf";
+
+let SB_URL = (SB_URL_DEFAULT && !SB_URL_DEFAULT.startsWith("REPLACE_"))
+  ? SB_URL_DEFAULT
+  : (localStorage.getItem('sb_url') || '');
+let SB_KEY = (SB_KEY_DEFAULT && !SB_KEY_DEFAULT.startsWith("REPLACE_"))
+  ? SB_KEY_DEFAULT
+  : (localStorage.getItem('sb_key') || '');
+
+// Si les clés en dur sont définies, les synchroniser dans localStorage
+// (pour que les fonctions qui les lisent depuis localStorage restent cohérentes)
+if (SB_URL && SB_KEY) {
+  localStorage.setItem('sb_url', SB_URL);
+  localStorage.setItem('sb_key', SB_KEY);
+}
 
 async function sbFetch(path, opts = {}) {
   const url = SB_URL + '/rest/v1/' + path;
