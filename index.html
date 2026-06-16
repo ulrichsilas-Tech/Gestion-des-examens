@@ -2190,9 +2190,17 @@ async function migrateFiliereIds() {
 }
 
 async function renderCandidatsTable() {
-  if (currentAdmin && CFG && CFG.id)
-    CANDIDATS = await DB.select('candidats','exam_config_id=eq.'+CFG.id+'&order=nom.asc') || [];
-  const copies = await DB.select('copies', CFG && CFG.id ? 'exam_config_id=eq.'+CFG.id+'&select=matricule' : 'select=matricule').catch(()=>[]) || [];
+  let copies = [];
+  if (currentAdmin && CFG && CFG.id) {
+    const [candRes, copRes] = await Promise.all([
+      DB.select('candidats', 'exam_config_id=eq.'+CFG.id+'&order=nom.asc'),
+      DB.select('copies', 'exam_config_id=eq.'+CFG.id+'&select=matricule').catch(()=>[]),
+    ]);
+    CANDIDATS = candRes || [];
+    copies = copRes || [];
+  } else {
+    copies = await DB.select('copies', 'select=matricule').catch(()=>[]) || [];
+  }
   const deposes = new Set(copies.map(c=>c.matricule));
   const wrap = document.getElementById('candidats-table-wrap');
   // Vérifier si des candidats sans filiere_id existent → afficher le bandeau
@@ -3219,8 +3227,13 @@ async function preloadLogos() {
       img.src = b64;
     });
   }
-  window._LOGO_UAC_CLIPPED = await clipToCircle(getLogoGauche());
-  window._LOGO_INE_CLIPPED = await clipToCircle(getLogoDroite());
+  // Les 2 logos sont indépendants — traitement en parallèle
+  const [uacClipped, ineClipped] = await Promise.all([
+    clipToCircle(getLogoGauche()),
+    clipToCircle(getLogoDroite()),
+  ]);
+  window._LOGO_UAC_CLIPPED = uacClipped;
+  window._LOGO_INE_CLIPPED = ineClipped;
 }
 
 async function preloadQuestionImages() {
@@ -4044,14 +4057,19 @@ async function deleteCurrentEpreuve() {
 
 async function loadEpreuveData() {
   if (!currentAdmin || !CFG || !CFG.id) return;
-  
-  // Chargement simple sans création automatique
-  CANDIDATS = await DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc") || [];
-  
+
+  // Requêtes indépendantes en parallèle (candidats, questions, copies)
+  const [candRes, qsRes, copRes] = await Promise.all([
+    DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc"),
+    DB.select("questions", "exam_config_id=eq." + CFG.id + "&order=ordre.asc"),
+    DB.select("copies",    "exam_config_id=eq." + CFG.id + "&order=date_depot.asc"),
+  ]);
+
+  CANDIDATS = candRes || [];
   // Optionnel : filtre pour cacher les TEST existants (s'ils sont déjà en base)
   CANDIDATS = CANDIDATS.filter(c => c.matricule !== "TEST" && (c.filiere||"").toUpperCase() !== "TEST");
-  
-  const qs = await DB.select("questions", "exam_config_id=eq." + CFG.id + "&order=ordre.asc") || [];
+
+  const qs = qsRes || [];
   let sqs = [];
   if (qs.length) {
     const orClause = "or=(" + qs.map(q => "question_id.eq."+q.id).join(",") + ")";
@@ -4061,8 +4079,7 @@ async function loadEpreuveData() {
     ...q, image_url: q.image_url||"", html_content: q.html_content||"",
     sousQuestions: sqs.filter(sq => sq.question_id === q.id).sort((a,b) => a.ordre - b.ordre)
   }));
-  COPIES = await DB.select("copies", "exam_config_id=eq." + CFG.id + "&order=date_depot.asc") || [];
-  COPIES = COPIES.filter(c => c.matricule !== "TEST");
+  COPIES = (copRes || []).filter(c => c.matricule !== "TEST");
   await loadLogos();
   // Mettre à jour les mini stats après chargement
   renderEpreuveMiniStats();
@@ -5231,53 +5248,15 @@ async function requestPasswordReset() {
     // Insérer le nouveau token
     await DB.insert("reset_tokens", { token: code, admin_id: admin.id, expires_at: expiresAt, used: false });
 
-    // Chercher une clé Resend valide : d'abord dans la config de l'admin lui-même
-    let resendKey = null;
-    let fromEmail = "noreply@examplatform.com";
-    try {
-      const myCfg = await DB.select("exam_config", "admin_id=eq." + admin.id + "&select=resend_key,smtp_from&limit=1");
-      if (myCfg && myCfg.length && myCfg[0].resend_key && myCfg[0].resend_key.length > 10) {
-        resendKey = myCfg[0].resend_key;
-        if (myCfg[0].smtp_from) fromEmail = myCfg[0].smtp_from;
-      }
-    } catch(e) {}
-
-    // Si pas de clé dans sa propre config, chercher chez n'importe quel admin
-    if (!resendKey) {
-      try {
-        const allCfgs = await DB.select("exam_config", "select=resend_key,smtp_from&limit=10");
-        if (allCfgs) {
-          const valid = allCfgs.find(c => c.resend_key && c.resend_key.length > 10);
-          if (valid) {
-            resendKey = valid.resend_key;
-            if (valid.smtp_from) fromEmail = valid.smtp_from;
-          }
-        }
-      } catch(e) {}
-    }
-
     let emailSent = false;
-    if (resendKey && admin.email) {
+    if (admin.email) {
       try {
-        const emailBody = {
-          from: fromEmail,
-          to: admin.email,
-          subject: "Code de r\u00e9initialisation \u2014 ExamPlatform",
-          text: "Bonjour " + admin.nom + ",\n\nVotre code de r\u00e9initialisation de mot de passe est :\n\n" + code + "\n\nCe code est valable 1 heure.\n\nSi vous n\'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.\n\nExamPlatform",
-          html: "<div style=\"font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px\"><div style=\"background:#1D4ED8;color:#fff;padding:20px;border-radius:8px 8px 0 0;text-align:center\"><h2 style=\"margin:0\">ExamPlatform</h2></div><div style=\"background:#fff;border:1px solid #E5E7EB;border-top:none;padding:24px;border-radius:0 0 8px 8px\"><p>Bonjour <strong>" + escH(admin.nom) + "</strong>,</p><p>Votre code de r\u00e9initialisation de mot de passe :</p><div style=\"background:#EFF6FF;border-radius:8px;padding:20px;text-align:center;margin:20px 0\"><span style=\"font-size:36px;font-weight:700;letter-spacing:8px;color:#1D4ED8\">" + code + "</span></div><p style=\"color:#6B7280;font-size:13px\">Ce code est valable <strong>1 heure</strong>.</p><p style=\"color:#6B7280;font-size:13px\">Si vous n\'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.</p></div></div>"
-        };
-        // Utiliser la Edge Function (evite les blocages CORS)
-        const res = await fetch(EDGE_SEND_EMAIL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(emailBody)
-        });
-        if (res.ok) {
-          emailSent = true;
-        } else {
-          const resErr = await res.json().catch(() => ({}));
-          console.warn("Resend error:", resErr);
-        }
+        const subj = "Code de r\u00e9initialisation \u2014 ExamPlatform";
+        const text = "Bonjour " + admin.nom + ",\n\nVotre code de r\u00e9initialisation de mot de passe est :\n\n" + code + "\n\nCe code est valable 1 heure.\n\nSi vous n'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.\n\nExamPlatform";
+        const html = "<div style=\"font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px\"><div style=\"background:#1D4ED8;color:#fff;padding:20px;border-radius:8px 8px 0 0;text-align:center\"><h2 style=\"margin:0\">ExamPlatform</h2></div><div style=\"background:#fff;border:1px solid #E5E7EB;border-top:none;padding:24px;border-radius:0 0 8px 8px\"><p>Bonjour <strong>" + escH(admin.nom) + "</strong>,</p><p>Votre code de r\u00e9initialisation de mot de passe :</p><div style=\"background:#EFF6FF;border-radius:8px;padding:20px;text-align:center;margin:20px 0\"><span style=\"font-size:36px;font-weight:700;letter-spacing:8px;color:#1D4ED8\">" + code + "</span></div><p style=\"color:#6B7280;font-size:13px\">Ce code est valable <strong>1 heure</strong>.</p><p style=\"color:#6B7280;font-size:13px\">Si vous n'avez pas demand\u00e9 cette r\u00e9initialisation, ignorez cet email.</p></div></div>";
+        // Utilise la config centralisée (domaine aazconsulting.net + Edge Function)
+        await sendEmailResend(admin.email, subj, text, html);
+        emailSent = true;
       } catch(e) { console.warn("Email send failed:", e.message); }
     }
 
@@ -5524,11 +5503,19 @@ async function saLoadHierarchie() {
   const wrap = document.getElementById("sa-hierarchie-list"); if (!wrap) return;
   wrap.innerHTML = "<div class='alert alert-info'>Chargement...</div>";
   try {
-    const univs  = await DB.select("universites",  "order=nom.asc")  || [];
-    const entites = await DB.select("entites",    "order=nom.asc")  || [];
-    const depts   = await DB.select("departements","order=nom.asc")  || [];
-    const niveaux = await DB.select("niveaux",    "order=ordre.asc") || [];
-    const filieres= await DB.select("filieres",   "order=ordre.asc") || [];
+    // Requêtes indépendantes exécutées en parallèle (gain de performance ~5x)
+    const results = await Promise.all([
+      DB.select("universites",  "order=nom.asc"),
+      DB.select("entites",      "order=nom.asc"),
+      DB.select("departements", "order=nom.asc"),
+      DB.select("niveaux",      "order=ordre.asc"),
+      DB.select("filieres",     "order=ordre.asc"),
+    ]);
+    const univs    = results[0] || [];
+    const entites  = results[1] || [];
+    const depts    = results[2] || [];
+    const niveaux  = results[3] || [];
+    const filieres = results[4] || [];
 
     if (!univs.length) {
       wrap.innerHTML = `<div class="alert alert-warning">Aucune université. Cliquez sur "+ Université" pour commencer.</div>`; return;
@@ -5670,14 +5657,25 @@ async function saLoadParcours() {
   const wrap = document.getElementById("sa-parcours-list"); if (!wrap) return;
   wrap.innerHTML = "<div class='alert alert-info'>Chargement...</div>";
   try {
-    const parcours  = await DB.select("parcours", "order=created_at.desc&select=*") || [];
-    const pFilieres = await DB.select("parcours_filieres", "select=*") || [];
-    const univs     = await DB.select("universites",   "select=id,nom") || [];
-    const entites   = await DB.select("entites",       "select=id,nom") || [];
-    const depts     = await DB.select("departements",  "select=id,nom") || [];
-    const niveaux   = await DB.select("niveaux",       "select=id,nom") || [];
-    const filieres  = await DB.select("filieres",      "select=id,code,nom") || [];
-    const admins    = await DB.select("admins", "role=eq.enseignant&valide=eq.true&select=id,nom,identifiant") || [];
+    // 8 requêtes indépendantes exécutées en parallèle (gain de performance important)
+    const results = await Promise.all([
+      DB.select("parcours", "order=created_at.desc&select=*"),
+      DB.select("parcours_filieres", "select=*"),
+      DB.select("universites",   "select=id,nom"),
+      DB.select("entites",       "select=id,nom"),
+      DB.select("departements",  "select=id,nom"),
+      DB.select("niveaux",       "select=id,nom"),
+      DB.select("filieres",      "select=id,code,nom"),
+      DB.select("admins", "role=eq.enseignant&valide=eq.true&select=id,nom,identifiant"),
+    ]);
+    const parcours  = results[0] || [];
+    const pFilieres = results[1] || [];
+    const univs     = results[2] || [];
+    const entites   = results[3] || [];
+    const depts     = results[4] || [];
+    const niveaux   = results[5] || [];
+    const filieres  = results[6] || [];
+    const admins    = results[7] || [];
 
     if (!parcours.length) { wrap.innerHTML = "<div class='alert alert-warning'>Aucun parcours. Cliquez sur \"+ Créer un parcours\".</div>"; return; }
 
@@ -6083,10 +6081,15 @@ async function saLoadNiveaux() {
 
 async function saLoadActivity() {
   try {
-    // Charger les 50 dernières copies avec plus de détails
-    const copies   = await DB.select("copies",      "order=date_depot.desc&select=*&limit=50") || [];
-    const admins   = await DB.select("admins",      "role=eq.enseignant&select=id,nom,identifiant") || [];
-    const epreuves = await DB.select("exam_config", "select=id,matiere,niveau,statut,admin_id") || [];
+    // 3 requêtes indépendantes en parallèle
+    const [copiesRes, adminsRes, epreuvesRes] = await Promise.all([
+      DB.select("copies",      "order=date_depot.desc&select=*&limit=50"),
+      DB.select("admins",      "role=eq.enseignant&select=id,nom,identifiant"),
+      DB.select("exam_config", "select=id,matiere,niveau,statut,admin_id"),
+    ]);
+    const copies   = copiesRes   || [];
+    const admins   = adminsRes   || [];
+    const epreuves = epreuvesRes || [];
     const wrap     = document.getElementById("sa-activity-list"); if (!wrap) return;
 
     // ── Stats globales
