@@ -1560,6 +1560,11 @@ end $$;
           <input id="sa-smtp-name" placeholder="ExamPlatform" value="ExamPlatform">
         </div>
         <div id="sa-email-config-status" style="margin-bottom:12px;display:none"></div>
+        <div class="field">
+          <label class="lbl">Adresse de test (optionnel)</label>
+          <input id="sa-test-dest" placeholder="test-xxxxx@mail-tester.com (laisser vide pour utiliser l'email du super admin)">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Utilisez <a href="https://www.mail-tester.com" target="_blank" style="color:var(--blue)">mail-tester.com</a> pour obtenir un score de délivrabilité détaillé</div>
+        </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="saSaveEmailConfig()">💾 Enregistrer</button>
           <button class="btn btn-secondary" onclick="saTestEmail()">🧪 Envoyer un email de test</button>
@@ -5361,10 +5366,14 @@ async function saSaveEmailConfig() {
 async function saTestEmail() {
   const from = localStorage.getItem(SA_CFG_FROM) || '';
   if (!from) { toast("Configurez d'abord l'email expediteur.", 'warn'); return; }
-  // Chercher l'email du super admin pour le test
-  const admRow = await DB.select('admins', 'identifiant=eq.admin&select=email').catch(()=>[]) || [];
-  const dest = admRow[0] ? admRow[0].email : null;
-  if (!dest) { toast('Ajoutez un email au compte super admin (champ email dans la table admins) pour tester.', 'warn'); return; }
+  // Priorité : adresse saisie manuellement (ex: mail-tester.com) > email du super admin
+  const customDest = (document.getElementById('sa-test-dest')?.value || '').trim();
+  let dest = customDest;
+  if (!dest) {
+    const admRow = await DB.select('admins', 'identifiant=eq.admin&select=email').catch(()=>[]) || [];
+    dest = admRow[0] ? admRow[0].email : null;
+  }
+  if (!dest) { toast("Saisissez une adresse de test ou ajoutez un email au compte super admin.", 'warn'); return; }
   try {
     const htm = '<div style="font-family:Arial;padding:24px">'
       + '<h2 style="color:#1D4ED8">Test ExamPlatform</h2>'
