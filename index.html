@@ -1025,9 +1025,14 @@ end $$;
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Projetez ce QR code en salle — les étudiants le scannent avec leur téléphone pour accéder directement à l'examen</p>
           <div id="qr-container" style="display:flex;justify-content:center;margin-bottom:16px"></div>
           <div id="qr-url" style="font-size:11px;color:var(--text-muted);word-break:break-all;margin-bottom:16px"></div>
-          <button class="btn btn-primary" onclick="telechargerQRCode()">⬇ Télécharger (PNG)</button>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="telechargerQRCode()">⬇ Télécharger (PNG)</button>
+            <button class="btn btn-secondary" onclick="imprimerQRCode()">🖨️ Mode impression</button>
+          </div>
         </div>
       </div>
+      <!-- Mise en page imprimable du QR (cachée, affichée uniquement à l'impression) -->
+      <div id="qr-print-page" style="display:none"></div>
       <div id="export-feedback"></div>
     </div>
   </div>
@@ -4539,6 +4544,72 @@ function telechargerQRCode() {
   }
 }
 
+// Genere une page A4 imprimable avec le QR, le nom de l'examen, la date et les instructions
+function imprimerQRCode() {
+  const container = document.getElementById('qr-container');
+  const printPage = document.getElementById('qr-print-page');
+  if (!container || !printPage) return;
+
+  const canvas = container.querySelector('canvas');
+  const img = container.querySelector('img');
+  const qrSrc = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+  if (!qrSrc) { toast('QR code non disponible.', 'warn'); return; }
+
+  const matiere   = (CFG && CFG.matiere)   || 'Examen';
+  const niveau    = (CFG && CFG.niveau)    || '';
+  const ecole     = (CFG && CFG.ecole)     || 'ExamPlatform';
+  const institut  = (CFG && CFG.institut)  || '';
+  const dateExam  = (CFG && CFG.date_exam) ? new Date(CFG.date_exam).toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}) : '';
+  const heureExam = (CFG && CFG.heure) || '';
+  const salle     = '';
+
+  printPage.innerHTML = `
+    <div style="width:210mm;min-height:297mm;padding:25mm 20mm;box-sizing:border-box;font-family:Arial,sans-serif;color:#1E293B">
+      <div style="text-align:center;margin-bottom:8mm">
+        <div style="font-size:13px;color:#64748B;letter-spacing:1px;text-transform:uppercase">${escH(ecole)}${institut ? ' — ' + escH(institut) : ''}</div>
+        <div style="font-size:28px;font-weight:800;color:#1D4ED8;margin-top:4mm">${escH(matiere)}</div>
+        ${niveau ? `<div style="font-size:15px;color:#475569;margin-top:2mm">${escH(niveau)}</div>` : ''}
+      </div>
+
+      <div style="display:flex;justify-content:center;gap:8mm;margin:10mm 0;font-size:13px;color:#475569">
+        ${dateExam ? `<div>📅 <strong>${escH(dateExam)}</strong></div>` : ''}
+        ${heureExam ? `<div>🕐 <strong>${escH(heureExam)}</strong></div>` : ''}
+      </div>
+
+      <div style="text-align:center;margin:12mm 0">
+        <div style="display:inline-block;padding:8mm;border:2px solid #1D4ED8;border-radius:6mm;background:#F8FAFC">
+          <img src="${qrSrc}" style="width:70mm;height:70mm;display:block">
+        </div>
+      </div>
+
+      <div style="text-align:center;font-size:12px;color:#94A3B8;margin-bottom:10mm;word-break:break-all">
+        ${escH(window.location.origin + window.location.pathname)}
+      </div>
+
+      <div style="background:#EFF6FF;border-radius:4mm;padding:6mm 8mm;margin-top:8mm">
+        <div style="font-size:14px;font-weight:700;color:#1D4ED8;margin-bottom:4mm">📋 Instructions</div>
+        <ol style="font-size:13px;color:#1E293B;line-height:1.9;margin:0;padding-left:5mm">
+          <li>Ouvrez l'appareil photo de votre téléphone et scannez le QR code ci-dessus</li>
+          <li>Suivez le parcours : université → entité → département → niveau → filière → matière</li>
+          <li>Saisissez votre nom pour vous identifier</li>
+          <li>Un lien d'accès vous sera envoyé par email — ouvrez-le pour démarrer votre composition</li>
+        </ol>
+      </div>
+
+      <div style="text-align:center;margin-top:15mm;font-size:11px;color:#CBD5E1">
+        Document généré automatiquement par ExamPlatform — ${new Date().toLocaleDateString('fr-FR')}
+      </div>
+    </div>
+  `;
+
+  document.body.classList.add('qr-print-mode');
+  window.print();
+  // Nettoyage après impression (ou annulation)
+  const cleanup = () => { document.body.classList.remove('qr-print-mode'); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(cleanup, 5000); // filet de sécurité si afterprint ne se déclenche pas
+}
+
 // ════════════════════════════════════════
 // CACHE MEMOIRE HIERARCHIE SUPER ADMIN
 // ════════════════════════════════════════
@@ -6646,7 +6717,16 @@ function goToStep7() {
 </script>
 
 <style>
-@media print{body *{visibility:hidden!important}body::after{visibility:visible!important;display:block;content:"Impression non autorisée sur cette plateforme.";font-size:24px;text-align:center;padding:5rem;color:#333}}
+/* Anti-impression générale (anti-triche pendant composition), avec exception pour la page QR imprimable */
+@media print{
+  body *{visibility:hidden!important}
+  body::after{visibility:visible!important;display:block;content:"Impression non autorisée sur cette plateforme.";font-size:24px;text-align:center;padding:5rem;color:#333}
+  /* Exception : la page d'impression QR reste visible et masque le message d'interdiction */
+  body.qr-print-mode::after{display:none!important}
+  body.qr-print-mode #qr-print-page,
+  body.qr-print-mode #qr-print-page *{visibility:visible!important}
+  body.qr-print-mode #qr-print-page{position:absolute;top:0;left:0;width:100%}
+}
 </style>
 </body>
 </html>
