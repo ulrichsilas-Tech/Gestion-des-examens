@@ -1019,26 +1019,13 @@ end $$;
       </div>
       <!-- Modale QR Code -->
       <div id="qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
-        <div style="background:#fff;border-radius:16px;padding:28px;max-width:460px;width:95%;text-align:center;position:relative;max-height:90vh;overflow-y:auto">
+        <div style="background:#fff;border-radius:16px;padding:28px;max-width:420px;width:95%;text-align:center;position:relative;max-height:90vh;overflow-y:auto">
           <button onclick="fermerQRCode()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#64748B">✕</button>
           <div style="font-size:22px;margin-bottom:4px">📱</div>
           <h3 style="margin:0 0 4px;color:#0891B2">QR Code d'accès à l'examen</h3>
           <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Projetez ou imprimez ce QR — les étudiants le scannent pour accéder directement à la plateforme</p>
-
-          <!-- Champ URL de production (critique pour que le QR soit scannable) -->
-          <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 12px;margin-bottom:16px;text-align:left">
-            <div style="font-size:11px;font-weight:600;color:#92400E;margin-bottom:4px">⚠️ URL de production (pour un QR scannable)</div>
-            <div style="display:flex;gap:6px">
-              <input id="qr-prod-url" placeholder="https://votre-app.vercel.app"
-                style="flex:1;padding:7px 10px;border:1px solid #E5E7EB;border-radius:8px;font-size:12px;outline:none">
-              <button onclick="regenererQR()" class="btn btn-primary btn-sm">Générer</button>
-            </div>
-            <div style="font-size:10px;color:#92400E;margin-top:4px">Si vous testez en local (file://...), le QR ne sera pas scannable. Saisissez votre URL Vercel.</div>
-          </div>
-
           <div id="qr-container" style="display:flex;justify-content:center;margin-bottom:8px"></div>
           <div id="qr-url" style="font-size:10px;color:var(--text-muted);word-break:break-all;margin-bottom:16px;padding:0 8px"></div>
-
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
             <button class="btn btn-primary" onclick="telechargerQRCode()">⬇ Télécharger PNG</button>
             <button class="btn btn-secondary" onclick="imprimerQRCode()">🖨️ Imprimer</button>
@@ -4504,50 +4491,24 @@ async function genRapportEpreuve() {
 // ════════════════════════════════════════
 function afficherQRCode() {
   const modal = document.getElementById('qr-modal');
-  if (!modal) return;
-
-  // Charger l'URL de production sauvegardée ou détecter l'URL courante
-  const savedUrl = localStorage.getItem('qr_prod_url') || '';
-  const detectedUrl = (window.location.protocol === 'file:')
-    ? ''
-    : (window.location.origin + window.location.pathname).replace(/\/$/, '');
-
-  const urlInput = document.getElementById('qr-prod-url');
-  if (urlInput) urlInput.value = savedUrl || detectedUrl;
-
-  modal.style.display = 'flex';
-  // Générer le QR avec l'URL disponible
-  const urlToUse = savedUrl || detectedUrl;
-  if (urlToUse) _genererQR(urlToUse);
-  else document.getElementById('qr-container').innerHTML =
-    '<p style="color:#F59E0B;font-size:12px">Saisissez votre URL Vercel ci-dessus et cliquez Générer</p>';
-}
-
-function regenererQR() {
-  const urlInput = document.getElementById('qr-prod-url');
-  const url = (urlInput ? urlInput.value.trim() : '').replace(/\/$/, '');
-  if (!url || !url.startsWith('http')) {
-    toast("Saisissez une URL valide (https://...)", 'warn'); return;
-  }
-  localStorage.setItem('qr_prod_url', url);
-  _genererQR(url);
-}
-
-function _genererQR(url) {
   const container = document.getElementById('qr-container');
   const urlEl = document.getElementById('qr-url');
-  if (!container) return;
+  if (!modal || !container) return;
+
+  const url = (window.location.origin + window.location.pathname).replace(/\/$/, '');
+  if (urlEl) urlEl.textContent = url;
+
   container.innerHTML = '';
   if (typeof QRCode === 'undefined') {
-    container.innerHTML = '<p style="color:#EF4444">QRCode.js non chargé.</p>'; return;
+    container.innerHTML = '<p style="color:#EF4444">QRCode.js non charge.</p>';
+    modal.style.display = 'flex'; return;
   }
   new QRCode(container, {
-    text: url,
-    width: 200, height: 200,
+    text: url, width: 200, height: 200,
     colorDark: '#1D4ED8', colorLight: '#ffffff',
     correctLevel: QRCode.CorrectLevel.M
   });
-  if (urlEl) urlEl.textContent = url;
+  modal.style.display = 'flex';
 }
 
 function fermerQRCode() {
