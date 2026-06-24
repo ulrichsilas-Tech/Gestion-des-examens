@@ -1018,21 +1018,35 @@ end $$;
         </div>
       </div>
       <!-- Modale QR Code -->
-      <div id="qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
-        <div style="background:#fff;border-radius:16px;padding:32px;max-width:400px;width:90%;text-align:center;position:relative">
-          <button onclick="fermerQRCode()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer">✕</button>
-          <h3 style="margin-bottom:4px;color:#0891B2">📱 QR Code d'accès</h3>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Projetez ce QR code en salle — les étudiants le scannent avec leur téléphone pour accéder directement à l'examen</p>
-          <div id="qr-container" style="display:flex;justify-content:center;margin-bottom:16px"></div>
-          <div id="qr-url" style="font-size:11px;color:var(--text-muted);word-break:break-all;margin-bottom:16px"></div>
-          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="telechargerQRCode()">⬇ Télécharger (PNG)</button>
-            <button class="btn btn-secondary" onclick="imprimerQRCode()">🖨️ Mode impression</button>
+      <div id="qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:16px;padding:28px;max-width:460px;width:95%;text-align:center;position:relative;max-height:90vh;overflow-y:auto">
+          <button onclick="fermerQRCode()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#64748B">✕</button>
+          <div style="font-size:22px;margin-bottom:4px">📱</div>
+          <h3 style="margin:0 0 4px;color:#0891B2">QR Code d'accès à l'examen</h3>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Projetez ou imprimez ce QR — les étudiants le scannent pour accéder directement à la plateforme</p>
+
+          <!-- Champ URL de production (critique pour que le QR soit scannable) -->
+          <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px 12px;margin-bottom:16px;text-align:left">
+            <div style="font-size:11px;font-weight:600;color:#92400E;margin-bottom:4px">⚠️ URL de production (pour un QR scannable)</div>
+            <div style="display:flex;gap:6px">
+              <input id="qr-prod-url" placeholder="https://votre-app.vercel.app"
+                style="flex:1;padding:7px 10px;border:1px solid #E5E7EB;border-radius:8px;font-size:12px;outline:none">
+              <button onclick="regenererQR()" class="btn btn-primary btn-sm">Générer</button>
+            </div>
+            <div style="font-size:10px;color:#92400E;margin-top:4px">Si vous testez en local (file://...), le QR ne sera pas scannable. Saisissez votre URL Vercel.</div>
+          </div>
+
+          <div id="qr-container" style="display:flex;justify-content:center;margin-bottom:8px"></div>
+          <div id="qr-url" style="font-size:10px;color:var(--text-muted);word-break:break-all;margin-bottom:16px;padding:0 8px"></div>
+
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="telechargerQRCode()">⬇ Télécharger PNG</button>
+            <button class="btn btn-secondary" onclick="imprimerQRCode()">🖨️ Imprimer</button>
           </div>
         </div>
       </div>
       <!-- Mise en page imprimable du QR (cachée, affichée uniquement à l'impression) -->
-      <div id="qr-print-page" style="display:none"></div>
+      <div id="qr-print-page" style="position:fixed;top:-9999px;left:-9999px;visibility:hidden"></div>
       <div id="export-feedback"></div>
     </div>
   </div>
@@ -4490,33 +4504,50 @@ async function genRapportEpreuve() {
 // ════════════════════════════════════════
 function afficherQRCode() {
   const modal = document.getElementById('qr-modal');
+  if (!modal) return;
+
+  // Charger l'URL de production sauvegardée ou détecter l'URL courante
+  const savedUrl = localStorage.getItem('qr_prod_url') || '';
+  const detectedUrl = (window.location.protocol === 'file:')
+    ? ''
+    : (window.location.origin + window.location.pathname).replace(/\/$/, '');
+
+  const urlInput = document.getElementById('qr-prod-url');
+  if (urlInput) urlInput.value = savedUrl || detectedUrl;
+
+  modal.style.display = 'flex';
+  // Générer le QR avec l'URL disponible
+  const urlToUse = savedUrl || detectedUrl;
+  if (urlToUse) _genererQR(urlToUse);
+  else document.getElementById('qr-container').innerHTML =
+    '<p style="color:#F59E0B;font-size:12px">Saisissez votre URL Vercel ci-dessus et cliquez Générer</p>';
+}
+
+function regenererQR() {
+  const urlInput = document.getElementById('qr-prod-url');
+  const url = (urlInput ? urlInput.value.trim() : '').replace(/\/$/, '');
+  if (!url || !url.startsWith('http')) {
+    toast("Saisissez une URL valide (https://...)", 'warn'); return;
+  }
+  localStorage.setItem('qr_prod_url', url);
+  _genererQR(url);
+}
+
+function _genererQR(url) {
   const container = document.getElementById('qr-container');
   const urlEl = document.getElementById('qr-url');
-  if (!modal || !container) return;
-
-  // URL d'acces : page d'accueil avec les cles deja en dur dans le code
-  const baseUrl = window.location.origin + window.location.pathname;
-  const url = baseUrl.replace(/\/$/, '');
-  if (urlEl) urlEl.textContent = url;
-
-  // Nettoyer le precedent
+  if (!container) return;
   container.innerHTML = '';
-
   if (typeof QRCode === 'undefined') {
-    container.innerHTML = '<p style="color:#EF4444">QRCode.js non charge. Verifiez la connexion.</p>';
-    modal.style.display = 'flex';
-    return;
+    container.innerHTML = '<p style="color:#EF4444">QRCode.js non chargé.</p>'; return;
   }
-
   new QRCode(container, {
     text: url,
-    width: 220,
-    height: 220,
-    colorDark: '#1D4ED8',
-    colorLight: '#ffffff',
+    width: 200, height: 200,
+    colorDark: '#1D4ED8', colorLight: '#ffffff',
     correctLevel: QRCode.CorrectLevel.M
   });
-  modal.style.display = 'flex';
+  if (urlEl) urlEl.textContent = url;
 }
 
 function fermerQRCode() {
@@ -4561,43 +4592,69 @@ function imprimerQRCode() {
   const institut  = (CFG && CFG.institut)  || '';
   const dateExam  = (CFG && CFG.date_exam) ? new Date(CFG.date_exam).toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}) : '';
   const heureExam = (CFG && CFG.heure) || '';
-  const salle     = '';
+  const dureeMin  = (CFG && CFG.duree) || '';
+  const session   = (CFG && CFG.session) || '';
 
   printPage.innerHTML = `
-    <div style="width:210mm;min-height:297mm;padding:25mm 20mm;box-sizing:border-box;font-family:Arial,sans-serif;color:#1E293B">
-      <div style="text-align:center;margin-bottom:8mm">
-        <div style="font-size:13px;color:#64748B;letter-spacing:1px;text-transform:uppercase">${escH(ecole)}${institut ? ' — ' + escH(institut) : ''}</div>
-        <div style="font-size:28px;font-weight:800;color:#1D4ED8;margin-top:4mm">${escH(matiere)}</div>
-        ${niveau ? `<div style="font-size:15px;color:#475569;margin-top:2mm">${escH(niveau)}</div>` : ''}
-      </div>
+    <div style="width:100vw;height:100vh;box-sizing:border-box;font-family:Arial,sans-serif;color:#1E293B;background:#fff;display:flex;flex-direction:column">
 
-      <div style="display:flex;justify-content:center;gap:8mm;margin:10mm 0;font-size:13px;color:#475569">
-        ${dateExam ? `<div>📅 <strong>${escH(dateExam)}</strong></div>` : ''}
-        ${heureExam ? `<div>🕐 <strong>${escH(heureExam)}</strong></div>` : ''}
-      </div>
-
-      <div style="text-align:center;margin:12mm 0">
-        <div style="display:inline-block;padding:8mm;border:2px solid #1D4ED8;border-radius:6mm;background:#F8FAFC">
-          <img src="${qrSrc}" style="width:70mm;height:70mm;display:block">
+      <!-- BANDEAU EN-TETE bleu fonce -->
+      <div style="background:#1D4ED8;padding:7mm 14mm 6mm;flex-shrink:0">
+        <div style="color:#BFDBFE;font-size:9pt;text-transform:uppercase;letter-spacing:2px;margin-bottom:1mm">${escH(ecole)}${institut ? ' &mdash; ' + escH(institut) : ''}</div>
+        <div style="color:#fff;font-size:20pt;font-weight:800;line-height:1.1">${escH(matiere)}</div>
+        ${niveau ? `<div style="color:#93C5FD;font-size:10pt;margin-top:1mm">${escH(niveau)}</div>` : ''}
+        <div style="display:flex;gap:6mm;flex-wrap:wrap;margin-top:3mm">
+          ${dateExam ? `<span style="background:rgba(255,255,255,.15);color:#fff;padding:1mm 3mm;border-radius:3mm;font-size:9pt">&#128197; ${escH(dateExam)}</span>` : ''}
+          ${heureExam ? `<span style="background:rgba(255,255,255,.15);color:#fff;padding:1mm 3mm;border-radius:3mm;font-size:9pt">&#128336; ${escH(heureExam)}</span>` : ''}
+          ${dureeMin ? `<span style="background:rgba(255,255,255,.15);color:#fff;padding:1mm 3mm;border-radius:3mm;font-size:9pt">&#9201; ${escH(String(dureeMin))} min</span>` : ''}
+          ${session ? `<span style="background:rgba(255,255,255,.15);color:#fff;padding:1mm 3mm;border-radius:3mm;font-size:9pt">Session : ${escH(session)}</span>` : ''}
         </div>
       </div>
 
-      <div style="text-align:center;font-size:12px;color:#94A3B8;margin-bottom:10mm;word-break:break-all">
-        ${escH(window.location.origin + window.location.pathname)}
+      <!-- CORPS : QR a gauche, instructions a droite -->
+      <div style="display:flex;flex:1;padding:8mm 14mm;gap:10mm;align-items:stretch">
+
+        <!-- COLONNE GAUCHE : QR code -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;width:75mm">
+          <div style="border:3px solid #1D4ED8;border-radius:5mm;padding:4mm;background:#F8FAFC;display:inline-block">
+            <img src="${qrSrc}" style="width:65mm;height:65mm;display:block">
+          </div>
+          <div style="margin-top:3mm;text-align:center">
+            <div style="font-size:8pt;color:#64748B;font-weight:600">Scannez avec votre</div>
+            <div style="font-size:8pt;color:#64748B;font-weight:600">appareil photo</div>
+          </div>
+          <div style="font-size:6.5pt;color:#94A3B8;margin-top:2mm;text-align:center;word-break:break-all;max-width:70mm">
+            ${escH(window.location.origin + window.location.pathname)}
+          </div>
+        </div>
+
+        <!-- SEPARATEUR vertical -->
+        <div style="width:1px;background:#E2E8F0;flex-shrink:0"></div>
+
+        <!-- COLONNE DROITE : Instructions -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+          <div style="font-size:13pt;font-weight:700;color:#1D4ED8;margin-bottom:4mm;padding-bottom:2mm;border-bottom:2px solid #EFF6FF">
+            &#128203; Instructions pour les &eacute;tudiants
+          </div>
+          <ol style="font-size:10.5pt;color:#1E293B;line-height:1.85;margin:0;padding-left:5mm">
+            <li style="margin-bottom:1mm">Scannez le QR code avec l'appareil photo de votre t&eacute;l&eacute;phone</li>
+            <li style="margin-bottom:1mm">S&eacute;lectionnez votre parcours : <em>universit&eacute; &rarr; entit&eacute; &rarr; d&eacute;partement &rarr; niveau &rarr; fili&egrave;re &rarr; mati&egrave;re</em></li>
+            <li style="margin-bottom:1mm">Tapez les premi&egrave;res lettres de votre <strong>nom de famille</strong> et s&eacute;lectionnez votre profil</li>
+            <li style="margin-bottom:1mm">V&eacute;rifiez vos informations (nom, matricule, email) puis cliquez sur <strong>Continuer vers l'identification</strong></li>
+            <li style="margin-bottom:1mm">Consultez votre bo&icirc;te email &mdash; un <strong>lien personnel et unique</strong> vous a &eacute;t&eacute; envoy&eacute;</li>
+            <li>Cliquez sur le lien re&ccedil;u pour acc&eacute;der &agrave; votre espace de composition</li>
+          </ol>
+          <div style="margin-top:5mm;padding:3mm 4mm;background:#FEF2F2;border-left:4px solid #DC2626;border-radius:0 3mm 3mm 0">
+            <span style="font-size:9pt;color:#DC2626;font-weight:700">&#9888; Important :</span>
+            <span style="font-size:9pt;color:#991B1B"> Le lien est &agrave; usage unique et personnel. Il expire &agrave; la fin de la s&eacute;ance. Ne le partagez sous aucun pr&eacute;texte.</span>
+          </div>
+        </div>
       </div>
 
-      <div style="background:#EFF6FF;border-radius:4mm;padding:6mm 8mm;margin-top:8mm">
-        <div style="font-size:14px;font-weight:700;color:#1D4ED8;margin-bottom:4mm">📋 Instructions</div>
-        <ol style="font-size:13px;color:#1E293B;line-height:1.9;margin:0;padding-left:5mm">
-          <li>Ouvrez l'appareil photo de votre téléphone et scannez le QR code ci-dessus</li>
-          <li>Suivez le parcours : université → entité → département → niveau → filière → matière</li>
-          <li>Saisissez votre nom pour vous identifier</li>
-          <li>Un lien d'accès vous sera envoyé par email — ouvrez-le pour démarrer votre composition</li>
-        </ol>
-      </div>
-
-      <div style="text-align:center;margin-top:15mm;font-size:11px;color:#CBD5E1">
-        Document généré automatiquement par ExamPlatform — ${new Date().toLocaleDateString('fr-FR')}
+      <!-- PIED DE PAGE -->
+      <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:3mm 14mm;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <span style="font-size:8pt;color:#94A3B8;font-weight:600">ExamPlatform</span>
+        <span style="font-size:8pt;color:#94A3B8">Document g&eacute;n&eacute;r&eacute; le ${new Date().toLocaleDateString('fr-FR')}</span>
       </div>
     </div>
   `;
@@ -6722,11 +6779,19 @@ function goToStep7() {
   body *{visibility:hidden!important}
   body::after{visibility:visible!important;display:block;content:"Impression non autorisée sur cette plateforme.";font-size:24px;text-align:center;padding:5rem;color:#333}
   /* Exception : la page d'impression QR reste visible et masque le message d'interdiction */
-  body.qr-print-mode::after{display:none!important}
-  body.qr-print-mode #qr-print-page,
+  body.qr-print-mode::after{display:none!important;content:''!important}
+  body.qr-print-mode #qr-print-page{
+    visibility:visible!important;
+    position:fixed!important;
+    top:0!important;left:0!important;
+    width:100vw!important;height:100vh!important;
+    background:#fff!important;
+    z-index:99999!important;
+  }
   body.qr-print-mode #qr-print-page *{visibility:visible!important}
-  body.qr-print-mode #qr-print-page{position:absolute;top:0;left:0;width:100%}
 }
+/* Supprimer les marges navigateur en mode impression QR uniquement */
+@page { margin: 0; }
 </style>
 </body>
 </html>
