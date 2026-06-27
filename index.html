@@ -91,8 +91,8 @@ textarea{resize:vertical;min-height:80px}
 .exam-header-row .val{font-weight:600}
 .candidat-zone{background:var(--blue-light);border-top:1px solid #BFDBFE;padding:10px 16px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
 .consigne-banner{background:#FEF3C7;border:1.5px solid #F59E0B;border-radius:var(--radius);padding:12px 16px;font-size:13px;color:#78350F;margin-bottom:16px}
-.question-card{background:#fff;border:1px solid var(--gray-mid);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);transition:border-color .2s}
-.question-card.answered{border-color:#10B981;border-left:4px solid #10B981}
+.question-card{background:#fff;border:2px solid #EF4444;border-radius:var(--radius-lg);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);transition:border-color .2s,border-left .2s}
+.question-card.answered{border-color:#10B981;border-left:4px solid #10B981;border-width:2px}
 .q-title{font-size:14px;font-weight:600;margin-bottom:12px;line-height:1.5;display:flex;gap:6px}
 .q-num{background:var(--blue);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;white-space:nowrap;flex-shrink:0;align-self:flex-start;margin-top:1px}
 .choice-label{display:flex;align-items:flex-start;gap:10px;padding:7px 10px;border-radius:var(--radius);cursor:pointer;font-size:13px;transition:background .1s;line-height:1.4}
@@ -559,7 +559,7 @@ create table if not exists exam_config (
   bareme int default 20, consigne text, enseignant text,
   statut text default 'ferme',
   email_verification boolean default false,
-  resend_key text, smtp_from text,
+  resend_key text, smtp_from text, reclamation_email text,
   logo_universite text, logo_entite text,
   -- pwd_admin text, (vestige supprime - utiliser admins.pwd)
   created_at timestamptz default now()
@@ -775,6 +775,14 @@ end $$;
       </div>
     </div>
   </div>
+  <!-- Badge Powered by AAZ Consulting -->
+  <div style="position:fixed;bottom:16px;right:16px;display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #1D4ED8;border-radius:12px;padding:6px 14px 6px 8px;box-shadow:0 4px 16px rgba(29,78,216,.15);z-index:10;cursor:default">
+    <img id="badge-aaz-home" src="" alt="AAZ Consulting" style="height:28px;width:auto;display:block">
+    <div style="display:flex;flex-direction:column;line-height:1.2">
+      <span style="font-size:9px;color:#64748B;font-weight:400">Conçu &amp; développé par</span>
+      <span style="font-size:12px;font-weight:700;color:#1D4ED8">AAZ Consulting</span>
+    </div>
+  </div>
 </div>
 
 <!-- LOGIN ADMIN -->
@@ -867,7 +875,8 @@ end $$;
         </div>
       </div>
       <div class="field"><label class="lbl">📝 Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
-      <div class="field"><label class="lbl">👨‍🏫 Nom de l'enseignant</label><input id="c-enseignant" placeholder="Votre nom complet"></div>
+      <div class="field"><label class="lbl">👨‍🏫 Nom de l'Enseignant</label><input id="c-enseignant" placeholder="Votre nom complet"></div>
+      <div class="field"><label class="lbl">📧 Email de réclamation (optionnel)</label><input id="c-reclamation-email" type="email" placeholder="reclamation@etablissement.com"><div style="font-size:11px;color:var(--text-muted);margin-top:4px">Affiché dans l'email de résultat pour permettre aux étudiants de contester leur note.</div></div>
       <div class="sep"></div>
       <!-- Logos gérés par le super admin uniquement — champs hidden pour compatibilité PDF/Excel -->
       <input type="hidden" id="c-logo-univ">
@@ -1302,6 +1311,13 @@ end $$;
         <p style="font-size:12px;color:var(--text-muted);margin-top:10px">Un mail de confirmation vous sera envoyé à l'adresse enregistrée.</p>
         <div class="sep"></div>
         <button class="btn btn-primary" onclick="goTo('pg-home')" style="width:100%">🏠 Retour à l'accueil</button>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:20px;padding:10px 16px;background:#EFF6FF;border:1.5px solid #1D4ED8;border-radius:12px">
+          <img id="badge-aaz-resultat" src="" alt="AAZ Consulting" style="height:26px;width:auto">
+          <div style="display:flex;flex-direction:column;line-height:1.2">
+            <span style="font-size:9px;color:#64748B">Conçu &amp; développé par</span>
+            <span style="font-size:12px;font-weight:700;color:#1D4ED8">AAZ Consulting</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1840,6 +1856,13 @@ function copySQL() {
 // ════════════════════════════════════════
 // INIT APP
 // ════════════════════════════════════════
+// Initialiser le logo AAZ partout au chargement
+function initLogoAAZ() {
+  document.querySelectorAll('[id^="badge-aaz"]').forEach(el => {
+    if (el && LOGO_AAZ_B64) el.src = LOGO_AAZ_B64;
+  });
+}
+
 async function initApp() {
   try {
     // ── Lire les clés depuis le hash URL (lien partageable entre navigateurs)
@@ -2498,7 +2521,11 @@ function buildEpreuve() {
     const htmlBlock = q.html_content ? `
       <div class="q-html-content">${q.html_content}</div>` : '';
     html+=`<div class="question-card" id="qcard-${q.id}">
-      <div class="q-title"><span class="q-num">Q${q.num}</span><span>${escH(q.texte||'')}</span><span style="color:var(--red);font-size:12px">*</span></div>
+      <div class="q-title">
+        <span class="q-num">Q${q.num}</span>
+        <span class="q-status-badge badge badge-red" id="qbadge-${q.id}" style="font-size:10px;padding:2px 8px;margin-left:6px">Non répondu</span>
+        <span>${escH(q.texte||'')}</span><span style="color:var(--red);font-size:12px">*</span>
+      </div>
       ${imgBlock}${htmlBlock}
       <div>${(q.sousQuestions||[]).map(sq=>`
         <label class="choice-label">
@@ -2527,7 +2554,7 @@ function buildExamHeader(c) {
       </div>
       <div class="center">
         ${escH(CFG.matiere||'').toUpperCase()}<br>
-        <span style="font-size:12px;font-weight:400">${escH(CFG.session||'')} — ${escH(CFG.annee||'')}</span><br>
+        <span style="font-size:12px;font-weight:400">${formatSession(CFG.session)} ${escH(CFG.annee||'')}</span><br>
         <span style="font-size:10px;font-weight:400;opacity:.85">${escH(sousTitre)}</span>
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
@@ -2554,7 +2581,19 @@ function onChoice(sqId, qId, checked) {
   if (!repCand[qId]) repCand[qId] = {};
   repCand[qId][sqId] = checked;
   const card = document.getElementById('qcard-'+qId);
-  card.classList.toggle('answered', Object.values(repCand[qId]).some(v=>v));
+  const isAnswered = Object.values(repCand[qId]).some(v=>v);
+  card.classList.toggle('answered', isAnswered);
+  // Mettre à jour le badge rouge/vert de la question
+  const badge = document.getElementById('qbadge-'+qId);
+  if (badge) {
+    if (isAnswered) {
+      badge.className = 'q-status-badge badge badge-green';
+      badge.textContent = 'Répondu';
+    } else {
+      badge.className = 'q-status-badge badge badge-red';
+      badge.textContent = 'Non répondu';
+    }
+  }
   updateCounter();
 }
 
@@ -2661,7 +2700,9 @@ async function envoyerEmailResultat(noteSur20) {
     + '<div style="font-size:14px;color:#1E293B"><strong>Filière :</strong> ' + escH(currentCandidat.filiere||'—') + '</div>'
     + '<div style="font-size:14px;color:#1E293B"><strong>Date :</strong> ' + new Date().toLocaleString('fr-FR') + '</div>'
     + '</div>'
-    + '<p style="font-size:12px;color:#94A3B8;text-align:center;margin:0">Ce résultat est généré automatiquement par la plateforme.<br>Pour toute contestation, contactez votre enseignant.</p>'
+    + '<p style="font-size:12px;color:#94A3B8;text-align:center;margin:0">Ce résultat est généré automatiquement par la plateforme.<br>Pour toute contestation, contactez votre enseignant'
+    + (CFG && CFG.reclamation_email ? ' ou écrivez à <a href="mailto:' + CFG.reclamation_email + '" style="color:#1D4ED8">' + escH(CFG.reclamation_email) + '</a>' : '')
+    + '.</p>'
     + '</td></tr>'
     + '<tr><td style="background:#F8FAFC;padding:16px 32px;text-align:center;border-top:1px solid #E2E8F0">'
     + '<p style="margin:0;font-size:11px;color:#94A3B8">ExamPlatform — Cet email est généré automatiquement.</p>'
@@ -3008,7 +3049,7 @@ async function buildReleveExcelINE(filiere, candsFil, copiesFil, notesCC) {
   ];
   const rowsBleu = [
     `ECUE (Intitulé de la Matière) : ${CFG.matiere||''}`,
-    `Session (Normale, rattrapage, reprise): ${CFG.session||'Normale'}`,
+    `Session : ${formatSession(CFG.session||'Normale')}`,
     `Nom de l'Enseignant : ${CFG.enseignant||''}`
   ];
 
@@ -3165,7 +3206,7 @@ function buildRelevePDFINEPage(doc, filiere, candsFil, copiesFil) {
   doc.text(`Année académique : ${CFG.annee||''}`, W/2, 36, {align:'center'});
   doc.text(`Année d'étude : ${CFG.niveau||''}`, W/2, 42, {align:'center'});
   doc.text(`ECUE : ${CFG.matiere||''}`, W/2, 48, {align:'center'});
-  doc.text(`Session : ${CFG.session||'Normale'}`, W/2, 54, {align:'center'});
+  doc.text(`Session : ${formatSession(CFG.session||'Normale')}`, W/2, 54, {align:'center'});
   doc.text(`Nom de l'Enseignant : ${CFG.enseignant||''}`, W/2, 60, {align:'center'});
   doc.setFontSize(11); doc.setFont(undefined,'bold');
   doc.text('Fiche de report des notes', W/2, 69, {align:'center'});
@@ -3451,7 +3492,7 @@ function buildPDFCopie(doc, cop, corriger) {
   doc.setFontSize(11); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
   doc.text(cleanText((CFG.matiere||'').toUpperCase()), W/2, y+13, {align:'center'});
   doc.setFontSize(7.5); doc.setFont(undefined,'normal');
-  doc.text(cleanText(CFG.session||'')+' — '+cleanText(CFG.annee||''), W/2, y+20, {align:'center'});
+  doc.text(cleanText(formatSession(CFG.session)||'')+' '+cleanText(CFG.annee||''), W/2, y+20, {align:'center'});
   const _pdfSousTitre = [CFG.ecole||'UAC', CFG.institut||'INE'].filter(Boolean).join(' — ');
   doc.setFontSize(6); doc.text(cleanText(_pdfSousTitre), W/2, y+26, {align:'center'});
   y += 33;
@@ -3704,6 +3745,13 @@ function toast(msg,type='success'){
 
 function v(id){const el=document.getElementById(id);return el?el.value.trim():'';}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function formatSession(s) {
+  if (!s) return '';
+  const sl = s.toLowerCase().trim();
+  if (sl === 'normale') return 'Section normale';
+  if (sl === 'rattrapage') return 'Section de rattrapage';
+  return 'Section ' + s;
+}
 function formatDate(d){if(!d)return'—';try{const p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];}catch(e){return d;}}
 
 document.addEventListener('contextmenu',e=>{if(!adminAuth)e.preventDefault();});
@@ -4276,7 +4324,8 @@ function loadConfigFormNew() {
     heure:"c-heure", duree:"c-duree", session:"c-session",
     bareme:"c-bareme", consigne:"c-consigne", enseignant:"c-enseignant",
     logo_universite:"c-logo-univ", logo_entite:"c-logo-entite",
-    resend_key:"c-resend-key", smtp_from:"c-smtp-from"
+    resend_key:"c-resend-key", smtp_from:"c-smtp-from",
+    reclamation_email:"c-reclamation-email"
   };
   Object.entries(map).forEach(([k, id]) => {
     const el = document.getElementById(id);
@@ -4335,6 +4384,7 @@ async function saveConfigNew() {
     resend_key:  v("c-resend-key")  || CFG.resend_key  || "",
     smtp_from:   v("c-smtp-from")   || CFG.smtp_from   || "",
     email_verification: document.getElementById("c-email-verif")?.checked || CFG.email_verification || false,
+    reclamation_email: v("c-reclamation-email") || CFG.reclamation_email || "",
   };
   try {
     // Lier automatiquement au parcours de l'enseignant s'il n'est pas encore renseigné
@@ -4479,7 +4529,7 @@ async function genRapportEpreuve() {
   }
 
   doc.setFontSize(8); doc.setTextColor(148,163,184);
-  doc.text("Genere le "+new Date().toLocaleString("fr-FR")+" - ExamPlatform", W/2, 287, {align:"center"});
+  doc.text("Genere le "+new Date().toLocaleString("fr-FR")+" - ExamPlatform | Powered by AAZ Consulting", W/2, 287, {align:"center"});
 
   const fname = "rapport_"+(CFG.matiere||"epreuve").replace(/[^a-zA-Z0-9_]/g,"_")+".pdf";
   doc.save(fname);
@@ -5524,6 +5574,8 @@ async function sendCompositionToken() {
 
 // Edge Function Supabase — relaie vers Resend sans blocage CORS
 const EDGE_SEND_EMAIL = "https://ucnxauigwhuiaxdgpwrt.supabase.co/functions/v1/send-email";
+// Logo AAZ Consulting — concepteur de la plateforme
+const LOGO_AAZ_B64 = "data:image/png;base64,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";
 
 async function sendEmailResend(to, subject, text, html, resendKey, smtpFrom) {
   const globalFrom = localStorage.getItem('sa_smtp_from') || '';
@@ -6671,6 +6723,7 @@ async function saLoadActivity() {
 // ════════════════════════════════════════
 (async function start(){
   document.body.style.visibility = 'visible';
+  initLogoAAZ();
   if (!SB_URL || !SB_KEY) { goTo('pg-setup'); return; }
 
   // Si l'URL contient un token de composition, le traiter en priorité
