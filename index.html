@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ExamPlatform — INE</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#1D4ED8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -91,8 +98,8 @@ textarea{resize:vertical;min-height:80px}
 .exam-header-row .val{font-weight:600}
 .candidat-zone{background:var(--blue-light);border-top:1px solid #BFDBFE;padding:10px 16px;display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
 .consigne-banner{background:#FEF3C7;border:1.5px solid #F59E0B;border-radius:var(--radius);padding:12px 16px;font-size:13px;color:#78350F;margin-bottom:16px}
-.question-card{background:#fff;border:2px solid #EF4444;border-radius:var(--radius-lg);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);transition:border-color .2s,border-left .2s}
-.question-card.answered{border-color:#10B981;border-left:4px solid #10B981;border-width:2px}
+.question-card{background:#fff;border-left:4px solid #EF444466;border:1px solid #FECACA;border-left:4px solid #EF4444;border-radius:var(--radius-lg);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);transition:border-color .2s,border-left-color .2s}
+.question-card.answered{border-color:#D1FAE5;border-left:4px solid #10B981}
 .q-title{font-size:14px;font-weight:600;margin-bottom:12px;line-height:1.5;display:flex;gap:6px}
 .q-num{background:var(--blue);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;white-space:nowrap;flex-shrink:0;align-self:flex-start;margin-top:1px}
 .choice-label{display:flex;align-items:flex-start;gap:10px;padding:7px 10px;border-radius:var(--radius);cursor:pointer;font-size:13px;transition:background .1s;line-height:1.4}
@@ -613,6 +620,19 @@ create table if not exists reset_tokens (
   expires_at timestamptz, used boolean default false
 );
 
+create table if not exists invitations (
+  id uuid primary key default gen_random_uuid(),
+  exam_config_id uuid references exam_config(id) on delete cascade,
+  candidat_id uuid references candidats(id) on delete cascade,
+  matricule text not null,
+  email text not null,
+  statut text default 'en_attente',
+  erreur text,
+  sent_at timestamptz,
+  created_at timestamptz default now(),
+  unique(exam_config_id, matricule)
+);
+
 -- ══ 2. SUPER ADMIN PAR DÉFAUT ══
 insert into admins (identifiant, nom, email, pwd, role, valide)
 values ('admin', 'Super Administrateur', 'admin@examplatform.com', 'admin123', 'superadmin', true)
@@ -623,7 +643,7 @@ do $$
 declare t text;
 tables text[] := array[
   'admins','exam_config','candidats','questions','sous_questions',
-  'copies','tokens_composition','reset_tokens',
+  'copies','tokens_composition','reset_tokens','invitations',
   'universites','entites','departements','niveaux','filieres',
   'parcours','parcours_filieres'
 ];
@@ -640,7 +660,7 @@ do $$
 declare t text;
 tables text[] := array[
   'admins','exam_config','candidats','questions','sous_questions',
-  'copies','tokens_composition','reset_tokens',
+  'copies','tokens_composition','reset_tokens','invitations',
   'universites','entites','departements','niveaux','filieres',
   'parcours','parcours_filieres'
 ];
@@ -670,6 +690,7 @@ create policy "public_read" on sous_questions    for select to anon using (true)
 create policy "public_read" on copies            for select to anon using (true);
 create policy "public_read" on tokens_composition for select to anon using (true);
 create policy "public_read" on reset_tokens       for select to anon using (true);
+create policy "public_read" on invitations        for select to anon using (true);
 
 -- Écriture autorisée pour toutes les tables (l'app gère les droits)
 create policy "anon_write" on universites  for all to anon using (true) with check (true);
@@ -686,6 +707,7 @@ create policy "anon_write" on sous_questions    for all to anon using (true) wit
 create policy "anon_write" on copies            for all to anon using (true) with check (true);
 create policy "anon_write" on tokens_composition for all to anon using (true) with check (true);
 create policy "anon_write" on reset_tokens       for all to anon using (true) with check (true);
+create policy "anon_write" on invitations        for all to anon using (true) with check (true);
 
 -- Table admins : lecture restreinte (pas de select * depuis l'extérieur)
 -- Seul le login (select par identifiant) est autorisé — la colonne pwd
@@ -777,7 +799,7 @@ end $$;
   </div>
   <!-- Badge Powered by AAZ Consulting -->
   <div style="position:fixed;bottom:16px;right:16px;display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #1D4ED8;border-radius:12px;padding:6px 14px 6px 8px;box-shadow:0 4px 16px rgba(29,78,216,.15);z-index:10;cursor:default">
-    <img id="badge-aaz-home" src="" alt="AAZ Consulting" style="height:28px;width:auto;display:block">
+    <img id="badge-aaz-home" src="" alt="AAZ Consulting" style="height:38px;width:auto;display:block">
     <div style="display:flex;flex-direction:column;line-height:1.2">
       <span style="font-size:9px;color:#64748B;font-weight:400">Conçu &amp; développé par</span>
       <span style="font-size:12px;font-weight:700;color:#1D4ED8">AAZ Consulting</span>
@@ -838,6 +860,7 @@ end $$;
       <button class="tab-btn active" onclick="switchTab(this,'tab-config')">⚙️ Configuration</button>
       <button class="tab-btn" onclick="switchTab(this,'tab-epreuve')">📋 Épreuve</button>
       <button class="tab-btn" onclick="switchTab(this,'tab-candidats')">👥 Étudiants</button>
+      <button class="tab-btn" onclick="switchTab(this,'tab-invitations')">📧 Invitations</button>
       <button class="tab-btn" onclick="switchTab(this,'tab-resultats')">📊 Résultats</button>
       <button class="tab-btn" onclick="switchTab(this,'tab-exports')">📤 Exports</button>
     </div>
@@ -939,6 +962,16 @@ end $$;
         <button class="btn btn-sm active-filiere" id="fil-btn-all" onclick="filterFiliere('all',this)">Toutes les filières</button>
       </div>
       <div id="candidats-table-wrap"><div class="alert alert-warning">Chargement...</div></div>
+    </div>
+
+    <!-- INVITATIONS -->
+    <div id="tab-invitations" class="admin-tab" style="display:none">
+      <div class="section-title" style="margin-bottom:1rem">Invitations envoyées</div>
+      <div class="alert alert-info" style="font-size:12px">
+        📧 Un email est envoyé automatiquement à chaque étudiant dès que vous cliquez sur <strong>« Ouvrir l'examen »</strong>.
+        Les étudiants ajoutés (ou dont l'email est corrigé) après l'ouverture reçoivent aussi automatiquement leur invitation, sans qu'il soit nécessaire de fermer puis rouvrir l'épreuve.
+      </div>
+      <div id="invitations-table-wrap"><div class="alert alert-warning">Chargement...</div></div>
     </div>
 
     <!-- RÉSULTATS -->
@@ -1312,7 +1345,7 @@ end $$;
         <div class="sep"></div>
         <button class="btn btn-primary" onclick="goTo('pg-home')" style="width:100%">🏠 Retour à l'accueil</button>
         <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:20px;padding:10px 16px;background:#EFF6FF;border:1.5px solid #1D4ED8;border-radius:12px">
-          <img id="badge-aaz-resultat" src="" alt="AAZ Consulting" style="height:26px;width:auto">
+          <img id="badge-aaz-resultat" src="" alt="AAZ Consulting" style="height:36px;width:auto">
           <div style="display:flex;flex-direction:column;line-height:1.2">
             <span style="font-size:9px;color:#64748B">Conçu &amp; développé par</span>
             <span style="font-size:12px;font-weight:700;color:#1D4ED8">AAZ Consulting</span>
@@ -1957,6 +1990,7 @@ function switchTab(btn, tabId) {
   btn.classList.add('active');
   document.getElementById(tabId).style.display = 'block';
   if (tabId==='tab-candidats') renderCandidatsTable();
+  if (tabId==='tab-invitations') renderInvitationsTable();
   if (tabId==='tab-resultats') loadResultats();
   if (tabId==='tab-epreuve') renderQBuilder();
 }
@@ -2404,6 +2438,11 @@ async function parseCandidatsExcel(input) {
       CANDIDATS = await DB.select('candidats', 'exam_config_id=eq.'+CFG.id+'&order=nom.asc') || [];
       const msg = count + ' étudiant(s) importé(s)' + (updated ? ' (dont '+updated+' mis à jour)' : '');
       toast(msg, 'success');
+      // Si l'épreuve est déjà ouverte, inviter automatiquement les nouveaux
+      // étudiants (ou ceux dont l'email vient d'être corrigé), sans rouvrir l'épreuve
+      if (CFG.statut === 'ouvert') {
+        envoyerInvitationsPourEpreuve(CFG.id).catch(e => console.warn('Invitations:', e.message));
+      }
     } catch(e) { toast('Erreur: '+e.message,'error'); }
   };
   reader.readAsBinaryString(file); input.value='';
@@ -2415,6 +2454,9 @@ async function deleteCandidat(mat) {
       ? 'matricule=eq.'+mat+'&exam_config_id=eq.'+CFG.id
       : 'matricule=eq.'+mat+'&admin_id=eq.'+currentAdmin.id;
     await DB.delete('candidats', filter).catch(()=>{});
+    if (CFG && CFG.id) {
+      await DB.delete('invitations', 'matricule=eq.'+mat+'&exam_config_id=eq.'+CFG.id).catch(()=>{});
+    }
     closeModal(); renderCandidatsTable();
   });
 }
@@ -2700,9 +2742,11 @@ async function envoyerEmailResultat(noteSur20) {
     + '<div style="font-size:14px;color:#1E293B"><strong>Filière :</strong> ' + escH(currentCandidat.filiere||'—') + '</div>'
     + '<div style="font-size:14px;color:#1E293B"><strong>Date :</strong> ' + new Date().toLocaleString('fr-FR') + '</div>'
     + '</div>'
-    + '<p style="font-size:12px;color:#94A3B8;text-align:center;margin:0">Ce résultat est généré automatiquement par la plateforme.<br>Pour toute contestation, contactez votre enseignant'
-    + (CFG && CFG.reclamation_email ? ' ou écrivez à <a href="mailto:' + CFG.reclamation_email + '" style="color:#1D4ED8">' + escH(CFG.reclamation_email) + '</a>' : '')
-    + '.</p>'
+    + '<p style="font-size:12px;color:#94A3B8;text-align:center;margin:0">Ce résultat est généré automatiquement par la plateforme.<br>'
+    + (CFG && CFG.reclamation_email && CFG.reclamation_email.trim()
+        ? 'Pour toute contestation, envoyez votre réclamation à <a href="mailto:' + CFG.reclamation_email.trim() + '" style="color:#1D4ED8;font-weight:600">' + escH(CFG.reclamation_email.trim()) + '</a>.'
+        : 'Pour toute contestation, contactez votre enseignant.')
+    + '</p>'
     + '</td></tr>'
     + '<tr><td style="background:#F8FAFC;padding:16px 32px;text-align:center;border-top:1px solid #E2E8F0">'
     + '<p style="margin:0;font-size:11px;color:#94A3B8">ExamPlatform — Cet email est généré automatiquement.</p>'
@@ -4422,6 +4466,8 @@ async function setExamStatutNew(statut) {
     loadConfigFormNew();
     if (statut === "ouvert") {
       toast("\u2705 Examen ouvert", "success");
+      // Envoi des invitations en arrière-plan (non bloquant) — dédoublonnage automatique
+      envoyerInvitationsPourEpreuve(CFG.id).catch(e => console.warn('Invitations:', e.message));
     } else {
       toast("\uD83D\uDD12 Examen ferm\u00e9", "warn");
       const cops = (COPIES || []).filter(c => c.matricule !== "TEST");
@@ -5478,8 +5524,9 @@ function activerBoutonRenvoi() {
 }
 
 async function sendCompositionToken() {
-  const dureeMins = (CFG.duree || 90) + 30;
-  const expiresAt = new Date(Date.now() + dureeMins * 60000).toISOString();
+  // Le lien expire après 5 minutes — délai suffisant pour ouvrir l'email et cliquer
+  const TOKEN_EXPIRE_MINS = 5;
+  const expiresAt = new Date(Date.now() + TOKEN_EXPIRE_MINS * 60000).toISOString();
   _tokenExpiresAt = expiresAt;
 
   const res = await DB.insert("tokens_composition", {
@@ -5534,7 +5581,7 @@ async function sendCompositionToken() {
       <ul style="margin:0;padding-left:18px;font-size:13px;color:#92400E;line-height:1.8">
         <li>Ce lien est <strong>personnel et unique</strong> \u2014 ne le partagez pas.</li>
         <li>Il sera <strong>invalide apr\u00e8s utilisation</strong>.</li>
-        <li>Il expire dans <strong>${dureeMins} minutes</strong>.</li>
+        <li>Il expire dans <strong>5 minutes</strong> — ouvrez-le rapidement.</li>
         <li>Assurez-vous d'\u00eatre dans un endroit calme avant de cliquer.</li>
       </ul>
     </div>
@@ -5551,7 +5598,7 @@ async function sendCompositionToken() {
   const txt = "Bonjour " + nomCplt + ",\n\n"
     + "Votre lien d'acc\u00e8s \u00e0 l'examen de " + (CFG.matiere||"") + " :\n"
     + link + "\n\nMatricule : " + currentCandidat.matricule
-    + "\nCe lien est personnel, invalide apr\u00e8s utilisation et expire dans " + dureeMins + " minutes.\n\nExamPlatform";
+    + "\nCe lien est personnel, invalide apr\u00e8s utilisation et expire dans 5 minutes.\n\nExamPlatform";
 
   await sendEmailResend(currentCandidat.email, subj, txt, htm);
 
@@ -5592,6 +5639,216 @@ async function sendEmailResend(to, subject, text, html, resendKey, smtpFrom) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.error || e.message || "Erreur envoi email (code " + res.status + ")");
   }
+}
+
+// ════════════════════════════════════════
+// INVITATIONS AUTOMATIQUES — envoi à l'ouverture d'une épreuve
+// ════════════════════════════════════════
+
+// Nombre d'envois simultanés (évite de saturer l'Edge Function / Resend
+// tout en restant rapide même avec plusieurs centaines/milliers d'étudiants)
+const INVITATIONS_CONCURRENCE = 6;
+
+function buildInvitationEmail(candidat, cfg) {
+  const prenom  = candidat.prenom || "";
+  const nom     = candidat.nom    || "";
+  const nomCplt = (prenom + " " + nom).trim() || candidat.matricule;
+  const ecole    = cfg.ecole    || "ExamPlatform";
+  const institut = cfg.institut || "";
+  const niveau   = cfg.niveau   || "";
+  const link = window.location.origin + window.location.pathname;
+  const subj = "\uD83D\uDCE2 \u00C9preuve ouverte \u2014 " + (cfg.matiere || "Examen");
+
+  const htm = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:32px 0">
+<tr><td align="center"><table width="560" cellpadding="0" cellspacing="0"
+  style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+  <tr><td style="background:linear-gradient(135deg,#1D4ED8,#2563EB);padding:28px 32px;text-align:center">
+    <div style="font-size:32px;margin-bottom:8px">\uD83D\uDCE2</div>
+    <div style="color:#fff;font-size:22px;font-weight:700">ExamPlatform</div>
+    <div style="color:#BFDBFE;font-size:13px;margin-top:4px">${escH(ecole)}${institut ? " \u2014 " + escH(institut) : ""}</div>
+  </td></tr>
+  <tr><td style="padding:32px">
+    <p style="margin:0 0 16px;font-size:16px;color:#1E293B">Bonjour <strong>${escH(nomCplt)}</strong>,</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6">
+      L'\u00e9preuve de <strong>${escH(cfg.matiere || "")}</strong>${niveau ? " \u2014 " + escH(niveau) : ""}
+      est d\u00e9sormais <strong>ouverte</strong>. Rendez-vous sur la plateforme pour composer.
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-bottom:24px">
+      <a href="${link}"
+        style="background:#1D4ED8;color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;display:inline-block">
+        \uD83C\uDF93 Acc\u00e9der \u00e0 la plateforme
+      </a>
+    </td></tr></table>
+    <div style="background:#F8FAFC;border-radius:10px;padding:14px 16px;margin-bottom:20px;border-left:4px solid #1D4ED8">
+      <div style="font-size:12px;color:#64748B;margin-bottom:6px">\u00C9tapes suivantes</div>
+      <div style="font-size:13px;color:#1E293B;line-height:1.9">
+        1. Cliquez sur le bouton ci-dessus<br>
+        2. Renseignez votre espace et votre parcours<br>
+        3. Un lien s\u00e9curis\u00e9 personnel vous sera envoy\u00e9 par email pour composer
+      </div>
+    </div>
+    <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0">
+      Si le bouton ne fonctionne pas, copiez ce lien :<br>
+      <span style="color:#1D4ED8;word-break:break-all">${link}</span>
+    </p>
+  </td></tr>
+  <tr><td style="background:#F8FAFC;padding:16px 32px;text-align:center;border-top:1px solid #E2E8F0">
+    <p style="margin:0;font-size:11px;color:#94A3B8">ExamPlatform \u2014 Cet email est g\u00e9n\u00e9r\u00e9 automatiquement.</p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+
+  const txt = "Bonjour " + nomCplt + ",\n\n"
+    + "L'\u00e9preuve de " + (cfg.matiere || "") + " est d\u00e9sormais ouverte.\n"
+    + "Rendez-vous sur la plateforme pour composer :\n" + link
+    + "\n\n1. Acc\u00e9dez \u00e0 la plateforme\n2. Renseignez votre espace et votre parcours\n"
+    + "3. Un lien s\u00e9curis\u00e9 personnel vous sera envoy\u00e9 pour composer\n\nExamPlatform";
+
+  return { subj, txt, htm };
+}
+
+// Envoie (ou renvoie) l'invitation à UN candidat et met à jour l'historique.
+// force=true → envoie même si une invitation existe déjà (renvoi manuel).
+async function envoyerInvitationCandidat(candidat, cfg, force) {
+  if (!candidat.email) {
+    await DB.upsert('invitations', {
+      exam_config_id: cfg.id, candidat_id: candidat.id || null,
+      matricule: candidat.matricule, email: '',
+      statut: 'echec', erreur: 'Aucune adresse email renseign\u00e9e', sent_at: new Date().toISOString()
+    }, 'exam_config_id,matricule').catch(() => {});
+    return { ok: false };
+  }
+  try {
+    const { subj, txt, htm } = buildInvitationEmail(candidat, cfg);
+    await sendEmailResend(candidat.email, subj, txt, htm);
+    await DB.upsert('invitations', {
+      exam_config_id: cfg.id, candidat_id: candidat.id || null,
+      matricule: candidat.matricule, email: candidat.email,
+      statut: 'envoye', erreur: null, sent_at: new Date().toISOString()
+    }, 'exam_config_id,matricule');
+    return { ok: true };
+  } catch (e) {
+    await DB.upsert('invitations', {
+      exam_config_id: cfg.id, candidat_id: candidat.id || null,
+      matricule: candidat.matricule, email: candidat.email,
+      statut: 'echec', erreur: (e.message || 'Erreur inconnue').slice(0, 300), sent_at: new Date().toISOString()
+    }, 'exam_config_id,matricule').catch(() => {});
+    return { ok: false };
+  }
+}
+
+// Envoie les invitations en arrière-plan, par lots, sans bloquer l'UI.
+// - Sans "force" : n'envoie qu'aux candidats jamais invités, ou dont
+//   l'email a été corrigé depuis la dernière invitation (dédoublonnage).
+// - Avec "force" : renvoie à tous les candidats fournis (bouton manuel).
+async function envoyerInvitationsPourEpreuve(examId, opts) {
+  opts = opts || {};
+  const force = !!opts.force;
+  const cibleMatricules = opts.matricules || null;
+
+  const cfg = (CFG && CFG.id === examId) ? CFG : (await DB.select('exam_config', 'id=eq.' + examId))[0];
+  if (!cfg) return;
+
+  let candidats = await DB.select('candidats', 'exam_config_id=eq.' + examId) || [];
+  candidats = candidats.filter(c => c.matricule !== 'TEST');
+  if (cibleMatricules) candidats = candidats.filter(c => cibleMatricules.includes(c.matricule));
+  if (!candidats.length) return;
+
+  let aTraiter = candidats;
+  if (!force) {
+    const existantes = await DB.select('invitations', 'exam_config_id=eq.' + examId) || [];
+    const parMatricule = new Map(existantes.map(i => [i.matricule, i]));
+    aTraiter = candidats.filter(c => {
+      const inv = parMatricule.get(c.matricule);
+      if (!inv) return true;                     // jamais invité
+      if ((inv.email || '') !== (c.email || '')) return true; // email corrigé depuis
+      return false;                               // déjà invité, on ne renvoie pas automatiquement
+    });
+  }
+  if (!aTraiter.length) return;
+
+  window._invitationsEnCours = (window._invitationsEnCours || 0) + aTraiter.length;
+  let succes = 0, echecs = 0;
+
+  // Envoi par lots (concurrence limitée) pour rester fluide même sur de gros effectifs
+  for (let i = 0; i < aTraiter.length; i += INVITATIONS_CONCURRENCE) {
+    const lot = aTraiter.slice(i, i + INVITATIONS_CONCURRENCE);
+    const resultats = await Promise.allSettled(lot.map(c => envoyerInvitationCandidat(c, cfg, force)));
+    resultats.forEach(r => {
+      if (r.status === 'fulfilled' && r.value.ok) succes++; else echecs++;
+    });
+  }
+
+  window._invitationsEnCours = Math.max(0, (window._invitationsEnCours || 0) - aTraiter.length);
+  const msg = "\uD83D\uDCE7 Invitations : " + succes + " envoy\u00e9e(s)" + (echecs ? ", " + echecs + " \u00e9chec(s)" : "");
+  toast(msg, echecs ? "warn" : "success");
+
+  if (document.getElementById('tab-invitations') && document.getElementById('tab-invitations').style.display !== 'none') {
+    renderInvitationsTable();
+  }
+}
+
+// Renvoi manuel à UN étudiant (bouton "Renvoyer" dans l'historique)
+async function resendInvitation(matricule) {
+  if (!CFG || !CFG.id) return;
+  const candidat = (CANDIDATS || []).find(c => c.matricule === matricule);
+  if (!candidat) { toast("\u00C9tudiant introuvable", "error"); return; }
+  toast("Envoi en cours\u2026", "info");
+  const r = await envoyerInvitationCandidat(candidat, CFG, true);
+  toast(r.ok ? "\u2705 Invitation renvoy\u00e9e" : "\u274C \u00C9chec de l'envoi", r.ok ? "success" : "error");
+  renderInvitationsTable();
+}
+
+// Renvoi manuel à TOUS les étudiants de l'épreuve
+async function resendAllInvitations() {
+  if (!CFG || !CFG.id) return;
+  openModal('Renvoyer toutes les invitations',
+    'Renvoyer un email \u00e0 tous les \u00e9tudiants rattach\u00e9s \u00e0 cette \u00e9preuve ?',
+    async () => {
+      closeModal();
+      toast("Envoi des invitations en cours\u2026", "info");
+      await envoyerInvitationsPourEpreuve(CFG.id, { force: true });
+    },
+    'Annuler', 'Renvoyer à tous'
+  );
+}
+
+async function renderInvitationsTable() {
+  const wrap = document.getElementById('invitations-table-wrap');
+  if (!wrap) return;
+  if (!CFG || !CFG.id) { wrap.innerHTML = '<div class="alert alert-warning">S\u00e9lectionnez une \u00e9preuve.</div>'; return; }
+  wrap.innerHTML = '<div class="alert alert-warning">Chargement\u2026</div>';
+  const invitations = await DB.select('invitations', 'exam_config_id=eq.' + CFG.id + '&order=sent_at.desc') || [];
+  if (!invitations.length) {
+    wrap.innerHTML = '<div class="alert alert-info">Aucune invitation envoy\u00e9e pour le moment. Elles sont envoy\u00e9es automatiquement \u00e0 l\'ouverture de l\'\u00e9preuve.</div>';
+    return;
+  }
+  const nbEnvoyees = invitations.filter(i => i.statut === 'envoye').length;
+  const nbEchecs   = invitations.filter(i => i.statut === 'echec').length;
+  let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+    <div style="background:#D1FAE5;border:1px solid #6EE7B7;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#065F46">✓ ${nbEnvoyees} envoyée(s)</div>
+    ${nbEchecs ? `<div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#991B1B">✕ ${nbEchecs} échec(s)</div>` : ''}
+    <button class="btn btn-sm" style="margin-left:auto" onclick="renderInvitationsTable()">🔄 Actualiser</button>
+    <button class="btn btn-sm btn-primary" onclick="resendAllInvitations()">🔁 Renvoyer à tous</button>
+  </div>`;
+  html += `<div class="tbl-wrap"><table class="tbl"><thead><tr>
+    <th>Matricule</th><th>Email</th><th>Date / Heure</th><th>Statut</th><th>Motif d'échec</th><th>Action</th>
+  </tr></thead><tbody>`;
+  invitations.forEach(inv => {
+    const badge = inv.statut === 'envoye' ? '<span class="badge badge-green">Envoyé</span>'
+                : inv.statut === 'echec'  ? '<span class="badge badge-red">Échec</span>'
+                : '<span class="badge badge-gray">En attente</span>';
+    const date = inv.sent_at ? new Date(inv.sent_at).toLocaleString('fr-FR') : '—';
+    html += `<tr><td><code style="font-size:11px">${escH(inv.matricule)}</code></td>
+      <td style="font-size:12px;color:var(--blue)">${escH(inv.email || '—')}</td>
+      <td style="font-size:12px">${date}</td>
+      <td>${badge}</td>
+      <td style="font-size:12px;color:#991B1B">${escH(inv.erreur || '—')}</td>
+      <td><button class="btn btn-sm" onclick="resendInvitation('${inv.matricule}')">↻ Renvoyer</button></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
 }
 
 async function handleTokenAccess(token) {
