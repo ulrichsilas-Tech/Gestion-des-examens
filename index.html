@@ -1371,6 +1371,20 @@ end $$;
   <p style="color:#fff;font-size:12px;opacity:.7">Cliquez n'importe où pour fermer</p>
 </div>
 
+<!-- PORTE DE DÉMARRAGE — le clic réel ici garantit que requestFullscreen() est autorisé par le navigateur -->
+<div id="start-exam-gate" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.97);z-index:9998;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;text-align:center">
+  <div style="background:#fff;border-radius:16px;padding:2.25rem 2rem;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div style="font-size:44px;margin-bottom:.75rem">🖥️</div>
+    <div style="font-size:19px;font-weight:700;color:#1E293B;margin-bottom:.75rem">Prêt(e) à composer ?</div>
+    <p style="font-size:13px;color:#475569;line-height:1.7;margin-bottom:1.5rem">
+      L'examen se déroule en <strong>plein écran obligatoire</strong>.<br>
+      Fermez tous les autres onglets et applications avant de continuer.<br>
+      Tout changement d'onglet ou sortie du plein écran sera détecté et chronométré.
+    </p>
+    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:15px" onclick="startExamNow()">▶ Démarrer l'examen en plein écran</button>
+  </div>
+</div>
+
 <!-- MODAL -->
 <div id="anticheat-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem">
   <div style="background:#fff;border-radius:16px;padding:2rem;max-width:440px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)">
@@ -1649,28 +1663,8 @@ end $$;
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:20px;border-left:4px solid #0891B2">
-        <div style="font-size:15px;font-weight:600;margin-bottom:4px">🖼️ Logos par défaut</div>
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Ces logos s'affichent sur les épreuves dont l'enseignant n'a pas uploadé de logo personnalisé. Hébergés sur Supabase Storage.</p>
-        <div class="grid-2">
-          <div class="field">
-            <label class="lbl">Logo gauche (UAC)</label>
-            <div id="sa-logo-uac-preview" style="width:90px;height:90px;border-radius:50%;border:2px solid var(--gray-mid);background:#F8FAFC;display:flex;align-items:center;justify-content:center;margin-bottom:10px;overflow:hidden">
-              <span style="font-size:11px;color:var(--text-muted)">Chargement...</span>
-            </div>
-            <input type="file" accept="image/*" id="sa-logo-uac-input" style="display:none" onchange="saUploadLogoDefaut(this,'uac')">
-            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sa-logo-uac-input').click()">📤 Changer le logo UAC</button>
-          </div>
-          <div class="field">
-            <label class="lbl">Logo droit (INE)</label>
-            <div id="sa-logo-ine-preview" style="width:90px;height:90px;border-radius:50%;border:2px solid var(--gray-mid);background:#F8FAFC;display:flex;align-items:center;justify-content:center;margin-bottom:10px;overflow:hidden">
-              <span style="font-size:11px;color:var(--text-muted)">Chargement...</span>
-            </div>
-            <input type="file" accept="image/*" id="sa-logo-ine-input" style="display:none" onchange="saUploadLogoDefaut(this,'ine')">
-            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('sa-logo-ine-input').click()">📤 Changer le logo INE</button>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:8px">Formats acceptés : JPG, PNG. Taille max 2 Mo. L'image sera automatiquement recadrée en cercle sur les documents générés.</div>
+      <div class="alert alert-info" style="font-size:13px;margin-bottom:20px">
+        🖼️ Les logos des établissements sont gérés par université et par entité dans l'onglet <strong>« 🏛️ Hiérarchie »</strong>. Il n'existe plus de logo par défaut : une université ou une entité sans logo n'affiche aucune image.
       </div>
 
       <div class="card" style="margin-bottom:20px;border-left:4px solid #F59E0B">
@@ -2534,8 +2528,8 @@ async function validerIdentite() {
   await loadLogos();
   repCand = {};
   buildEpreuve();
-  activerAntiTriche();
   goTo('pg-epreuve');
+  showStartExamGate();
 }
 
 // ════════════════════════════════════════
@@ -2585,8 +2579,8 @@ function buildExamHeader(c) {
   // Logos depuis les variables globales chargées par loadLogos()
   const _lgG = LOGO_GAUCHE_B64 || CFG.logo_universite || '';
   const _lgD = LOGO_DROITE_B64 || CFG.logo_entite     || '';
-  const nomUniv   = CFG.ecole    || 'UAC';
-  const nomEntite = CFG.institut || 'INE';
+  const nomUniv   = CFG.ecole    || '';
+  const nomEntite = CFG.institut || '';
   const sousTitre = [nomUniv, nomEntite].filter(Boolean).join(' — ');
   return `<div class="exam-header-box">
     <div class="exam-header-top" style="grid-template-columns:80px 1fr 80px;align-items:center;gap:8px">
@@ -3336,8 +3330,6 @@ function loadImageAsBase64(url) {
 // ── Précharger toutes les images des questions en base64 ──
 // Précharge les logos en PNG clippé circulaire (résout le fond blanc JPEG)
 async function preloadLogos() {
-  // S'assurer que les logos par défaut sont chargés depuis Supabase Storage
-  await ensureDefaultLogos();
 
   function clipToCircle(b64) {
     return new Promise(resolve => {
@@ -3465,34 +3457,9 @@ async function genCopiesCorrigees() {
 }
 
 // ── Logos embarqués en base64
-// ── Logos par défaut hébergés sur Supabase Storage (remplace les ~32Ko de base64 embarqués)
-// Pour mettre à jour : Supabase → Storage → logos → uploader logo_ine.jpg / logo_uac.jpg
-const _SB_LOGOS_BASE = SB_URL_DEFAULT + '/storage/v1/object/public/logos/defaults/';
-const LOGO_INE_URL_DEFAULT = _SB_LOGOS_BASE + 'logo_ine.jpg';
-const LOGO_UAC_URL_DEFAULT = _SB_LOGOS_BASE + 'logo_uac.jpg';
-
-// Cache mémoire des logos chargés (évite les re-fetch)
-const _logoCache = {};
-
-async function loadLogoB64(url) {
-  if (!url) return null;
-  if (_logoCache[url]) return _logoCache[url];
-  try {
-    const b64 = await urlToBase64(url);
-    _logoCache[url] = b64;
-    return b64;
-  } catch(e) { return null; }
-}
-
-// Les constantes restent pour rétro-compatibilité avec le PDF
-// Elles seront null au démarrage et chargées à la demande
-let LOGO_INE_B64 = null;
-let LOGO_UAC_B64 = null;
-
-async function ensureDefaultLogos() {
-  if (!LOGO_INE_B64) LOGO_INE_B64 = await loadLogoB64(LOGO_INE_URL_DEFAULT).catch(() => null);
-  if (!LOGO_UAC_B64) LOGO_UAC_B64 = await loadLogoB64(LOGO_UAC_URL_DEFAULT).catch(() => null);
-}
+// Les logos sont désormais définis exclusivement par le Super Administrateur,
+// par université et par entité (onglet Hiérarchie). Aucun logo par défaut :
+// une université/entité sans logo n'affiche simplement aucune image.
 
 function buildPDFCopie(doc, cop, corriger) {
   const cand = CANDIDATS.find(c=>c.matricule===cop.matricule)||{nom:'?',prenom:'',matricule:cop.matricule,filiere:''};
@@ -3518,26 +3485,30 @@ function buildPDFCopie(doc, cop, corriger) {
   const _lgX_ine = W - M - 2 - _lgR;
   const _lgCY = y + 5 + _lgR;
 
-  // Logo UAC : cercle blanc de fond + image pré-clippée PNG circulaire
-  doc.setFillColor(255,255,255);
-  doc.circle(_lgX_uac, _lgCY, _lgR, 'F');
-  try { doc.addImage(window._LOGO_UAC_CLIPPED||LOGO_UAC_B64, 'PNG', _lgX_uac-_lgR, _lgCY-_lgR, _lgR*2, _lgR*2); } catch(e) {}
+  // Logo Université : cercle blanc de fond + image pré-clippée PNG circulaire (uniquement si un logo est défini)
+  if (window._LOGO_UAC_CLIPPED) {
+    doc.setFillColor(255,255,255);
+    doc.circle(_lgX_uac, _lgCY, _lgR, 'F');
+    try { doc.addImage(window._LOGO_UAC_CLIPPED, 'PNG', _lgX_uac-_lgR, _lgCY-_lgR, _lgR*2, _lgR*2); } catch(e) {}
+  }
   doc.setFontSize(5.5); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
-  doc.text(cleanText(CFG.ecole||'UAC').substring(0,10), _lgX_uac, _lgCY+_lgR+3.5, {align:'center'});
+  doc.text(cleanText(CFG.ecole||'').substring(0,10), _lgX_uac, _lgCY+_lgR+3.5, {align:'center'});
 
-  // Logo INE : cercle blanc de fond + image pré-clippée PNG circulaire
-  doc.setFillColor(255,255,255);
-  doc.circle(_lgX_ine, _lgCY, _lgR, 'F');
-  try { doc.addImage(window._LOGO_INE_CLIPPED||LOGO_INE_B64, 'PNG', _lgX_ine-_lgR, _lgCY-_lgR, _lgR*2, _lgR*2); } catch(e) {}
+  // Logo Entité : cercle blanc de fond + image pré-clippée PNG circulaire (uniquement si un logo est défini)
+  if (window._LOGO_INE_CLIPPED) {
+    doc.setFillColor(255,255,255);
+    doc.circle(_lgX_ine, _lgCY, _lgR, 'F');
+    try { doc.addImage(window._LOGO_INE_CLIPPED, 'PNG', _lgX_ine-_lgR, _lgCY-_lgR, _lgR*2, _lgR*2); } catch(e) {}
+  }
   doc.setFontSize(5.5); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
-  doc.text(cleanText(CFG.institut||'INE').substring(0,10), _lgX_ine, _lgCY+_lgR+3.5, {align:'center'});
+  doc.text(cleanText(CFG.institut||'').substring(0,10), _lgX_ine, _lgCY+_lgR+3.5, {align:'center'});
 
   // Centre : matière + session (aucun doublon)
   doc.setFontSize(11); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
   doc.text(cleanText((CFG.matiere||'').toUpperCase()), W/2, y+13, {align:'center'});
   doc.setFontSize(7.5); doc.setFont(undefined,'normal');
   doc.text(cleanText(formatSession(CFG.session)||'')+' '+cleanText(CFG.annee||''), W/2, y+20, {align:'center'});
-  const _pdfSousTitre = [CFG.ecole||'UAC', CFG.institut||'INE'].filter(Boolean).join(' — ');
+  const _pdfSousTitre = [CFG.ecole||'', CFG.institut||''].filter(Boolean).join(' — ');
   doc.setFontSize(6); doc.text(cleanText(_pdfSousTitre), W/2, y+26, {align:'center'});
   y += 33;
 
@@ -3815,6 +3786,27 @@ let acInfractions    = 0;         // compteur infractions mobiles
 const AC_GRACE_MS    = 45000;     // 45s avant dépôt forcé
 const AC_MOBILE      = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+// ── Porte de démarrage : affichée juste avant l'entrée en examen.
+// Le clic sur son bouton est un VRAI geste utilisateur synchrone, ce qui
+// garantit que requestFullscreen() (appelé en tout premier dans
+// activerAntiTriche) ne sera pas bloqué silencieusement par le navigateur —
+// contrairement à un appel automatique après plusieurs requêtes réseau
+// (ex: ouverture du lien reçu par email, où il n'y a aucun clic du tout).
+let _startExamCallback = null;
+
+function showStartExamGate(onStart) {
+  _startExamCallback = onStart || null;
+  const gate = document.getElementById('start-exam-gate');
+  if (gate) gate.style.display = 'flex';
+}
+
+function startExamNow() {
+  const gate = document.getElementById('start-exam-gate');
+  if (gate) gate.style.display = 'none';
+  activerAntiTriche(); // requestFullscreenSilent() est appelé en 1er, dans ce clic → autorisé
+  if (_startExamCallback) { const fn = _startExamCallback; _startExamCallback = null; fn(); }
+}
+
 function activerAntiTriche() {
   anticheatActive = true;
   acInfractions   = 0;
@@ -4037,8 +4029,8 @@ let LOGO_GAUCHE_B64 = null;
 let LOGO_DROITE_B64 = null;
 
 // ── Logo helpers
-function getLogoGauche() { return LOGO_GAUCHE_B64 || LOGO_UAC_B64; }
-function getLogoDroite()  { return LOGO_DROITE_B64 || LOGO_INE_B64; }
+function getLogoGauche() { return LOGO_GAUCHE_B64 || null; }
+function getLogoDroite()  { return LOGO_DROITE_B64 || null; }
 
 async function loadLogos() {
   LOGO_GAUCHE_B64 = null;
@@ -5423,8 +5415,8 @@ async function validerIdentiteSel() {
       await loadLogos();
       repCand = {};
       buildEpreuve();
-      activerAntiTriche();
       goTo("pg-epreuve");
+      showStartExamGate();
       return;
     }
 
@@ -5886,7 +5878,7 @@ async function handleTokenAccess(token) {
     await loadLogos();
     currentCandidat = CANDIDATS.find(c => c.matricule === tk.matricule);
     if (!currentCandidat) { toast("\u00C9tudiant introuvable.", "error"); goTo("pg-home"); return; }
-    repCand = {}; buildEpreuve(); activerAntiTriche(); goTo("pg-epreuve");
+    repCand = {}; buildEpreuve(); goTo("pg-epreuve"); showStartExamGate();
     window.history.replaceState({}, "", window.location.pathname);
   } catch(e) { toast("Erreur acc\u00e8s: " + e.message, "error"); goTo("pg-home"); }
 }
@@ -6022,7 +6014,7 @@ function switchTabSA(btn, tabId) {
   if (tabId === "sa-tab-universites") saLoadUniversites();
   if (tabId === "sa-tab-niveaux")    saLoadNiveaux();
   if (tabId === "sa-tab-activity")   saLoadActivity();
-  if (tabId === "sa-tab-config")     { saLoadEmailConfig(); saLoadLogosDefaut(); }
+  if (tabId === "sa-tab-config")     { saLoadEmailConfig(); }
 }
 
 // ════════════════════════════════════════
@@ -6031,69 +6023,6 @@ function switchTabSA(btn, tabId) {
 const SA_CFG_KEY  = 'sa_resend_key';
 const SA_CFG_FROM = 'sa_smtp_from';
 const SA_CFG_NAME = 'sa_smtp_name';
-
-// ════════════════════════════════════════
-// LOGOS PAR DEFAUT — UPLOAD DEPUIS LE FRONTEND (SUPER ADMIN)
-// ════════════════════════════════════════
-// Charge les previews des logos actuels dans l'onglet Configuration
-async function saLoadLogosDefaut() {
-  const prevUac = document.getElementById('sa-logo-uac-preview');
-  const prevIne = document.getElementById('sa-logo-ine-preview');
-  if (!prevUac || !prevIne) return;
-
-  // Cache-bust pour voir immediatement la nouvelle image apres upload
-  const bust = '?t=' + Date.now();
-
-  prevUac.innerHTML = '<img src="' + LOGO_UAC_URL_DEFAULT + bust + '" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML=\'<span style=&quot;font-size:24px&quot;>🏛️</span>\'">';
-  prevIne.innerHTML = '<img src="' + LOGO_INE_URL_DEFAULT + bust + '" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML=\'<span style=&quot;font-size:24px&quot;>🎓</span>\'">';
-}
-
-// Upload un nouveau logo par defaut vers Supabase Storage (logos/defaults/logo_uac.jpg ou logo_ine.jpg)
-async function saUploadLogoDefaut(input, type) {
-  const file = input.files[0]; if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { toast('Logo trop lourd (max 2 Mo)', 'warn'); input.value = ''; return; }
-  if (!file.type.startsWith('image/')) { toast('Le fichier doit etre une image.', 'warn'); input.value = ''; return; }
-
-  const capturedFile = file;
-  input.value = '';
-
-  const fname = type === 'uac' ? 'logo_uac.jpg' : 'logo_ine.jpg';
-  const previewId = type === 'uac' ? 'sa-logo-uac-preview' : 'sa-logo-ine-preview';
-  const preview = document.getElementById(previewId);
-  if (preview) preview.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">Envoi...</span>';
-
-  try {
-    const res = await fetch(SB_URL + '/storage/v1/object/logos/defaults/' + fname, {
-      method: 'POST',
-      headers: {
-        'apikey': SB_KEY,
-        'Authorization': 'Bearer ' + SB_KEY,
-        'Content-Type': capturedFile.type,
-        'x-upsert': 'true'  // ecrase le fichier existant s'il y en a un
-      },
-      body: capturedFile
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error('Echec upload (HTTP ' + res.status + ') ' + errText.substring(0,120));
-    }
-
-    // Invalider le cache memoire pour forcer le rechargement de ce logo
-    delete _logoCache[LOGO_UAC_URL_DEFAULT];
-    delete _logoCache[LOGO_INE_URL_DEFAULT];
-    if (type === 'uac') LOGO_UAC_B64 = null; else LOGO_INE_B64 = null;
-
-    // Recharger la preview avec cache-bust
-    const url = (type === 'uac' ? LOGO_UAC_URL_DEFAULT : LOGO_INE_URL_DEFAULT) + '?t=' + Date.now();
-    if (preview) preview.innerHTML = '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover">';
-
-    toast('Logo ' + (type === 'uac' ? 'UAC' : 'INE') + ' mis a jour avec succes.', 'success');
-  } catch(e) {
-    if (preview) preview.innerHTML = '<span style="font-size:20px">⚠️</span>';
-    toast('Erreur upload logo : ' + e.message, 'error');
-  }
-}
 
 function saLoadEmailConfig() {
   // La cle Resend est stockee dans la Edge Function Supabase (securite)
@@ -6719,15 +6648,21 @@ async function saUploadLogo(input, type) {
 
 async function saPropagateLogo(entityId, type, b64) {
   try {
-    // Trouver les parcours liés à cette entité/université
+    // Ne propager qu'aux épreuves dont le parcours référence RÉELLEMENT
+    // cette université/entité — pas à toutes les épreuves de l'enseignant
+    // (sinon un enseignant rattaché à plusieurs universités verrait le
+    // logo de l'une écraser celui d'une autre).
     const field    = type === 'universite' ? 'universite_id' : 'entite_id';
     const logoField = type === 'universite' ? 'logo_universite' : 'logo_entite';
-    const parcours = await DB.select("parcours", field + "=eq." + entityId + "&select=admin_id") || [];
-    const adminIds = [...new Set(parcours.map(p => p.admin_id).filter(Boolean))];
-    for (const aId of adminIds) {
-      await DB.update("exam_config", "admin_id=eq." + aId, { [logoField]: b64 }).catch(() => {});
+    const parcours = await DB.select("parcours", field + "=eq." + entityId + "&select=id") || [];
+    const parcoursIds = parcours.map(p => p.id).filter(Boolean);
+    if (!parcoursIds.length) return;
+    let count = 0;
+    for (const pId of parcoursIds) {
+      const res = await DB.update("exam_config", "parcours_id=eq." + pId, { [logoField]: b64 }).catch(() => null);
+      if (res) count += (Array.isArray(res) ? res.length : 1);
     }
-    if (adminIds.length) toast("Logo propagé à " + adminIds.length + " enseignant(s)", "success");
+    if (count) toast("Logo propagé à " + count + " épreuve(s)", "success");
   } catch(e) { console.warn("Propagation logo:", e.message); }
 }
 
