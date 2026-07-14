@@ -1536,7 +1536,7 @@ end $$;
         <div class="grid-2">
           <div class="field">
             <label class="lbl">Logo Université</label>
-            <select id="sa-logo-univ-target" style="margin-bottom:6px">
+            <select id="sa-logo-univ-target" style="margin-bottom:6px" onchange="saShowLogoPreview('universite')">
               <option value="">— Sélectionner une université —</option>
             </select>
             <div style="display:flex;gap:8px;align-items:center">
@@ -1547,7 +1547,7 @@ end $$;
           </div>
           <div class="field">
             <label class="lbl">Logo Entité</label>
-            <select id="sa-logo-entite-target" style="margin-bottom:6px">
+            <select id="sa-logo-entite-target" style="margin-bottom:6px" onchange="saShowLogoPreview('entite')">
               <option value="">— Sélectionner une entité —</option>
             </select>
             <div style="display:flex;gap:8px;align-items:center">
@@ -6608,10 +6608,47 @@ async function saLoadLogoSelectors() {
   const { univs, entites } = await getHierarchieData();
   const selU = document.getElementById("sa-logo-univ-target");
   const selE = document.getElementById("sa-logo-entite-target");
-  if (selU) selU.innerHTML = "<option value=''>— Université —</option>"
-    + univs.map(u => `<option value="${u.id}">${escH(u.nom)}</option>`).join("");
-  if (selE) selE.innerHTML = "<option value=''>— Entité —</option>"
-    + entites.map(e => `<option value="${e.id}">${escH(e.nom)}</option>`).join("");
+  const valU = selU ? selU.value : "";
+  const valE = selE ? selE.value : "";
+  if (selU) {
+    selU.innerHTML = "<option value=''>— Université —</option>"
+      + univs.map(u => `<option value="${u.id}">${escH(u.nom)}</option>`).join("");
+    selU.value = valU; // conserver la sélection en cours si elle existe encore
+  }
+  if (selE) {
+    selE.innerHTML = "<option value=''>— Entité —</option>"
+      + entites.map(e => `<option value="${e.id}">${escH(e.nom)}</option>`).join("");
+    selE.value = valE;
+  }
+  // Afficher l'aperçu correspondant à la sélection actuelle (ou vider si rien n'est sélectionné)
+  saShowLogoPreview('universite');
+  saShowLogoPreview('entite');
+}
+
+// Affiche le logo RÉELLEMENT enregistré pour l'université/entité actuellement
+// sélectionnée dans la liste déroulante — appelé à chaque changement de
+// sélection, afin que chaque université/entité affiche bien son propre logo.
+async function saShowLogoPreview(type) {
+  const selId     = type === 'universite' ? "sa-logo-univ-target"  : "sa-logo-entite-target";
+  const previewId = type === 'universite' ? "sa-logo-univ-preview" : "sa-logo-entite-preview";
+  const targetId  = document.getElementById(selId)?.value;
+  const preview   = document.getElementById(previewId);
+  if (!preview) return;
+
+  if (!targetId) { preview.innerHTML = ""; return; }
+
+  preview.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Chargement…</span>';
+  // Toujours relire les données fraîches (pas le cache) pour être certain
+  // d'afficher le logo réellement enregistré, même juste après un upload
+  const table = type === 'universite' ? "universites" : "entites";
+  const rows = await DB.select(table, "id=eq." + targetId + "&select=id,nom,logo_url").catch(() => null);
+  const row = rows && rows[0];
+
+  if (row && row.logo_url) {
+    preview.innerHTML = `<img src="${row.logo_url}" style="height:50px;border-radius:6px;border:1px solid var(--gray-mid)" alt="Logo ${escH(row.nom||'')}">`;
+  } else {
+    preview.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Aucun logo enregistré pour cet élément.</span>';
+  }
 }
 
 async function saUploadLogo(input, type) {
@@ -6636,6 +6673,9 @@ async function saUploadLogo(input, type) {
 
     const table = type === 'universite' ? "universites" : "entites";
     await DB.update(table, "id=eq." + targetId, { logo_url: b64 });
+    // Le cache hiérarchie (TTL 5 min) contient encore l'ancien logo_url :
+    // on l'invalide pour que tout changement de sélection reflète immédiatement le nouveau logo
+    invalidateHierarchieCache();
 
     const previewId = "sa-logo-" + (type === 'universite' ? "univ" : "entite") + "-preview";
     const preview = document.getElementById(previewId);
