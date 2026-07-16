@@ -1298,6 +1298,20 @@ end $$;
 </style>
 
 <!-- ÉPREUVE -->
+<div id="pg-attente" class="page" style="background:linear-gradient(135deg,#EFF6FF 0%,#F8FAFC 100%);min-height:100vh">
+  <div class="card" style="max-width:480px;margin:80px auto;text-align:center;padding:2.5rem 2rem">
+    <div style="font-size:48px;margin-bottom:1rem">⏳</div>
+    <div style="font-size:19px;font-weight:700;color:#1E293B;margin-bottom:.5rem">L'épreuve n'a pas encore commencé</div>
+    <p id="attente-matiere" style="font-size:14px;color:var(--text-muted);margin-bottom:1.5rem"></p>
+    <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem">Ouverture dans</div>
+    <div id="attente-countdown" style="font-size:36px;font-weight:700;color:var(--blue);font-variant-numeric:tabular-nums;letter-spacing:1px;margin-bottom:1.5rem">--:--:--</div>
+    <div style="background:#F8FAFC;border-radius:10px;padding:12px 16px;font-size:12px;color:#475569">
+      Accessible à partir du<br><strong id="attente-datetime" style="color:#1E293B"></strong>
+    </div>
+    <p style="font-size:11px;color:#94A3B8;margin-top:1.25rem">Gardez cette page ouverte — elle se débloquera automatiquement, sans avoir besoin de recharger.</p>
+  </div>
+</div>
+
 <div id="pg-epreuve" class="page">
   <div class="topbar">
     <div class="topbar-logo"><span>EP</span> Composition en cours</div>
@@ -1542,6 +1556,7 @@ end $$;
             <div style="display:flex;gap:8px;align-items:center">
               <button class="btn btn-sm" onclick="document.getElementById('sa-logo-univ-file').click()">📤 Uploader logo</button>
               <input type="file" id="sa-logo-univ-file" accept="image/*" style="display:none" onchange="saUploadLogo(this,'universite')">
+              <button class="btn btn-sm btn-danger" onclick="saDeleteLogo('universite')">🗑️ Supprimer le logo</button>
             </div>
             <div id="sa-logo-univ-preview" style="margin-top:8px"></div>
           </div>
@@ -1553,9 +1568,13 @@ end $$;
             <div style="display:flex;gap:8px;align-items:center">
               <button class="btn btn-sm" onclick="document.getElementById('sa-logo-entite-file').click()">📤 Uploader logo</button>
               <input type="file" id="sa-logo-entite-file" accept="image/*" style="display:none" onchange="saUploadLogo(this,'entite')">
+              <button class="btn btn-sm btn-danger" onclick="saDeleteLogo('entite')">🗑️ Supprimer le logo</button>
             </div>
             <div id="sa-logo-entite-preview" style="margin-top:8px"></div>
           </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:10px">
+          💡 Supprimer le logo d'une université/entité affiche à la place une icône générique (🏛️ / 🎓) sur la page de composition des étudiants — utile pour une composition anonyme.
         </div>
       </div>
       <div id="sa-hierarchie-list"><div class="alert alert-warning">Chargement...</div></div>
@@ -1973,7 +1992,7 @@ function goTo(id) {
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
   // Ne pas persister les pages de composition ou résultat
-  if (!['pg-epreuve','pg-resultat'].includes(id)) {
+  if (!['pg-epreuve','pg-resultat','pg-attente'].includes(id)) {
     sessionStorage.setItem("currentPage", id);
   }
 }
@@ -2360,10 +2379,18 @@ async function parseCandidatsExcel(input) {
   const reader = new FileReader();
   reader.onload = async e => {
     try {
-      const wb = XLSX.read(e.target.result,{type:'binary'});
+      const wb = XLSX.read(e.target.result,{type:'binary', cellDates:true});
       const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
       const rows = data.map(r => {
-        const ddn = String(r['Date naissance']||r['date_naissance']||r['DateNaissance']||'').trim();
+        const ddnRaw = r['Date naissance']||r['Date de naissance']||r['date_naissance']||r['DateNaissance']||'';
+        let ddn;
+        if (ddnRaw instanceof Date && !isNaN(ddnRaw)) {
+          // Cellule Excel formatée en date → conversion en ISO (YYYY-MM-DD) pour la colonne "date" de la base
+          const yyyy = ddnRaw.getFullYear(), mm = String(ddnRaw.getMonth()+1).padStart(2,'0'), dd = String(ddnRaw.getDate()).padStart(2,'0');
+          ddn = `${yyyy}-${mm}-${dd}`;
+        } else {
+          ddn = String(ddnRaw||'').trim();
+        }
         return {
           matricule: String(r['Matricule']||r['matricule']||'').trim(),
           nom:       String(r['Nom']||r['nom']||'').toUpperCase().trim(),
@@ -2457,10 +2484,11 @@ async function deleteCandidat(mat) {
 
 function downloadCandidatsTemplate() {
   const ws = XLSX.utils.json_to_sheet([
-    {Matricule:'ETU001',Nom:'DUPONT',Prénom:'Jean',Filière:'EHA',Email:'jean@ine.bj'},
-    {Matricule:'ETU002',Nom:'MARTIN',Prénom:'Marie',Filière:'GTE',Email:'marie@ine.bj'},
-    {Matricule:'ETU003',Nom:'KOSSOU',Prénom:'Paul',Filière:'HYAS',Email:'paul@ine.bj'},
+    {Matricule:'ETU001',Nom:'DUPONT',Prénom:'Jean',DateNaissance:'2001-05-14',Filière:'EHA',Email:'jean@ine.bj'},
+    {Matricule:'ETU002',Nom:'MARTIN',Prénom:'Marie',DateNaissance:'2000-11-02',Filière:'GTE',Email:'marie@ine.bj'},
+    {Matricule:'ETU003',Nom:'KOSSOU',Prénom:'Paul',DateNaissance:'2002-01-27',Filière:'HYAS',Email:'paul@ine.bj'},
   ]);
+  ws['!cols'] = [{wch:10},{wch:16},{wch:16},{wch:14},{wch:12},{wch:22}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Étudiants');
   XLSX.writeFile(wb,'modele_etudiants.xlsx');
@@ -3769,6 +3797,64 @@ function formatSession(s) {
 }
 function formatDate(d){if(!d)return'—';try{const p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];}catch(e){return d;}}
 
+// ── Programmation horaire : l'épreuve peut être "ouverte" par l'enseignant
+// (donc les invitations sont envoyées) sans pour autant être accessible aux
+// étudiants avant l'heure de début programmée (date_exam + heure).
+function getExamDateTimeDebut(cfg) {
+  if (!cfg || !cfg.date_exam) return null;
+  let heure = cfg.heure || '08:00';
+  if (heure.length === 5) heure += ':00'; // "HH:MM" -> "HH:MM:SS"
+  const d = new Date(cfg.date_exam + 'T' + heure);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatDateHeureFr(d) {
+  if (!d) return '';
+  const date = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const heure = d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+  return date + ' à ' + heure;
+}
+
+// true si l'heure programmée est atteinte (ou si aucune heure n'est programmée)
+function examHeureAtteinte(cfg) {
+  const debut = getExamDateTimeDebut(cfg);
+  return !debut || new Date() >= debut;
+}
+
+// ── Écran d'attente avec compte à rebours en temps réel.
+// À l'échéance, relance automatiquement l'action initialement demandée
+// (identification ou ouverture du lien token), sans que l'étudiant ait à recharger.
+let _attenteInterval = null;
+let _attenteRetryFn  = null;
+
+function showAttente(cfg, retryFn) {
+  clearInterval(_attenteInterval);
+  _attenteRetryFn = retryFn || null;
+  const debut = getExamDateTimeDebut(cfg);
+  const matEl = document.getElementById('attente-matiere');
+  const dtEl  = document.getElementById('attente-datetime');
+  if (matEl) matEl.textContent = [cfg.matiere, cfg.niveau].filter(Boolean).join(' — ');
+  if (dtEl)  dtEl.textContent  = formatDateHeureFr(debut);
+  goTo('pg-attente');
+  tickAttente(debut);
+  _attenteInterval = setInterval(() => tickAttente(debut), 1000);
+}
+
+function tickAttente(debut) {
+  const el = document.getElementById('attente-countdown');
+  const diff = Math.max(0, Math.floor((debut - new Date()) / 1000));
+  if (diff <= 0) {
+    clearInterval(_attenteInterval);
+    if (el) el.textContent = '00:00:00';
+    toast("✅ L'épreuve est maintenant disponible !", "success");
+    const fn = _attenteRetryFn; _attenteRetryFn = null;
+    if (fn) fn();
+    return;
+  }
+  const h = Math.floor(diff / 3600), m = Math.floor((diff % 3600) / 60), s = diff % 60;
+  if (el) el.textContent = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+}
+
 document.addEventListener('contextmenu',e=>{if(!adminAuth)e.preventDefault();});
 document.addEventListener('keydown',e=>{
   if(!adminAuth&&(e.ctrlKey||e.metaKey)&&['s','p','c','a','u'].includes(e.key.toLowerCase()))e.preventDefault();
@@ -4371,8 +4457,15 @@ function loadConfigFormNew() {
   if (ev) ev.checked = !!CFG.email_verification;
   const st = document.getElementById("current-statut");
   if (st) {
-    st.textContent = CFG.statut === "ouvert" ? "\uD83D\uDFE2 Examen OUVERT" : "\uD83D\uDD34 Examen FERM\u00C9";
-    st.className   = CFG.statut === "ouvert" ? "badge badge-green" : "badge badge-red";
+    if (CFG.statut === "ouvert" && !examHeureAtteinte(CFG)) {
+      st.textContent = "\uD83D\uDFE1 Ouvert \u2014 programm\u00e9 pour " + formatDateHeureFr(getExamDateTimeDebut(CFG));
+      st.className   = "badge";
+      st.style.background = "#FEF3C7"; st.style.color = "#92400E";
+    } else {
+      st.textContent = CFG.statut === "ouvert" ? "\uD83D\uDFE2 Examen OUVERT" : "\uD83D\uDD34 Examen FERM\u00C9";
+      st.className   = CFG.statut === "ouvert" ? "badge badge-green" : "badge badge-red";
+      st.style.background = ""; st.style.color = "";
+    }
   }
   // Infos parcours pré-remplies par le super admin
   const parcoursInfo = document.getElementById("cfg-parcours-info");
@@ -5142,6 +5235,12 @@ function selShowStep(n) {
   }
 }
 
+let _lastLoadedCfgs = [];
+function showAttenteMatiere(cfgId) {
+  const cfg = (_lastLoadedCfgs || []).find(c => c.id === cfgId);
+  if (cfg) showAttente(cfg, () => { goTo('pg-candidat-select'); selLoadEpreuve(); });
+}
+
 async function selLoadEpreuve() {
   try {
     if (!selFiliere || !selFiliere.id) { console.warn("Aucune filière sélectionnée"); return; }
@@ -5191,6 +5290,7 @@ async function selLoadEpreuve() {
 
     // Exclure les épreuves sans matière définie (ex: épreuves de test vides)
     allCfgs = allCfgs.filter(e => e.matiere && e.matiere.trim() !== "");
+    _lastLoadedCfgs = allCfgs; // référence pour showAttenteMatiere() (évite d'injecter du JSON dans onclick)
 
     if (!allCfgs.length) {
       if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve configurée.</strong>"; infoEl.style.display = "block"; }
@@ -5201,20 +5301,32 @@ async function selLoadEpreuve() {
     if (infoEl) infoEl.style.display = "none";
     if (matiereList) {
       matiereList.innerHTML = allCfgs.map(cfg => {
-        const isOpen = cfg.statut === "ouvert";
+        const isOuvert    = cfg.statut === "ouvert";
+        const isOpen      = isOuvert && examHeureAtteinte(cfg);     // réellement sélectionnable
+        const isScheduled = isOuvert && !examHeureAtteinte(cfg);    // ouverte mais heure pas atteinte
+        let onclickAttr, badge, cardStyle;
+        if (isOpen) {
+          onclickAttr = `selectMatiere('${cfg.id}','${escH(cfg.matiere||cfg.ecole||"Sans nom")}',this)`;
+          badge = `<span class="badge badge-green">🟢 Ouverte</span>`;
+          cardStyle = "";
+        } else if (isScheduled) {
+          // Affichée mais NON sélectionnable tant que l'heure programmée n'est pas atteinte
+          onclickAttr = `showAttenteMatiere('${cfg.id}')`;
+          badge = `<span class="badge" style="background:#FEF3C7;color:#92400E">🟡 Ouvre à ${escH(formatDateHeureFr(getExamDateTimeDebut(cfg)))}</span>`;
+          cardStyle = "cursor:pointer;background:#FFFBEB";
+        } else {
+          onclickAttr = "void(0)";
+          badge = `<span class="badge badge-red">🔴 Non disponible</span>`;
+          cardStyle = "opacity:0.55;cursor:not-allowed;background:#F3F4F6";
+        }
         return `
-        <div class="sel-card-opt${isOpen ? "" : ""}" onclick="${isOpen ? `selectMatiere('${cfg.id}','${escH(cfg.matiere||cfg.ecole||"Sans nom")}',this)` : "void(0)"}"
-          style="${isOpen ? "" : "opacity:0.55;cursor:not-allowed;background:#F3F4F6"}">
+        <div class="sel-card-opt" onclick="${onclickAttr}" style="${cardStyle}">
           <div style="display:flex;align-items:center;gap:10px">
             <div>
               <div style="font-weight:600;font-size:15px">📖 ${escH(cfg.matiere || cfg.ecole || "Sans nom")}</div>
               ${cfg.enseignant ? `<div style="font-size:12px;color:#64748B;margin-top:2px">👨‍🏫 ${escH(cfg.enseignant)}</div>` : ""}
             </div>
-            <div style="margin-left:auto;flex-shrink:0">
-              ${isOpen
-                ? `<span class="badge badge-green">🟢 Ouverte</span>`
-                : `<span class="badge badge-red">🔴 Non disponible</span>`}
-            </div>
+            <div style="margin-left:auto;flex-shrink:0">${badge}</div>
           </div>
         </div>`;
       }).join("");
@@ -5390,6 +5502,11 @@ async function validerIdentiteSel() {
     }
     if (CFG.statut !== "ouvert") {
       showErrSel(err, btn, "Cette épreuve est actuellement fermée."); return;
+    }
+    if (!isTest && !examHeureAtteinte(CFG)) {
+      if (btn) { btn.disabled = false; btn.textContent = "✓ Valider et accéder à l'épreuve"; }
+      showAttente(CFG, () => validerIdentiteSel());
+      return;
     }
 
     // Vérifier que des questions existent
@@ -5850,7 +5967,6 @@ async function handleTokenAccess(token) {
     const tk = tokens[0];
     if (tk.used) { toast("Ce lien a d\u00e9j\u00e0 \u00e9t\u00e9 utilis\u00e9.", "warn"); goTo("pg-home"); return; }
     if (new Date(tk.expires_at) < new Date()) { toast("Ce lien a expir\u00e9.", "warn"); goTo("pg-home"); return; }
-    await DB.update("tokens_composition", "token=eq." + token, { used: true });
     selAdminId = tk.admin_id;
     // Charger l'épreuve spécifique liée au token (via exam_config_id si disponible)
     const cfgId = tk.exam_config_id || null;
@@ -5863,6 +5979,13 @@ async function handleTokenAccess(token) {
     if (!cfgs || !cfgs.length) { toast("\u00C9preuve introuvable.", "error"); goTo("pg-home"); return; }
     CFG = cfgs[0];
     if (CFG.statut !== "ouvert") { toast("L\u2019\u00e9preuve est ferm\u00e9e.", "warn"); goTo("pg-home"); return; }
+    if (!examHeureAtteinte(CFG)) {
+      // L'heure programmée n'est pas encore atteinte : on NE consomme PAS le
+      // lien (pas de used:true) afin que l'étudiant puisse le réutiliser une fois l'heure venue.
+      showAttente(CFG, () => handleTokenAccess(token));
+      return;
+    }
+    await DB.update("tokens_composition", "token=eq." + token, { used: true });
     // Charger candidats et questions filtrés par exam_config_id
     CANDIDATS = await DB.select("candidats", "exam_config_id=eq." + CFG.id + "&order=nom.asc") || [];
     const qs  = await DB.select("questions", "exam_config_id=eq." + CFG.id + "&order=ordre.asc") || [];
@@ -6649,6 +6772,37 @@ async function saShowLogoPreview(type) {
   } else {
     preview.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Aucun logo enregistré pour cet élément.</span>';
   }
+}
+
+async function saDeleteLogo(type) {
+  const targetId = type === 'universite'
+    ? document.getElementById("sa-logo-univ-target")?.value
+    : document.getElementById("sa-logo-entite-target")?.value;
+  if (!targetId) { toast("Sélectionnez d'abord une " + (type === 'universite' ? "université" : "entité"), "warn"); return; }
+
+  const label = document.getElementById(type === 'universite' ? "sa-logo-univ-target" : "sa-logo-entite-target")
+    ?.selectedOptions?.[0]?.textContent || '';
+
+  openModal(
+    'Supprimer le logo',
+    `Supprimer le logo de <strong>${escH(label)}</strong> ? Les étudiants verront une icône générique à la place (composition anonyme).`,
+    async () => {
+      closeModal();
+      try {
+        const table = type === 'universite' ? "universites" : "entites";
+        await DB.update(table, "id=eq." + targetId, { logo_url: null });
+        invalidateHierarchieCache();
+
+        const previewId = "sa-logo-" + (type === 'universite' ? "univ" : "entite") + "-preview";
+        const preview = document.getElementById(previewId);
+        if (preview) preview.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">Aucun logo enregistré pour cet élément.</span>';
+
+        toast("Logo supprimé — icône générique affichée aux étudiants", "success");
+        await saPropagateLogo(targetId, type, null);
+      } catch(err) { toast("Erreur suppression: " + err.message, "error"); }
+    },
+    'Annuler', 'Supprimer'
+  );
 }
 
 async function saUploadLogo(input, type) {
