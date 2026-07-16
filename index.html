@@ -5312,7 +5312,7 @@ async function selLoadEpreuve() {
         } else if (isScheduled) {
           // Affichée mais NON sélectionnable tant que l'heure programmée n'est pas atteinte
           onclickAttr = `showAttenteMatiere('${cfg.id}')`;
-          badge = `<span class="badge" style="background:#FEF3C7;color:#92400E">🟡 Ouvre à ${escH(formatDateHeureFr(getExamDateTimeDebut(cfg)))}</span>`;
+          badge = `<span class="badge" style="background:#FEF3C7;color:#92400E">🟡 Démarre le ${escH(formatDateHeureFr(getExamDateTimeDebut(cfg)))}</span>`;
           cardStyle = "cursor:pointer;background:#FFFBEB";
         } else {
           onclickAttr = "void(0)";
