@@ -562,6 +562,7 @@ create table if not exists exam_config (
   parcours_id uuid references parcours(id) on delete set null,
   ecole text, institut text, matiere text, niveau text,
   annee text, date_exam date, heure time default '08:00',
+  heure_fin time,
   duree int default 90, session text default 'Normale',
   bareme int default 20, consigne text, enseignant text,
   statut text default 'ferme',
@@ -887,7 +888,8 @@ end $$;
         <div>
           <div class="field"><label class="lbl">📖 Matière</label><input id="c-matiere" placeholder="Ex : Mathématiques, Droit Civil..."></div>
           <div class="field"><label class="lbl">📅 Date de l'épreuve</label><input id="c-date" type="date"></div>
-          <div class="field"><label class="lbl">🕐 Heure début</label><input id="c-heure" type="time" value="08:00"></div>
+          <div class="field"><label class="lbl">🕐 Heure début</label><input id="c-heure" type="time" value="08:00" required></div>
+          <div class="field"><label class="lbl">🕑 Heure fin</label><input id="c-heure-fin" type="time" required></div>
         </div>
         <div>
           <div class="field"><label class="lbl">⏱ Durée (minutes)</label><input id="c-duree" type="number" value="90"></div>
@@ -2600,7 +2602,16 @@ function buildEpreuve() {
   });
   document.getElementById('ep-questions').innerHTML = html;
   updateCounter();
-  startTimer(parseInt(CFG.duree||90)*60);
+  // Le temps disponible est le plus court entre la durée personnelle de
+  // l'étudiant et le temps restant jusqu'à l'heure de fin programmée de
+  // l'épreuve — empêche toute soumission après l'heure de fin.
+  let dispoSec = parseInt(CFG.duree||90) * 60;
+  const finDT = getExamDateTimeFin(CFG);
+  if (finDT) {
+    const secUntilFin = Math.floor((finDT - new Date()) / 1000);
+    dispoSec = Math.max(0, Math.min(dispoSec, secUntilFin));
+  }
+  startTimer(dispoSec);
 }
 
 function buildExamHeader(c) {
@@ -3821,6 +3832,35 @@ function examHeureAtteinte(cfg) {
   return !debut || new Date() >= debut;
 }
 
+// ── Heure de fin : au-delà, l'épreuve doit se fermer automatiquement et
+// n'accepter aucune soumission tardive (date_exam + heure_fin).
+function getExamDateTimeFin(cfg) {
+  if (!cfg || !cfg.date_exam || !cfg.heure_fin) return null;
+  let heure = cfg.heure_fin;
+  if (heure.length === 5) heure += ':00';
+  const d = new Date(cfg.date_exam + 'T' + heure);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// true si l'heure de fin est dépassée (false si aucune heure de fin définie —
+// épreuve ancienne créée avant cette fonctionnalité)
+function examHeureFinDepassee(cfg) {
+  const fin = getExamDateTimeFin(cfg);
+  return !!fin && new Date() >= fin;
+}
+
+// Ferme automatiquement en base une épreuve encore marquée "ouvert" alors que
+// son heure de fin est dépassée. Appelée à chaque point d'entrée pertinent
+// (chargement config enseignant, chargement liste matières étudiant).
+async function autoFermerSiExpiree(cfg) {
+  if (cfg && cfg.statut === 'ouvert' && examHeureFinDepassee(cfg)) {
+    try {
+      await DB.update('exam_config', 'id=eq.' + cfg.id, { statut: 'ferme' });
+      cfg.statut = 'ferme';
+    } catch(e) { console.warn('Auto-fermeture:', e.message); }
+  }
+}
+
 // ── Écran d'attente avec compte à rebours en temps réel.
 // À l'échéance, relance automatiquement l'action initialement demandée
 // (identification ou ouverture du lien token), sans que l'étudiant ait à recharger.
@@ -4169,11 +4209,27 @@ async function loadAdminData(cfgId) {
   ALL_EPREUVES = await DB.select("exam_config", "admin_id=eq." + currentAdmin.id + "&order=created_at.asc") || [];
 
   if (!ALL_EPREUVES.length) {
+    // Lier automatiquement au parcours déjà assigné par le Super Admin
+    // (aucune intervention manuelle nécessaire côté Super Admin ensuite)
+    const pcs = await DB.select("parcours", "admin_id=eq." + currentAdmin.id + "&select=id,universite_id,entite_id,niveau_id&limit=1").catch(() => []) || [];
+    const parcoursId = pcs.length ? pcs[0].id : null;
+    let ecole = "", institut = "", niveau = "";
+    if (pcs.length) {
+      const [uRows, eRows, nRows] = await Promise.all([
+        pcs[0].universite_id ? DB.select("universites", "id=eq." + pcs[0].universite_id + "&select=nom,logo_url").catch(() => []) : [],
+        pcs[0].entite_id     ? DB.select("entites",     "id=eq." + pcs[0].entite_id     + "&select=nom,logo_url").catch(() => []) : [],
+        pcs[0].niveau_id     ? DB.select("niveaux",     "id=eq." + pcs[0].niveau_id     + "&select=nom").catch(() => [])          : [],
+      ]);
+      ecole    = (uRows && uRows[0]) ? uRows[0].nom : "";
+      institut = (eRows && eRows[0]) ? eRows[0].nom : "";
+      niveau   = (nRows && nRows[0]) ? nRows[0].nom : "";
+    }
     // Créer une première épreuve vide
     const res = await DB.insert("exam_config", {
       admin_id: currentAdmin.id,
-      ecole:"", institut:"", matiere:"Nouvelle épreuve", niveau:"",
-      annee:"", date_exam: null, heure:"08:00", duree:90,
+      parcours_id: parcoursId,
+      ecole, institut, matiere:"Nouvelle épreuve", niveau,
+      annee:"", date_exam: null, heure:"08:00", heure_fin:null, duree:90,
       session:"Normale", bareme:20, consigne:"",
       enseignant: currentAdmin.nom || "", statut:"ferme",
       email_verification:false, resend_key:"", smtp_from:"",
@@ -4254,8 +4310,8 @@ async function createNewEpreuve() {
     const res = await DB.insert("exam_config", {
       admin_id: currentAdmin.id,
       matiere: matiere.trim(),
-      ecole:"", institut:"", niveau:"", annee:"",
-      date_exam: null, heure:"08:00", duree:90,
+      ecole: CFG.ecole || "", institut: CFG.institut || "", niveau: CFG.niveau || "", annee:"",
+      date_exam: null, heure:"08:00", heure_fin: null, duree:90,
       session:"Normale", bareme:20, consigne:"",
       enseignant: currentAdmin.nom || "", statut:"ferme",
       email_verification:false, resend_key:"", smtp_from:"",
@@ -4440,10 +4496,17 @@ function adminLogoutNew() {
 // CONFIG FORM (new version with logos/email)
 // ════════════════════════════════════════
 function loadConfigFormNew() {
+  // Fermeture automatique si l'heure de fin programmée est dépassée
+  // (non bloquant, rafraîchit le badge de statut au prochain rendu)
+  autoFermerSiExpiree(CFG).then(() => {
+    const st = document.getElementById("current-statut");
+    if (st && CFG.statut === "ferme") { st.textContent = "\uD83D\uDD34 Examen FERM\u00C9 (heure de fin atteinte)"; st.className = "badge badge-red"; }
+  }).catch(()=>{});
+
   const map = {
     ecole:"c-ecole", institut:"c-institut", matiere:"c-matiere",
     niveau:"c-niveau", annee:"c-annee", date_exam:"c-date",
-    heure:"c-heure", duree:"c-duree", session:"c-session",
+    heure:"c-heure", heure_fin:"c-heure-fin", duree:"c-duree", session:"c-session",
     bareme:"c-bareme", consigne:"c-consigne", enseignant:"c-enseignant",
     logo_universite:"c-logo-univ", logo_entite:"c-logo-entite",
     resend_key:"c-resend-key", smtp_from:"c-smtp-from",
@@ -4491,12 +4554,24 @@ async function saveConfigNew() {
   const newPwd   = v("c-pwd-admin");
   const dateVal  = v("c-date");
   const heureVal = v("c-heure");
+  const heureFinVal = v("c-heure-fin");
+  // L'heure de fin est désormais obligatoire, pour empêcher qu'une épreuve
+  // reste ouverte indéfiniment et permette des soumissions tardives.
+  if (!heureFinVal) {
+    toast("Veuillez renseigner l'heure de fin de l'épreuve.", "warn");
+    return;
+  }
+  if (heureVal && heureFinVal && heureFinVal <= heureVal) {
+    toast("L'heure de fin doit être postérieure à l'heure de début.", "warn");
+    return;
+  }
   // Champs que l'enseignant peut éditer directement
   const data = {
     admin_id: currentAdmin.id,
     matiere:  v("c-matiere") || CFG.matiere || "",
     date_exam: dateVal || null,
     heure:     heureVal || CFG.heure || "08:00",
+    heure_fin: heureFinVal,
     duree:     parseInt(v("c-duree"))  || CFG.duree  || 90,
     session:   v("c-session")  || CFG.session  || "Normale",
     bareme:    parseInt(v("c-bareme")) || CFG.bareme  || 20,
@@ -4545,6 +4620,10 @@ async function saveConfigNew() {
 
 async function setExamStatutNew(statut) {
   if (!CFG.id) { toast("Enregistrez la configuration", "warn"); return; }
+  if (statut === "ouvert" && !CFG.heure_fin) {
+    toast("Renseignez d'abord l'heure de fin de l'épreuve (onglet Configuration) avant de l'ouvrir.", "warn");
+    return;
+  }
   try {
     await DB.update("exam_config", "id=eq." + CFG.id, { statut });
     CFG.statut = statut;
@@ -5288,6 +5367,9 @@ async function selLoadEpreuve() {
     // Dédupliquer par id
     allCfgs = allCfgs.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
 
+    // Fermeture automatique des épreuves dont l'heure de fin est dépassée
+    await Promise.all(allCfgs.map(cfg => autoFermerSiExpiree(cfg)));
+
     // Exclure les épreuves sans matière définie (ex: épreuves de test vides)
     allCfgs = allCfgs.filter(e => e.matiere && e.matiere.trim() !== "");
     _lastLoadedCfgs = allCfgs; // référence pour showAttenteMatiere() (évite d'injecter du JSON dans onclick)
@@ -5500,8 +5582,11 @@ async function validerIdentiteSel() {
     if (!CFG || !CFG.id) {
       showErrSel(err, btn, "Épreuve introuvable. Recommencez depuis l'accueil."); return;
     }
+    await autoFermerSiExpiree(CFG);
     if (CFG.statut !== "ouvert") {
-      showErrSel(err, btn, "Cette épreuve est actuellement fermée."); return;
+      showErrSel(err, btn, examHeureFinDepassee(CFG)
+        ? "Cette épreuve est terminée : l'heure de fin programmée est dépassée."
+        : "Cette épreuve est actuellement fermée."); return;
     }
     if (!isTest && !examHeureAtteinte(CFG)) {
       if (btn) { btn.disabled = false; btn.textContent = "✓ Valider et accéder à l'épreuve"; }
@@ -5973,7 +6058,13 @@ async function handleTokenAccess(token) {
     }
     if (!cfgs || !cfgs.length) { toast("\u00C9preuve introuvable.", "error"); goTo("pg-home"); return; }
     CFG = cfgs[0];
-    if (CFG.statut !== "ouvert") { toast("L\u2019\u00e9preuve est ferm\u00e9e.", "warn"); goTo("pg-home"); return; }
+    await autoFermerSiExpiree(CFG);
+    if (CFG.statut !== "ouvert") {
+      toast(examHeureFinDepassee(CFG)
+        ? "Cette \u00e9preuve est termin\u00e9e : l'heure de fin programm\u00e9e est d\u00e9pass\u00e9e."
+        : "L\u2019\u00e9preuve est ferm\u00e9e.", "warn");
+      goTo("pg-home"); return;
+    }
     if (!examHeureAtteinte(CFG)) {
       // L'heure programmée n'est pas encore atteinte : on NE consomme PAS le
       // lien (pas de used:true) afin que l'étudiant puisse le réutiliser une fois l'heure venue.
@@ -6517,9 +6608,12 @@ async function saLoadParcours() {
 async function saVoirEpreuvesParParcours(parcoursId, adminId) {
   if (!adminId) { toast("Ce parcours n'a pas d'enseignant assigné.", "warn"); return; }
   try {
-    // Chercher les épreuves de cet enseignant
-    const cfgs = await DB.select("exam_config", "admin_id=eq."+adminId+"&order=created_at.asc&select=id,matiere,statut,parcours_id") || [];
-    if (!cfgs.length) { toast("Aucune épreuve trouvée pour cet enseignant.", "warn"); return; }
+    // Chercher les épreuves réellement configurées par cet enseignant
+    // (on exclut les éventuelles épreuves "fantômes" sans matière, résidus
+    // de l'ancien système de pré-création automatique)
+    let cfgs = await DB.select("exam_config", "admin_id=eq."+adminId+"&order=created_at.asc&select=id,matiere,statut,parcours_id") || [];
+    cfgs = cfgs.filter(c => c.matiere && c.matiere.trim() !== "");
+    if (!cfgs.length) { toast("Aucune épreuve importée par cet enseignant pour le moment.", "info"); return; }
 
     // Construire le modal de sélection
     let bodyHtml = "<p style='margin-bottom:12px;font-size:13px'>Sélectionnez les épreuves à lier à ce parcours :</p>";
@@ -6663,45 +6757,22 @@ async function saCreateParcours() {
       await DB.insert("parcours_filieres", { parcours_id: pId, filiere_id: fId }).catch(() => {});
     }
 
-    // ── Créer automatiquement une exam_config pré-remplie pour l'enseignant ──
-    // Récupérer les infos pour pré-remplir
-    const univData    = await DB.select("universites", "id=eq."+univId+"&select=nom,logo_url").catch(()=>[]) || [];
-    const entiteData  = await DB.select("entites",     "id=eq."+entiteId+"&select=nom,logo_url").catch(()=>[]) || [];
-    const niveauData  = await DB.select("niveaux",     "id=eq."+niveauId+"&select=nom").catch(()=>[]) || [];
-    const filNoms     = await Promise.all(filiereIds.map(fId =>
+    // Le rôle du Super Admin s'arrête ici : création du parcours + affectation
+    // de l'enseignant. C'est l'enseignant qui, à sa première connexion (ou à
+    // chaque nouvelle épreuve créée), verra automatiquement son épreuve liée
+    // à ce parcours — sans qu'aucune épreuve fantôme ne soit pré-créée ici.
+    const niveauData = await DB.select("niveaux", "id=eq."+niveauId+"&select=nom").catch(()=>[]) || [];
+    const filNoms    = await Promise.all(filiereIds.map(fId =>
       DB.select("filieres","id=eq."+fId+"&select=nom,code").then(r => r && r[0] ? r[0].nom+' ('+r[0].code+')' : '').catch(()=>'')
     ));
-    const adminData   = await DB.select("admins", "id=eq."+adminId+"&select=nom").catch(()=>[]) || [];
+    const adminData  = await DB.select("admins", "id=eq."+adminId+"&select=nom").catch(()=>[]) || [];
 
-    const cfgRes = await DB.insert("exam_config", {
-      admin_id:        adminId,
-      parcours_id:     pId,
-      ecole:           univData[0]?.nom || "",
-      institut:        entiteData[0]?.nom || "",
-      niveau:          niveauData[0]?.nom || "",
-      matiere:         "",   // L'enseignant remplit la matière
-      annee:           new Date().getFullYear()+"",
-      heure:           "08:00",
-      duree:           90,
-      session:         "Normale",
-      bareme:          20,
-      consigne:        "",
-      enseignant:      adminData[0]?.nom || "",
-      statut:          "ferme",
-      email_verification: false,
-      resend_key:      "",
-      smtp_from:       "",
-      logo_universite: univData[0]?.logo_url || "",
-      logo_entite:     entiteData[0]?.logo_url || ""
-    }).catch(e => { console.warn("exam_config auto:", e.message); return null; });
-
-    const cfgId = cfgRes && cfgRes[0] ? cfgRes[0].id : null;
     const niveauNom = niveauData[0]?.nom || "";
     const filLabel  = filNoms.filter(Boolean).join(", ");
     const ensNom = (adminData[0] && adminData[0].nom) ? adminData[0].nom : "l'enseignant";
     const msgNiveau = niveauNom ? " — " + niveauNom : "";
     const msgFil = filLabel ? " (" + filLabel + ")" : "";
-    toast("Parcours créé ! Épreuve pré-configurée pour " + ensNom + msgNiveau + msgFil, "success");
+    toast("Parcours créé et assigné à " + ensNom + msgNiveau + msgFil + ". Ses épreuves y seront liées automatiquement.", "success");
     document.getElementById("sa-parcours-form").style.display = "none";
     saLoadParcours();
   } catch(e) { toast("Erreur: " + e.message, "error"); }
