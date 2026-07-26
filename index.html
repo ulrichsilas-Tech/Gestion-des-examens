@@ -888,14 +888,14 @@ end $$;
         <div>
           <div class="field"><label class="lbl">📖 Matière</label><input id="c-matiere" placeholder="Ex : Mathématiques, Droit Civil..."></div>
           <div class="field"><label class="lbl">📅 Date de l'épreuve</label><input id="c-date" type="date"></div>
-          <div class="field"><label class="lbl">🕐 Heure début</label><input id="c-heure" type="time" value="08:00" required></div>
-          <div class="field"><label class="lbl">🕑 Heure fin</label><input id="c-heure-fin" type="time" required></div>
+          <div class="field"><label class="lbl">🕐 Heure début</label><input id="c-heure" type="time" value="08:00" required onchange="recalculerDureeAuto()"></div>
+          <div class="field"><label class="lbl">🕑 Heure fin</label><input id="c-heure-fin" type="time" required onchange="recalculerDureeAuto()"></div>
         </div>
         <div>
           <div class="alert alert-info" style="font-size:12px;margin-bottom:10px">
             🤖 <strong>Automatisation active</strong> : l'épreuve s'ouvre toute seule 5 minutes avant l'heure de début (envoi des invitations inclus), et se ferme toute seule à l'heure de fin — sans action de votre part. Les boutons « Ouvrir »/« Fermer » restent disponibles pour une intervention manuelle si besoin.
           </div>
-          <div class="field"><label class="lbl">⏱ Durée (minutes)</label><input id="c-duree" type="number" value="90"></div>
+          <div class="field"><label class="lbl">⏱ Durée (minutes) — calculée automatiquement</label><input id="c-duree" type="number" value="90" readonly style="background:#F1F5F9;color:#475569;cursor:not-allowed"></div>
           <div class="field"><label class="lbl">📊 Barème total</label><input id="c-bareme" type="number" value="20"></div>
           <div class="field"><label class="lbl">📋 Session</label>
             <select id="c-session"><option>Normale</option><option>Rattrapage</option><option>Spéciale</option></select>
@@ -4539,6 +4539,24 @@ function adminLogoutNew() {
 // ════════════════════════════════════════
 // CONFIG FORM (new version with logos/email)
 // ════════════════════════════════════════
+// Calcule automatiquement la durée (en minutes) à partir des heures de
+// début et de fin saisies, et remplit le champ en lecture seule.
+// Gère le cas d'une épreuve à cheval sur minuit (heure fin < heure début).
+function recalculerDureeAuto() {
+  const hDebutEl = document.getElementById("c-heure");
+  const hFinEl   = document.getElementById("c-heure-fin");
+  const dureeEl  = document.getElementById("c-duree");
+  if (!hDebutEl || !hFinEl || !dureeEl) return;
+  const hDebut = hDebutEl.value, hFin = hFinEl.value;
+  if (!hDebut || !hFin) return; // pas encore les deux heures : ne rien changer
+
+  const [h1, m1] = hDebut.split(":").map(Number);
+  const [h2, m2] = hFin.split(":").map(Number);
+  let minutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+  if (minutes <= 0) minutes += 24 * 60; // passage après minuit
+  dureeEl.value = minutes;
+}
+
 function loadConfigFormNew() {
   // Fermeture automatique si l'heure de fin programmée est dépassée
   // (non bloquant, rafraîchit le badge de statut au prochain rendu)
@@ -4560,6 +4578,7 @@ function loadConfigFormNew() {
     const el = document.getElementById(id);
     if (el && CFG[k] != null) el.value = CFG[k];
   });
+  recalculerDureeAuto();
   const ev = document.getElementById("c-email-verif");
   if (ev) ev.checked = !!CFG.email_verification;
   const st = document.getElementById("current-statut");
@@ -4609,6 +4628,12 @@ async function saveConfigNew() {
     toast("L'heure de fin doit être postérieure à l'heure de début.", "warn");
     return;
   }
+  // La durée est TOUJOURS recalculée ici à partir des heures — jamais lue
+  // depuis le champ affiché (lecture seule, purement informatif) — pour
+  // garantir qu'aucune incohérence entre heures et durée ne soit possible.
+  const [h1, m1] = heureVal.split(":").map(Number);
+  const [h2, m2] = heureFinVal.split(":").map(Number);
+  const dureeCalculee = (h2 * 60 + m2) - (h1 * 60 + m1);
   // Champs que l'enseignant peut éditer directement
   const data = {
     admin_id: currentAdmin.id,
@@ -4616,7 +4641,7 @@ async function saveConfigNew() {
     date_exam: dateVal || null,
     heure:     heureVal || CFG.heure || "08:00",
     heure_fin: heureFinVal,
-    duree:     parseInt(v("c-duree"))  || CFG.duree  || 90,
+    duree:     dureeCalculee,
     session:   v("c-session")  || CFG.session  || "Normale",
     bareme:    parseInt(v("c-bareme")) || CFG.bareme  || 20,
     consigne:  v("c-consigne"),
