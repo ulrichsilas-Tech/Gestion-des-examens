@@ -892,6 +892,9 @@ end $$;
           <div class="field"><label class="lbl">🕑 Heure fin</label><input id="c-heure-fin" type="time" required></div>
         </div>
         <div>
+          <div class="alert alert-info" style="font-size:12px;margin-bottom:10px">
+            🤖 <strong>Automatisation active</strong> : l'épreuve s'ouvre toute seule 5 minutes avant l'heure de début (envoi des invitations inclus), et se ferme toute seule à l'heure de fin — sans action de votre part. Les boutons « Ouvrir »/« Fermer » restent disponibles pour une intervention manuelle si besoin.
+          </div>
           <div class="field"><label class="lbl">⏱ Durée (minutes)</label><input id="c-duree" type="number" value="90"></div>
           <div class="field"><label class="lbl">📊 Barème total</label><input id="c-bareme" type="number" value="20"></div>
           <div class="field"><label class="lbl">📋 Session</label>
@@ -1001,6 +1004,9 @@ end $$;
       <div class="section-title">Génération des documents</div>
       <div class="alert alert-info" style="margin-bottom:1.5rem;font-size:13px">
         📁 Les copies individuelles sont téléchargées en <strong>ZIP</strong>. Les relevés de notes sont générés <strong>par filière</strong>.
+      </div>
+      <div class="alert alert-info" style="margin-bottom:1.5rem;font-size:13px">
+        🤖 <strong>Envoi automatique</strong> : après la fermeture (automatique ou manuelle) de l'épreuve, un email contenant un lien de téléchargement du ZIP des résultats (Excel + CSV + données brutes) vous est envoyé automatiquement. Les exports ci-dessous restent disponibles à tout moment pour un téléchargement manuel immédiat.
       </div>
 
       <!-- Import Notes CC -->
@@ -1767,6 +1773,9 @@ const DB = {
   update: (table, match, data) => sbFetch(table+'?'+match, { method:'PATCH', body: data, prefer:'return=representation' }),
   upsert: (table, data, conflict='id') => sbFetch(table+'?on_conflict='+conflict, { method:'POST', body: Array.isArray(data)?data:[data], prefer:'resolution=merge-duplicates,return=representation' }),
   delete: (table, query) => sbFetch(table+'?'+query, { method:'DELETE', prefer:'' }),
+  // Appel d'une fonction Postgres (RPC) — utilisé pour la vérification
+  // d'heure côté serveur (impossible à falsifier via l'horloge de l'appareil)
+  rpc: (fn, params={}) => sbFetch('rpc/'+fn, { method:'POST', body: params }),
 };
 
 // ════════════════════════════════════════
@@ -3861,6 +3870,41 @@ async function autoFermerSiExpiree(cfg) {
   }
 }
 
+// ── Vérification de la fenêtre de composition CÔTÉ SERVEUR (fonction
+// Postgres `check_exam_fenetre`, voir migration_auto_scheduler.sql).
+// Contrairement à examHeureAtteinte()/examHeureFinDepassee() (calcul sur
+// l'horloge locale de l'appareil, donc falsifiable), cette fonction demande
+// au serveur Supabase de trancher avec sa propre horloge — un étudiant ne
+// peut donc pas débloquer la composition en avançant l'heure de son appareil.
+// Repli automatique sur le calcul client si le serveur est injoignable ou si
+// la migration SQL n'a pas encore été appliquée (fonction RPC absente),
+// pour ne jamais bloquer complètement la plateforme en cas de souci réseau.
+async function serverCheckFenetre(cfg) {
+  try {
+    const rows = await DB.rpc('check_exam_fenetre', { p_exam_id: cfg.id });
+    const r = Array.isArray(rows) ? rows[0] : rows;
+    if (!r) throw new Error('Réponse vide');
+    return {
+      viaServeur: true,
+      compositionActive: !!r.composition_active,
+      avantOuverture: !!r.avant_ouverture,
+      apresFermeture: !!r.apres_fermeture,
+      debut: r.debut ? new Date(r.debut) : null,
+      fin:   r.fin   ? new Date(r.fin)   : null,
+    };
+  } catch(e) {
+    console.warn('check_exam_fenetre indisponible (migration appliquée ?), repli sur horloge locale:', e.message);
+    return {
+      viaServeur: false,
+      compositionActive: examHeureAtteinte(cfg) && !examHeureFinDepassee(cfg),
+      avantOuverture: !examHeureAtteinte(cfg),
+      apresFermeture: examHeureFinDepassee(cfg),
+      debut: getExamDateTimeDebut(cfg),
+      fin:   getExamDateTimeFin(cfg),
+    };
+  }
+}
+
 // ── Écran d'attente avec compte à rebours en temps réel.
 // À l'échéance, relance automatiquement l'action initialement demandée
 // (identification ou ouverture du lien token), sans que l'étudiant ait à recharger.
@@ -5588,10 +5632,17 @@ async function validerIdentiteSel() {
         ? "Cette épreuve est terminée : l'heure de fin programmée est dépassée."
         : "Cette épreuve est actuellement fermée."); return;
     }
-    if (!isTest && !examHeureAtteinte(CFG)) {
-      if (btn) { btn.disabled = false; btn.textContent = "✓ Valider et accéder à l'épreuve"; }
-      showAttente(CFG, () => validerIdentiteSel());
-      return;
+    if (!isTest) {
+      // Vérification côté serveur (infalsifiable via l'horloge de l'appareil)
+      const fenetre = await serverCheckFenetre(CFG);
+      if (fenetre.apresFermeture) {
+        showErrSel(err, btn, "Cette épreuve est terminée : l'heure de fin programmée est dépassée."); return;
+      }
+      if (fenetre.avantOuverture) {
+        if (btn) { btn.disabled = false; btn.textContent = "✓ Valider et accéder à l'épreuve"; }
+        showAttente(CFG, () => validerIdentiteSel());
+        return;
+      }
     }
 
     // Vérifier que des questions existent
@@ -6065,7 +6116,15 @@ async function handleTokenAccess(token) {
         : "L\u2019\u00e9preuve est ferm\u00e9e.", "warn");
       goTo("pg-home"); return;
     }
-    if (!examHeureAtteinte(CFG)) {
+    // Vérification côté serveur (infalsifiable via l'horloge de l'appareil) :
+    // c'est ici que l'accès réel à la composition est débloqué, donc le
+    // point le plus sensible à sécuriser contre une horloge trafiquée.
+    const fenetre = await serverCheckFenetre(CFG);
+    if (fenetre.apresFermeture) {
+      toast("Cette \u00e9preuve est termin\u00e9e : l'heure de fin programm\u00e9e est d\u00e9pass\u00e9e.", "warn");
+      goTo("pg-home"); return;
+    }
+    if (fenetre.avantOuverture) {
       // L'heure programmée n'est pas encore atteinte : on NE consomme PAS le
       // lien (pas de used:true) afin que l'étudiant puisse le réutiliser une fois l'heure venue.
       showAttente(CFG, () => handleTokenAccess(token));
