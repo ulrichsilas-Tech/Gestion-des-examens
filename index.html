@@ -5975,7 +5975,7 @@ function buildInvitationEmail(candidat, cfg) {
 
 // Envoie (ou renvoie) l'invitation à UN candidat et met à jour l'historique.
 // force=true → envoie même si une invitation existe déjà (renvoi manuel).
-async function envoyerInvitationCandidat(candidat, cfg, force) {
+async function envoyerInvitationCandidat(candidat, cfg) {
   if (!candidat.email) {
     await DB.upsert('invitations', {
       exam_config_id: cfg.id, candidat_id: candidat.id || null,
@@ -6004,12 +6004,11 @@ async function envoyerInvitationCandidat(candidat, cfg, force) {
 }
 
 // Envoie les invitations en arrière-plan, par lots, sans bloquer l'UI.
-// - Sans "force" : n'envoie qu'aux candidats jamais invités, ou dont
-//   l'email a été corrigé depuis la dernière invitation (dédoublonnage).
-// - Avec "force" : renvoie à tous les candidats fournis (bouton manuel).
+// Aucune restriction : chaque candidat reçoit une invitation à chaque appel
+// (ouverture d'épreuve, import d'étudiants, renvoi manuel), même s'il en a
+// déjà reçu une précédemment.
 async function envoyerInvitationsPourEpreuve(examId, opts) {
   opts = opts || {};
-  const force = !!opts.force;
   const cibleMatricules = opts.matricules || null;
 
   const cfg = (CFG && CFG.id === examId) ? CFG : (await DB.select('exam_config', 'id=eq.' + examId))[0];
@@ -6020,18 +6019,12 @@ async function envoyerInvitationsPourEpreuve(examId, opts) {
   if (cibleMatricules) candidats = candidats.filter(c => cibleMatricules.includes(c.matricule));
   if (!candidats.length) return;
 
-  let aTraiter = candidats;
-  if (!force) {
-    const existantes = await DB.select('invitations', 'exam_config_id=eq.' + examId) || [];
-    const parMatricule = new Map(existantes.map(i => [i.matricule, i]));
-    aTraiter = candidats.filter(c => {
-      const inv = parMatricule.get(c.matricule);
-      if (!inv) return true;                     // jamais invité
-      if ((inv.email || '') !== (c.email || '')) return true; // email corrigé depuis
-      return false;                               // déjà invité, on ne renvoie pas automatiquement
-    });
-  }
-  if (!aTraiter.length) return;
+  // Aucune restriction : chaque appel de cette fonction (ouverture de
+  // l'épreuve, import d'étudiants, renvoi manuel...) envoie systématiquement
+  // l'invitation à tous les candidats concernés, même s'ils en ont déjà
+  // reçu une — un étudiant peut recevoir le message autant de fois que
+  // nécessaire (email perdu/non reçu), et cela facilite aussi les tests.
+  const aTraiter = candidats;
 
   window._invitationsEnCours = (window._invitationsEnCours || 0) + aTraiter.length;
   let succes = 0, echecs = 0;
@@ -6039,7 +6032,7 @@ async function envoyerInvitationsPourEpreuve(examId, opts) {
   // Envoi par lots (concurrence limitée) pour rester fluide même sur de gros effectifs
   for (let i = 0; i < aTraiter.length; i += INVITATIONS_CONCURRENCE) {
     const lot = aTraiter.slice(i, i + INVITATIONS_CONCURRENCE);
-    const resultats = await Promise.allSettled(lot.map(c => envoyerInvitationCandidat(c, cfg, force)));
+    const resultats = await Promise.allSettled(lot.map(c => envoyerInvitationCandidat(c, cfg, true)));
     resultats.forEach(r => {
       if (r.status === 'fulfilled' && r.value.ok) succes++; else echecs++;
     });
@@ -6060,7 +6053,7 @@ async function resendInvitation(matricule) {
   const candidat = (CANDIDATS || []).find(c => c.matricule === matricule);
   if (!candidat) { toast("\u00C9tudiant introuvable", "error"); return; }
   toast("Envoi en cours\u2026", "info");
-  const r = await envoyerInvitationCandidat(candidat, CFG, true);
+  const r = await envoyerInvitationCandidat(candidat, CFG);
   toast(r.ok ? "\u2705 Invitation renvoy\u00e9e" : "\u274C \u00C9chec de l'envoi", r.ok ? "success" : "error");
   renderInvitationsTable();
 }
