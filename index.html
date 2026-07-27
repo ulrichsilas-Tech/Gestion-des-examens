@@ -1174,33 +1174,14 @@ end $$;
       <div id="sel-filiere-list"></div>
     </div>
 
-    <!-- Étape 6 : Matière -->
-<div id="sel-step6" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-    <button onclick="selGoBack(5)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
-    <div style="width:48px;height:48px;border-radius:14px;background:#FFE4E6;display:flex;align-items:center;justify-content:center;font-size:24px">📋</div>
-    <div><div style="font-weight:700;font-size:18px">Votre matière</div><div style="font-size:13px;color:#64748B">Étape 6 sur 7</div></div>
-  </div>
-  <div id="sel-exam-info" style="background:#EFF6FF;border-radius:10px;padding:12px 16px;font-size:13px;color:#1E40AF;margin-bottom:16px;display:none"></div>
-  <div id="sel-matiere-list"></div>
-  
-  <!-- AJOUTEZ CE BOUTON POUR CONTINUER VERS L'ÉTAPE 7 -->
-  <div style="margin-top: 20px;">
-    <button class="btn btn-primary" style="width:100%; padding:14px; font-size:16px; font-weight:600;" 
-            id="btn-continuer-to-step7" onclick="goToStep7()" disabled>
-      ➡ Continuer vers l'identification
-    </button>
-  </div>
-</div>
-
-    <!-- Étape 7 : Identification -->
-    <div id="sel-step7" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+    <!-- Étape 6 : Identification -->
+    <div id="sel-step6" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-        <button onclick="selGoBack(6)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+        <button onclick="selGoBack(5)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
         <div style="width:48px;height:48px;border-radius:14px;background:#FCE7F3;display:flex;align-items:center;justify-content:center;font-size:24px">👤</div>
-        <div><div style="font-weight:700;font-size:18px">Votre identité</div><div style="font-size:13px;color:#64748B">Étape 7 sur 7</div></div>
+        <div><div style="font-weight:700;font-size:18px">Votre identité</div><div style="font-size:13px;color:#64748B">Étape 6 sur 7</div></div>
       </div>
-      <div id="cand-err-sel" class="alert alert-danger" style="display:none"></div>
+      <div id="cand-err-ident" class="alert alert-danger" style="display:none"></div>
       <div style="position:relative;margin-bottom:16px">
         <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:18px">🔍</span>
         <input id="cand-nom-sel" placeholder="Tapez les premières lettres de votre nom" autocomplete="off" oninput="onNomInputSel(this.value)" style="text-transform:uppercase;width:100%;padding:14px 14px 14px 44px;border:2px solid #E5E7EB;border-radius:14px;font-size:15px;outline:none">
@@ -1218,9 +1199,24 @@ end $$;
           <div style="background:#fff;border-radius:10px;padding:10px;grid-column:1/-1"><div style="font-size:10px;color:#64748B">Email</div><div id="pv-mail-sel" style="color:#1D4ED8"></div></div>
         </div>
       </div>
-      <div id="email-verif-notice" style="display:none;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:13px;color:#92400E;margin-bottom:16px">📧 Un lien de vérification va être envoyé à votre email.</div>
-      <button style="background:#1D4ED8;color:#fff;border:none;padding:14px;border-radius:14px;width:100%;font-weight:600;font-size:16px;cursor:pointer" id="btn-valider-sel" onclick="validerIdentiteSel()" disabled>✓ Valider et accéder à l'épreuve</button>
+      <button class="btn btn-primary" style="width:100%;padding:14px;font-size:16px;font-weight:600" id="btn-continuer-matiere" onclick="selContinuerVersMatiere()" disabled>
+        ➡ Continuer vers la matière
+      </button>
     </div>
+
+    <!-- Étape 7 : Matière (dernière étape) -->
+<div id="sel-step7" style="display:none;background:#fff;border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(0,0,0,.08)">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <button onclick="selGoBack(6)" style="width:38px;height:38px;border-radius:12px;border:1px solid #E5E7EB;background:#fff;cursor:pointer">←</button>
+    <div style="width:48px;height:48px;border-radius:14px;background:#FFE4E6;display:flex;align-items:center;justify-content:center;font-size:24px">📋</div>
+    <div><div style="font-weight:700;font-size:18px">Votre matière</div><div style="font-size:13px;color:#64748B">Étape 7 sur 7</div></div>
+  </div>
+  <div id="sel-exam-info" style="background:#EFF6FF;border-radius:10px;padding:12px 16px;font-size:13px;color:#1E40AF;margin-bottom:16px;display:none"></div>
+  <div id="cand-err-sel" class="alert alert-danger" style="display:none"></div>
+  <div id="sel-matiere-list"></div>
+  <div id="email-verif-notice" style="display:none;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:12px;font-size:13px;color:#92400E;margin:16px 0">📧 Un lien de vérification va être envoyé à votre email.</div>
+  <button style="background:#1D4ED8;color:#fff;border:none;padding:14px;border-radius:14px;width:100%;font-weight:600;font-size:16px;cursor:pointer;margin-top:16px" id="btn-valider-sel" onclick="validerIdentiteSel()" disabled>✓ Valider et accéder à l'épreuve</button>
+</div>
 
     <!-- Email envoyé -->
     <div id="sel-step-email" style="display:none;background:#fff;border-radius:20px;padding:32px 24px;box-shadow:0 8px 24px rgba(0,0,0,.08);text-align:center">
@@ -1816,6 +1812,11 @@ function verifyPwd(plain, stored) {
 let CFG = {};
 let QUESTIONS = [];
 let CANDIDATS = [];
+// Liste fusionnée des candidats de toutes les matières d'un parcours,
+// utilisée UNIQUEMENT pour la recherche à l'étape d'identification
+// (avant que la matière précise ne soit connue). Distincte de CANDIDATS,
+// qui reste réservée à l'espace enseignant et à la matière finalement choisie.
+let CANDIDATS_FILIERE = [];
 let COPIES = [];
 let currentCandidat = null;
 let repCand = {};
@@ -5163,8 +5164,9 @@ async function initSelectionPage() {
   selUniversite = null; selEntite = null; selDepartement = null;
   selNiveau = null; selFiliere = null; selAdminId = null;
   selectedMatiereId = null; selectedMatiereNom = null;
+  currentCandidat = null; CANDIDATS_FILIERE = []; _lastLoadedCfgs = [];
   // Cacher toutes les étapes
-  for(let i = 1; i <= 6; i++) {
+  for(let i = 1; i <= 7; i++) {
     const el = document.getElementById(`sel-step${i}`);
     if (el) el.style.display = "none";
   }
@@ -5172,7 +5174,7 @@ async function initSelectionPage() {
   const s1 = document.getElementById("sel-step1");
   if (s1) s1.style.display = "block";
   // Mettre à jour les indicateurs d'étape
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= 7; i++) {
     const d = document.getElementById("sel-s" + i);
     if (d) d.className = i === 1 ? "step-dot active" : "step-dot";
   }
@@ -5235,7 +5237,7 @@ async function selChooseFiliere(id, code, nom, el) {
     crumb6.textContent = "🏛️ " + (selUniversite?.nom || "") + "  ›  🏫 " + (selEntite?.nom||"") + "  ›  📂 " + (selDepartement?.nom||"") + "  ›  📚 " + (selNiveau?.nom||"") + "  ›  🎓 " + code;
   }
   
-  await selLoadEpreuve();
+  await selLoadCandidatsPourIdentification();
   selShowStep(6);
 }
 
@@ -5361,13 +5363,12 @@ function selShowStep(n) {
   const se = document.getElementById("sel-step-email");
   if (se) se.style.display = "none";
   
-  // Réinitialiser l'étape 7 si on y arrive
-  if (n === 7) {
-    // Réinitialiser les champs de l'étape 7
+  // Réinitialiser l'étape 6 (identification) si on y arrive
+  if (n === 6) {
     const nomInput = document.getElementById("cand-nom-sel");
     if (nomInput) nomInput.value = "";
     
-    const errDiv = document.getElementById("cand-err-sel");
+    const errDiv = document.getElementById("cand-err-ident");
     if (errDiv) errDiv.style.display = "none";
     
     const suggestions = document.getElementById("nom-suggestions-sel");
@@ -5376,8 +5377,8 @@ function selShowStep(n) {
     const preview = document.getElementById("cand-preview-sel");
     if (preview) preview.style.display = "none";
     
-    const btnValider = document.getElementById("btn-valider-sel");
-    if (btnValider) btnValider.disabled = true;
+    const btnContinuer = document.getElementById("btn-continuer-matiere");
+    if (btnContinuer) btnContinuer.disabled = true;
     
     currentCandidat = null;
   }
@@ -5389,99 +5390,130 @@ function showAttenteMatiere(cfgId) {
   if (cfg) showAttente(cfg, () => { goTo('pg-candidat-select'); selLoadEpreuve(); });
 }
 
+// Récupère les épreuves (exam_config) rattachées au parcours de la filière
+// sélectionnée. Fonction réutilisée à la fois pour charger les candidats
+// avant identification, et pour afficher la liste des matières après.
+async function chargerCfgsPourFiliere() {
+  if (!selFiliere || !selFiliere.id) { console.warn("Aucune filière sélectionnée"); return []; }
+
+  const pf = await DB.select("parcours_filieres", "filiere_id=eq." + selFiliere.id + "&select=parcours_id") || [];
+  const parcoursIds = pf.map(x => x.parcours_id);
+  if (!parcoursIds.length) { _lastLoadedCfgs = []; return []; }
+
+  const parcoursList = await DB.select("parcours", "select=*") || [];
+  const matchedParcours = parcoursList.filter(p => parcoursIds.includes(p.id));
+  const adminIds = [...new Set(matchedParcours.map(p => p.admin_id).filter(Boolean))];
+  if (!adminIds.length) { _lastLoadedCfgs = []; return []; }
+
+  let allCfgs = [];
+  for (const pId of parcoursIds) {
+    const cfgsParParcours = await DB.select("exam_config", "parcours_id=eq." + pId + "&select=*") || [];
+    allCfgs = allCfgs.concat(cfgsParParcours);
+  }
+  if (!allCfgs.length) {
+    for (const aId of adminIds) {
+      const cfgs = await DB.select("exam_config", "admin_id=eq." + aId + "&select=*") || [];
+      allCfgs = allCfgs.concat(cfgs);
+    }
+  }
+  allCfgs = allCfgs.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
+  await Promise.all(allCfgs.map(cfg => autoFermerSiExpiree(cfg)));
+  allCfgs = allCfgs.filter(e => e.matiere && e.matiere.trim() !== "");
+  _lastLoadedCfgs = allCfgs; // référence pour showAttenteMatiere()
+  return allCfgs;
+}
+
+// ── Étape 6 (identification) : charge la liste fusionnée des candidats de
+// TOUTES les matières du parcours, pour permettre la recherche AVANT de
+// savoir précisément quelle matière l'étudiant va composer.
+async function selLoadCandidatsPourIdentification() {
+  const infoEl = document.getElementById("cand-err-ident");
+  if (infoEl) infoEl.style.display = "none";
+  try {
+    const cfgs = await chargerCfgsPourFiliere();
+    if (!cfgs.length) {
+      if (infoEl) { infoEl.textContent = "⚠️ Aucune épreuve configurée pour votre parcours pour le moment."; infoEl.style.display = "block"; }
+      CANDIDATS_FILIERE = [];
+      return;
+    }
+    const orClause = "exam_config_id=in.(" + cfgs.map(c => c.id).join(",") + ")";
+    const cands = await DB.select("candidats", orClause + "&order=nom.asc") || [];
+    CANDIDATS_FILIERE = cands.filter(c => c.matricule !== "TEST" && (c.filiere || "").toUpperCase() !== "TEST");
+  } catch(e) {
+    console.error("Erreur chargement candidats:", e);
+    if (infoEl) { infoEl.textContent = "Erreur de chargement : " + e.message; infoEl.style.display = "block"; }
+  }
+}
+
+// ── Étape 7 (matière, étape finale) : affiche uniquement les matières où
+// l'étudiant identifié est réellement inscrit.
+function renderMatiereList(cfgs) {
+  const infoEl      = document.getElementById("sel-exam-info");
+  const matiereList = document.getElementById("sel-matiere-list");
+  if (!cfgs.length) {
+    if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve trouvée pour votre profil. Contactez votre enseignant.</strong>"; infoEl.style.display = "block"; }
+    if (matiereList) matiereList.innerHTML = "";
+    return;
+  }
+  if (infoEl) infoEl.style.display = "none";
+  if (matiereList) {
+    matiereList.innerHTML = cfgs.map(cfg => {
+      const isOuvert    = cfg.statut === "ouvert";
+      const isOpen      = isOuvert && examHeureAtteinte(cfg);     // réellement sélectionnable
+      const isScheduled = isOuvert && !examHeureAtteinte(cfg);    // ouverte mais heure pas atteinte
+      let onclickAttr, badge, cardStyle;
+      if (isOpen) {
+        onclickAttr = `selectMatiere('${cfg.id}','${escH(cfg.matiere||cfg.ecole||"Sans nom")}',this)`;
+        badge = `<span class="badge badge-green">🟢 Ouverte</span>`;
+        cardStyle = "";
+      } else if (isScheduled) {
+        onclickAttr = `showAttenteMatiere('${cfg.id}')`;
+        badge = `<span class="badge" style="background:#FEF3C7;color:#92400E">🟡 Démarre le ${escH(formatDateHeureFr(getExamDateTimeDebut(cfg)))}</span>`;
+        cardStyle = "cursor:pointer;background:#FFFBEB";
+      } else {
+        onclickAttr = "void(0)";
+        badge = `<span class="badge badge-red">🔴 Non disponible</span>`;
+        cardStyle = "opacity:0.55;cursor:not-allowed;background:#F3F4F6";
+      }
+      return `
+      <div class="sel-card-opt" onclick="${onclickAttr}" style="${cardStyle}">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div>
+            <div style="font-weight:600;font-size:15px">📖 ${escH(cfg.matiere || cfg.ecole || "Sans nom")}</div>
+            ${cfg.enseignant ? `<div style="font-size:12px;color:#64748B;margin-top:2px">👨‍🏫 ${escH(cfg.enseignant)}</div>` : ""}
+          </div>
+          <div style="margin-left:auto;flex-shrink:0">${badge}</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+}
+
+// Passage de l'étape identification → étape matière : ne montre que les
+// matières où le candidat identifié a réellement été importé par un enseignant.
+function selContinuerVersMatiere() {
+  if (!currentCandidat) { toast("Veuillez d'abord sélectionner votre nom.", "warn"); return; }
+  let cfgsFiltres;
+  if (currentCandidat.matricule === "TEST") {
+    // Compte TEST virtuel : pas de filtrage, toutes les matières du parcours sont proposées
+    cfgsFiltres = _lastLoadedCfgs || [];
+  } else {
+    const idsCandidat = CANDIDATS_FILIERE
+      .filter(c => c.matricule === currentCandidat.matricule)
+      .map(c => c.exam_config_id);
+    cfgsFiltres = (_lastLoadedCfgs || []).filter(cfg => idsCandidat.includes(cfg.id));
+  }
+  renderMatiereList(cfgsFiltres);
+  selShowStep(7);
+}
+
+// Conservé pour compatibilité (ex: rafraîchissement après l'écran d'attente
+// sur une matière programmée) : recharge les configurations et ré-affiche la
+// liste filtrée pour le candidat déjà identifié.
 async function selLoadEpreuve() {
   try {
-    if (!selFiliere || !selFiliere.id) { console.warn("Aucune filière sélectionnée"); return; }
-    const infoEl      = document.getElementById("sel-exam-info");
-    const matiereList = document.getElementById("sel-matiere-list");
-
-    // Chercher les parcours qui incluent cette filière
-    const pf = await DB.select("parcours_filieres", "filiere_id=eq." + selFiliere.id + "&select=parcours_id") || [];
-    const parcoursIds = pf.map(x => x.parcours_id);
-
-    if (!parcoursIds.length) {
-      if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucun parcours configuré pour cette filière.</strong>"; infoEl.style.display = "block"; }
-      if (matiereList) matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
-      return;
-    }
-
-    // Pour chaque parcours, charger les épreuves de l'enseignant assigné
-    const parcoursList = await DB.select("parcours", "select=*") || [];
-    const matchedParcours = parcoursList.filter(p => parcoursIds.includes(p.id));
-
-    // Récupérer toutes les épreuves des admins de ces parcours
-    const adminIds = [...new Set(matchedParcours.map(p => p.admin_id).filter(Boolean))];
-    if (!adminIds.length) {
-      if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucun enseignant assigné à ce parcours.</strong>"; infoEl.style.display = "block"; }
-      if (matiereList) matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
-      return;
-    }
-
-    // Récupérer les épreuves liées EXACTEMENT à ces parcours (via parcours_id)
-    let allCfgs = [];
-    for (const pId of parcoursIds) {
-      // D'abord chercher les épreuves directement liées à ce parcours
-      const cfgsParParcours = await DB.select("exam_config",
-        "parcours_id=eq." + pId + "&select=*") || [];
-      allCfgs = allCfgs.concat(cfgsParParcours);
-    }
-    // Fallback : si aucune épreuve liée par parcours_id, chercher par admin_id
-    // (pour les épreuves créées avant le système de parcours_id)
-    if (!allCfgs.length) {
-      for (const aId of adminIds) {
-        const cfgs = await DB.select("exam_config", "admin_id=eq." + aId + "&select=*") || [];
-        allCfgs = allCfgs.concat(cfgs);
-      }
-    }
-    // Dédupliquer par id
-    allCfgs = allCfgs.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
-
-    // Fermeture automatique des épreuves dont l'heure de fin est dépassée
-    await Promise.all(allCfgs.map(cfg => autoFermerSiExpiree(cfg)));
-
-    // Exclure les épreuves sans matière définie (ex: épreuves de test vides)
-    allCfgs = allCfgs.filter(e => e.matiere && e.matiere.trim() !== "");
-    _lastLoadedCfgs = allCfgs; // référence pour showAttenteMatiere() (évite d'injecter du JSON dans onclick)
-
-    if (!allCfgs.length) {
-      if (infoEl) { infoEl.innerHTML = "<strong style='color:var(--red)'>⚠️ Aucune épreuve configurée.</strong>"; infoEl.style.display = "block"; }
-      if (matiereList) matiereList.innerHTML = "<div class='alert alert-warning'>Aucune matière disponible.</div>";
-      return;
-    }
-
-    if (infoEl) infoEl.style.display = "none";
-    if (matiereList) {
-      matiereList.innerHTML = allCfgs.map(cfg => {
-        const isOuvert    = cfg.statut === "ouvert";
-        const isOpen      = isOuvert && examHeureAtteinte(cfg);     // réellement sélectionnable
-        const isScheduled = isOuvert && !examHeureAtteinte(cfg);    // ouverte mais heure pas atteinte
-        let onclickAttr, badge, cardStyle;
-        if (isOpen) {
-          onclickAttr = `selectMatiere('${cfg.id}','${escH(cfg.matiere||cfg.ecole||"Sans nom")}',this)`;
-          badge = `<span class="badge badge-green">🟢 Ouverte</span>`;
-          cardStyle = "";
-        } else if (isScheduled) {
-          // Affichée mais NON sélectionnable tant que l'heure programmée n'est pas atteinte
-          onclickAttr = `showAttenteMatiere('${cfg.id}')`;
-          badge = `<span class="badge" style="background:#FEF3C7;color:#92400E">🟡 Démarre le ${escH(formatDateHeureFr(getExamDateTimeDebut(cfg)))}</span>`;
-          cardStyle = "cursor:pointer;background:#FFFBEB";
-        } else {
-          onclickAttr = "void(0)";
-          badge = `<span class="badge badge-red">🔴 Non disponible</span>`;
-          cardStyle = "opacity:0.55;cursor:not-allowed;background:#F3F4F6";
-        }
-        return `
-        <div class="sel-card-opt" onclick="${onclickAttr}" style="${cardStyle}">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div>
-              <div style="font-weight:600;font-size:15px">📖 ${escH(cfg.matiere || cfg.ecole || "Sans nom")}</div>
-              ${cfg.enseignant ? `<div style="font-size:12px;color:#64748B;margin-top:2px">👨‍🏫 ${escH(cfg.enseignant)}</div>` : ""}
-            </div>
-            <div style="margin-left:auto;flex-shrink:0">${badge}</div>
-          </div>
-        </div>`;
-      }).join("");
-    }
+    await chargerCfgsPourFiliere();
+    selContinuerVersMatiere();
   } catch(e) {
     console.error("Erreur chargement épreuve:", e);
     toast("Erreur chargement épreuve: " + e.message, "error");
@@ -5543,17 +5575,11 @@ async function chargerConfigMatiere(configId) {
         infoEl.style.display = "block";
       }
       
-      // Activer le bouton pour passer à l'étape suivante (étape 7)
+      // Activer le bouton final de validation (étape 7, dernière étape)
       const btnValider = document.getElementById("btn-valider-sel");
       if (btnValider) {
         btnValider.disabled = false;
-        btnValider.textContent = "✓ Continuer vers l'identification";
-      }
-      
-      // Activer le bouton "Continuer vers l'identification" dans l'étape 6
-      const btnContinuer = document.getElementById("btn-continuer-to-step7");
-      if (btnContinuer) {
-        btnContinuer.disabled = false;
+        btnValider.textContent = "✓ Valider et accéder à l'épreuve";
       }
       
       // Mettre à jour l'affichage de la vérification email
@@ -5563,11 +5589,6 @@ async function chargerConfigMatiere(configId) {
       }
       
       toast(`Matière "${cfg.matiere || cfg.ecole}" sélectionnée`, "success");
-      
-      // AFFICHER UN MESSAGE POUR INVITER L'UTILISATEUR À CONTINUER
-      setTimeout(() => {
-        toast("Cliquez sur 'Continuer vers l'identification' pour passer à l'étape suivante", "info");
-      }, 1000);
       
     }
   } catch(e) {
@@ -5581,7 +5602,7 @@ function onNomInputSel(val) {
   val = val.trim().toUpperCase();
   const sug = document.getElementById("nom-suggestions-sel");
   currentCandidat = null;
-  const bv = document.getElementById("btn-valider-sel"); if (bv) bv.disabled = true;
+  const bv = document.getElementById("btn-continuer-matiere"); if (bv) bv.disabled = true;
   const cp = document.getElementById("cand-preview-sel"); if (cp) cp.style.display = "none";
   if (sug) sug.innerHTML = "";
   if (val.length < 2) return;
@@ -5589,11 +5610,11 @@ function onNomInputSel(val) {
   // Cas spécial : compte TEST — objet fictif en mémoire, bypass base de données
   // Accessible en tapant "TEST" ou "COMP" (début de COMPTE)
   if ("TEST".startsWith(val) || "COMPTE".startsWith(val)) {
-    // Créer un candidat TEST virtuel lié à l'épreuve active
+    // Créer un candidat TEST virtuel — la matière sera choisie à l'étape suivante
     window._testCandVirtuel = {
       matricule: "TEST", nom: "COMPTE", prenom: "Test",
       filiere: "TEST", email: "test@plateforme.local",
-      exam_config_id: CFG ? CFG.id : null, filiere_id: null
+      exam_config_id: null, filiere_id: null
     };
     if (sug) sug.innerHTML = "<div class=\"suggestions\">"
       + `<div class="suggestion-item" style="border-left:3px solid #F59E0B" onclick="selectCandidatSel('__TEST__')"><strong>COMPTE Test</strong> — <span style="color:#F59E0B;font-size:12px">🔧 Mode test enseignant</span></div>`
@@ -5601,20 +5622,28 @@ function onNomInputSel(val) {
     return;
   }
 
-  const found = CANDIDATS.filter(c => {
+  const found = CANDIDATS_FILIERE.filter(c => {
     // Exclure toujours le compte TEST et les filières TEST des vrais étudiants
     if (c.matricule === "TEST") return false;
     if ((c.filiere||"").toUpperCase() === "TEST") return false;
     if (!c.nom || !c.nom.toUpperCase().startsWith(val)) return false;
-    // Filtrer par filière sélectionnée
+    // Filtrer par filière sélectionnée : correspondance par identifiant OU
+    // par code — l'un ou l'autre suffit (corrige les cas où filiere_id est
+    // renseigné mais ne correspond plus après une réorganisation de la
+    // hiérarchie, alors que le code texte, lui, reste correct).
     if (selFiliere) {
-      if (selFiliere.id && c.filiere_id) return c.filiere_id === selFiliere.id;
-      if (selFiliere.code) return (c.filiere||"").toUpperCase() === selFiliere.code.toUpperCase();
+      const idMatch   = !!(selFiliere.id && c.filiere_id && c.filiere_id === selFiliere.id);
+      const codeMatch = !!(selFiliere.code && (c.filiere||"").toUpperCase() === selFiliere.code.toUpperCase());
+      if (!idMatch && !codeMatch) return false;
     }
     return true;
   });
-  if (!found.length) { if (sug) sug.innerHTML = "<div class=\"alert alert-danger\" style=\"margin-top:6px\">Aucun étudiant trouvé.</div>"; return; }
-  if (sug) sug.innerHTML = "<div class=\"suggestions\">" + found.map(c =>
+  // Dédupliquer par matricule (un même étudiant peut apparaître dans
+  // plusieurs matières du même parcours)
+  const seen = new Set();
+  const dedup = found.filter(c => seen.has(c.matricule) ? false : (seen.add(c.matricule), true));
+  if (!dedup.length) { if (sug) sug.innerHTML = "<div class=\"alert alert-danger\" style=\"margin-top:6px\">Aucun étudiant trouvé.</div>"; return; }
+  if (sug) sug.innerHTML = "<div class=\"suggestions\">" + dedup.map(c =>
     `<div class="suggestion-item" onclick="selectCandidatSel('${c.matricule}')"><strong>${c.nom} ${c.prenom||""}</strong> — ${c.matricule}</div>`
   ).join("") + "</div>";
 }
@@ -5623,7 +5652,7 @@ function selectCandidatSel(mat) {
   // Candidat TEST virtuel (pas en base)
   let c = mat === "__TEST__"
     ? (window._testCandVirtuel || { matricule:"TEST", nom:"COMPTE", prenom:"Test", filiere:"TEST", email:"test@plateforme.local" })
-    : CANDIDATS.find(x => x.matricule === mat);
+    : CANDIDATS_FILIERE.find(x => x.matricule === mat);
   if (!c) return;
   currentCandidat = c;
   const sug = document.getElementById("nom-suggestions-sel"); if (sug) sug.innerHTML = "";
@@ -5633,7 +5662,7 @@ function selectCandidatSel(mat) {
   const pf  = document.getElementById("pv-fil-sel");      if (pf)  pf.textContent = (c.filiere_code || c.filiere || selFiliere?.code || "");
   const pe  = document.getElementById("pv-mail-sel");     if (pe)  pe.textContent = c.email||"—";
   const cp  = document.getElementById("cand-preview-sel"); if (cp) cp.style.display = "block";
-  const bv  = document.getElementById("btn-valider-sel"); if (bv) bv.disabled = false;
+  const bv  = document.getElementById("btn-continuer-matiere"); if (bv) bv.disabled = false;
 }
 
 async function validerIdentiteSel() {
@@ -5924,6 +5953,10 @@ function buildInvitationEmail(candidat, cfg) {
   const link = window.location.origin + window.location.pathname;
   const subj = "\uD83D\uDCE2 \u00C9preuve ouverte \u2014 " + (cfg.matiere || "Examen");
 
+  // Heure exacte de début de la composition, à afficher clairement dans l'email
+  const debutDT = getExamDateTimeDebut(cfg);
+  const heureDebutTxt = debutDT ? formatDateHeureFr(debutDT) : null;
+
   const htm = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#F1F5F9;font-family:Arial,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;padding:32px 0">
@@ -5936,10 +5969,16 @@ function buildInvitationEmail(candidat, cfg) {
   </td></tr>
   <tr><td style="padding:32px">
     <p style="margin:0 0 16px;font-size:16px;color:#1E293B">Bonjour <strong>${escH(nomCplt)}</strong>,</p>
-    <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6">
+    <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6">
       L'\u00e9preuve de <strong>${escH(cfg.matiere || "")}</strong>${niveau ? " \u2014 " + escH(niveau) : ""}
-      est d\u00e9sormais <strong>ouverte</strong>. Rendez-vous sur la plateforme pour composer.
+      est d\u00e9sormais <strong>ouverte</strong>. Vous pouvez d\u00e8s maintenant vous connecter \u00e0 la plateforme pour acc\u00e9der \u00e0 votre espace, v\u00e9rifier vos informations et effectuer les \u00e9tapes pr\u00e9paratoires.
     </p>
+    ${heureDebutTxt ? `
+    <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:16px;margin-bottom:20px;text-align:center">
+      <div style="font-size:12px;color:#92400E;margin-bottom:4px">\u23F3 La composition d\u00e9marrera pr\u00e9cis\u00e9ment le</div>
+      <div style="font-size:17px;font-weight:700;color:#92400E">${escH(heureDebutTxt)}</div>
+      <div style="font-size:12px;color:#92400E;margin-top:6px">Avant cette heure, vous pouvez vous pr\u00e9parer, mais la composition elle-m\u00eame ne sera pas accessible.</div>
+    </div>` : ""}
     <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-bottom:24px">
       <a href="${link}"
         style="background:#1D4ED8;color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;display:inline-block">
@@ -5947,11 +5986,11 @@ function buildInvitationEmail(candidat, cfg) {
       </a>
     </td></tr></table>
     <div style="background:#F8FAFC;border-radius:10px;padding:14px 16px;margin-bottom:20px;border-left:4px solid #1D4ED8">
-      <div style="font-size:12px;color:#64748B;margin-bottom:6px">\u00C9tapes suivantes</div>
+      <div style="font-size:12px;color:#64748B;margin-bottom:6px">\u00C9tapes \u00e0 suivre d\u00e8s maintenant</div>
       <div style="font-size:13px;color:#1E293B;line-height:1.9">
         1. Cliquez sur le bouton ci-dessus<br>
         2. Renseignez votre espace et votre parcours<br>
-        3. Un lien s\u00e9curis\u00e9 personnel vous sera envoy\u00e9 par email pour composer
+        3. Un lien s\u00e9curis\u00e9 personnel vous sera envoy\u00e9 par email pour composer${heureDebutTxt ? `<br>4. La composition d\u00e9marrera automatiquement \u00e0 l'heure indiqu\u00e9e ci-dessus` : ""}
       </div>
     </div>
     <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0">
@@ -5966,9 +6005,12 @@ function buildInvitationEmail(candidat, cfg) {
 
   const txt = "Bonjour " + nomCplt + ",\n\n"
     + "L'\u00e9preuve de " + (cfg.matiere || "") + " est d\u00e9sormais ouverte.\n"
-    + "Rendez-vous sur la plateforme pour composer :\n" + link
+    + "Vous pouvez d\u00e8s maintenant vous connecter \u00e0 la plateforme pour acc\u00e9der \u00e0 votre espace, v\u00e9rifier vos informations et effectuer les \u00e9tapes pr\u00e9paratoires :\n" + link
+    + (heureDebutTxt ? "\n\n\u23F3 La composition d\u00e9marrera pr\u00e9cis\u00e9ment le " + heureDebutTxt + ". Avant cette heure, la composition elle-m\u00eame ne sera pas accessible." : "")
     + "\n\n1. Acc\u00e9dez \u00e0 la plateforme\n2. Renseignez votre espace et votre parcours\n"
-    + "3. Un lien s\u00e9curis\u00e9 personnel vous sera envoy\u00e9 pour composer\n\nExamPlatform";
+    + "3. Un lien s\u00e9curis\u00e9 personnel vous sera envoy\u00e9 pour composer"
+    + (heureDebutTxt ? "\n4. La composition d\u00e9marrera automatiquement \u00e0 l'heure indiqu\u00e9e ci-dessus" : "")
+    + "\n\nExamPlatform";
 
   return { subj, txt, htm };
 }
@@ -7302,15 +7344,6 @@ async function saLoadActivity() {
     goTo('pg-home');
   }
 })();
-// Fonction pour passer manuellement à l'étape 7
-function goToStep7() {
-  if (selectedMatiereId) {
-    selShowStep(7);
-  } else {
-    toast("Veuillez d'abord sélectionner une matière", "warn");
-  }
-}
-
 </script>
 
 <style>
