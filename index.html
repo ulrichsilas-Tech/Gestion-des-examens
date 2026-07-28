@@ -1237,7 +1237,7 @@ end $$;
         • Contactez votre responsable d'examen si le problème persiste
       </div>
       <!-- Bouton renvoi avec cooldown -->
-      <button id="btn-resend-token" onclick="reenvoyerToken()" style="background:#F1F5F9;color:#475569;border:1px solid #CBD5E1;padding:12px 20px;border-radius:12px;cursor:pointer;font-size:14px;margin-bottom:12px;width:100%">🔄 Renvoyer l'email</button>
+      <button id="btn-resend-token" style="background:#F1F5F9;color:#475569;border:1px solid #CBD5E1;padding:12px 20px;border-radius:12px;cursor:pointer;font-size:14px;margin-bottom:12px;width:100%">🔄 Renvoyer l'email</button>
       <div id="resend-cooldown" style="display:none;font-size:12px;color:#94A3B8;margin-bottom:12px">Vous pourrez renvoyer dans <span id="resend-countdown">60</span>s</div>
       <button onclick="goTo('pg-home')" style="background:transparent;border:1px solid #E5E7EB;color:#64748B;padding:12px 24px;border-radius:12px;cursor:pointer;font-size:14px;width:100%">← Retour à l'accueil</button>
     </div>
@@ -5686,16 +5686,13 @@ async function validerIdentiteSel() {
         ? "Cette épreuve est terminée : l'heure de fin programmée est dépassée."
         : "Cette épreuve est actuellement fermée."); return;
     }
+
+    let fenetre = null;
     if (!isTest) {
       // Vérification côté serveur (infalsifiable via l'horloge de l'appareil)
-      const fenetre = await serverCheckFenetre(CFG);
+      fenetre = await serverCheckFenetre(CFG);
       if (fenetre.apresFermeture) {
         showErrSel(err, btn, "Cette épreuve est terminée : l'heure de fin programmée est dépassée."); return;
-      }
-      if (fenetre.avantOuverture) {
-        if (btn) { btn.disabled = false; btn.textContent = "✓ Valider et accéder à l'épreuve"; }
-        showAttente(CFG, () => validerIdentiteSel());
-        return;
       }
     }
 
@@ -5717,7 +5714,7 @@ async function validerIdentiteSel() {
       }
     }
 
-    // Compte TEST : accès direct sans email
+    // Compte TEST : accès direct sans email, sans attente
     if (isTest) {
       await loadLogos();
       repCand = {};
@@ -5734,20 +5731,49 @@ async function validerIdentiteSel() {
       return;
     }
 
-    // Envoyer le lien par email — flux unique et obligatoire
-    // (la clé Resend est gérée côté serveur dans l'Edge Function Supabase,
-    // aucune configuration n'est nécessaire au niveau de l'épreuve)
-    await sendCompositionToken();
+    // Envoyer le lien par email — étape OBLIGATOIRE du parcours (mesure de
+    // sécurité) : seul le clic sur ce lien permet de prouver que la personne
+    // qui compose est bien la propriétaire du compte étudiant. Aucun accès
+    // direct au compte à rebours ni à la composition n'est autorisé ici.
+    let tokenInfo;
+    try {
+      tokenInfo = await sendCompositionToken();
+    } catch(e) {
+      showErrSel(err, btn, "Impossible d'envoyer l'email de validation : " + e.message + ". Réessayez.");
+      return;
+    }
+
+    // Afficher l'écran "email envoyé" — seule suite possible du parcours.
+    // Aucun bouton ni redirection n'y permet d'accéder autrement à l'épreuve.
+    afficherEcranEmailEnvoye(tokenInfo);
 
   } catch(e) {
     toast("Erreur : " + e.message, "error");
-    if (btn) { btn.disabled = false; btn.textContent = "✓ Continuer vers l'identification"; }
+    if (btn) { btn.disabled = false; btn.textContent = "✓ Valider et accéder à l'épreuve"; }
   }
+}
+
+// Affiche l'écran de confirmation d'envoi de l'email — point de passage
+// obligatoire. L'étudiant doit cliquer sur le lien reçu par email pour
+// continuer ; cette page ne donne par elle-même aucun accès à l'épreuve.
+function afficherEcranEmailEnvoye(tokenInfo) {
+  [1,2,3,4,5,6,7].forEach(n => {
+    const el = document.getElementById("sel-step" + n);
+    if (el) el.style.display = "none";
+  });
+  const emailPage = document.getElementById("sel-step-email");
+  if (emailPage) emailPage.style.display = "block";
+
+  const emailEl = document.getElementById("email-sent-to");
+  if (emailEl) emailEl.textContent = masquerEmail(currentCandidat.email);
+
+  demarrerTokenTimer(tokenInfo.expiresAt);
+  activerBoutonRenvoi();
 }
 
 function showErrSel(err, btn, msg) {
   if (err) { err.textContent = msg; err.style.display = "flex"; }
-  if (btn) { btn.disabled = false; btn.textContent = "✓ Continuer vers l'identification"; }
+  if (btn) { btn.disabled = false; btn.textContent = "✓ Valider et accéder à l'épreuve"; }
 }
 // ════════════════════════════════════════
 // EMAIL VERIFICATION
@@ -5808,7 +5834,8 @@ function activerBoutonRenvoi() {
       }
     }, 1000);
     try {
-      await sendCompositionToken();
+      const info2 = await sendCompositionToken();
+      demarrerTokenTimer(info2.expiresAt);
       toast("Email renvoyé ✓", "success");
     } catch(e) {
       toast("Erreur renvoi : " + e.message, "error");
@@ -5818,9 +5845,15 @@ function activerBoutonRenvoi() {
 }
 
 async function sendCompositionToken() {
-  // Le lien expire après 5 minutes — délai suffisant pour ouvrir l'email et cliquer
-  const TOKEN_EXPIRE_MINS = 5;
-  const expiresAt = new Date(Date.now() + TOKEN_EXPIRE_MINS * 60000).toISOString();
+  // Étape OBLIGATOIRE du parcours (mesure de sécurité) : ce lien est l'unique
+  // point d'entrée vers le compte à rebours puis la composition (voir
+  // handleTokenAccess). Il doit rester valable au moins jusqu'à la fin
+  // programmée de l'épreuve, le temps que l'étudiant consulte son email puis
+  // patiente jusqu'à l'heure de début.
+  const finProgrammee = getExamDateTimeFin(CFG);
+  const expiresAt = finProgrammee && finProgrammee.getTime() > Date.now()
+    ? finProgrammee.toISOString()
+    : new Date(Date.now() + 6 * 60 * 60000).toISOString(); // repli : 6h si pas d'heure de fin définie
   _tokenExpiresAt = expiresAt;
 
   const res = await DB.insert("tokens_composition", {
@@ -5875,8 +5908,7 @@ async function sendCompositionToken() {
       <ul style="margin:0;padding-left:18px;font-size:13px;color:#92400E;line-height:1.8">
         <li>Ce lien est <strong>personnel et unique</strong> \u2014 ne le partagez pas.</li>
         <li>Il sera <strong>invalide apr\u00e8s utilisation</strong>.</li>
-        <li>Il expire dans <strong>5 minutes</strong> — ouvrez-le rapidement.</li>
-        <li>Assurez-vous d'\u00eatre dans un endroit calme avant de cliquer.</li>
+        <li><strong>Ce clic est obligatoire</strong> pour continuer : il confirme que c'est bien vous qui composez. Sans ce clic, vous ne pourrez pas acc\u00e9der au compte \u00e0 rebours ni \u00e0 la composition.</li>
       </ul>
     </div>
     <p style="font-size:11px;color:#94A3B8;text-align:center;margin:0">
@@ -5892,25 +5924,13 @@ async function sendCompositionToken() {
   const txt = "Bonjour " + nomCplt + ",\n\n"
     + "Votre lien d'acc\u00e8s \u00e0 l'examen de " + (CFG.matiere||"") + " :\n"
     + link + "\n\nMatricule : " + currentCandidat.matricule
-    + "\nCe lien est personnel, invalide apr\u00e8s utilisation et expire dans 5 minutes.\n\nExamPlatform";
+    + "\nCe lien est personnel et invalide apr\u00e8s utilisation. "
+    + "Ce clic est OBLIGATOIRE pour continuer : il confirme que c'est bien vous qui composez. "
+    + "Sans ce clic, vous ne pourrez pas acc\u00e9der au compte \u00e0 rebours ni \u00e0 la composition.\n\nExamPlatform";
 
   await sendEmailResend(currentCandidat.email, subj, txt, htm);
 
-  // Afficher page email envoyé
-  [1,2,3,4,5,6,7].forEach(n => {
-    const el = document.getElementById("sel-step" + n);
-    if (el) el.style.display = "none";
-  });
-  const emailPage = document.getElementById("sel-step-email");
-  if (emailPage) emailPage.style.display = "block";
-
-  // Afficher email masqué
-  const emailEl = document.getElementById("email-sent-to");
-  if (emailEl) emailEl.textContent = masquerEmail(currentCandidat.email);
-
-  // Démarrer timer
-  demarrerTokenTimer(expiresAt);
-  activerBoutonRenvoi();
+  return { token, expiresAt };
 }
 
 // Edge Function Supabase — relaie vers Resend sans blocage CORS
