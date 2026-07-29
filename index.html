@@ -5319,10 +5319,6 @@ function selShowStep(n) {
 }
 
 let _lastLoadedCfgs = [];
-function showAttenteMatiere(cfgId) {
-  const cfg = (_lastLoadedCfgs || []).find(c => c.id === cfgId);
-  if (cfg) showAttente(cfg, () => { goTo('pg-candidat-select'); selLoadEpreuve(); });
-}
 
 // Récupère les épreuves (exam_config) rattachées au parcours de la filière
 // sélectionnée. Fonction réutilisée à la fois pour charger les candidats
@@ -5353,7 +5349,7 @@ async function chargerCfgsPourFiliere() {
   allCfgs = allCfgs.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
   await Promise.all(allCfgs.map(cfg => autoFermerSiExpiree(cfg)));
   allCfgs = allCfgs.filter(e => e.matiere && e.matiere.trim() !== "");
-  _lastLoadedCfgs = allCfgs; // référence pour showAttenteMatiere()
+  _lastLoadedCfgs = allCfgs; // référence utilisée par selContinuerVersMatiere() pour filtrer les matières du candidat
   return allCfgs;
 }
 
@@ -5392,18 +5388,20 @@ function renderMatiereList(cfgs) {
   if (infoEl) infoEl.style.display = "none";
   if (matiereList) {
     matiereList.innerHTML = cfgs.map(cfg => {
-      const isOuvert    = cfg.statut === "ouvert";
-      const isOpen      = isOuvert && examHeureAtteinte(cfg);     // réellement sélectionnable
-      const isScheduled = isOuvert && !examHeureAtteinte(cfg);    // ouverte mais heure pas atteinte
+      const isOuvert = cfg.statut === "ouvert";
+      const isOpen   = isOuvert && examHeureAtteinte(cfg); // heure de début déjà atteinte (info uniquement)
       let onclickAttr, badge, cardStyle;
-      if (isOpen) {
+      if (isOuvert) {
+        // Toute épreuve "ouverte" est sélectionnable, que l'heure de début
+        // soit déjà atteinte ou non — le badge "Démarre le..." est purement
+        // informatif. Le compte à rebours n'apparaît JAMAIS ici : il n'est
+        // affiché qu'après validation, envoi de l'email, et clic sur le
+        // lien reçu (voir handleTokenAccess).
         onclickAttr = `selectMatiere('${cfg.id}','${escH(cfg.matiere||cfg.ecole||"Sans nom")}',this)`;
-        badge = `<span class="badge badge-green">🟢 Ouverte</span>`;
+        badge = isOpen
+          ? `<span class="badge badge-green">🟢 Ouverte</span>`
+          : `<span class="badge" style="background:#FEF3C7;color:#92400E">🟡 Démarre le ${escH(formatDateHeureFr(getExamDateTimeDebut(cfg)))}</span>`;
         cardStyle = "";
-      } else if (isScheduled) {
-        onclickAttr = `showAttenteMatiere('${cfg.id}')`;
-        badge = `<span class="badge" style="background:#FEF3C7;color:#92400E">🟡 Démarre le ${escH(formatDateHeureFr(getExamDateTimeDebut(cfg)))}</span>`;
-        cardStyle = "cursor:pointer;background:#FFFBEB";
       } else {
         onclickAttr = "void(0)";
         badge = `<span class="badge badge-red">🔴 Non disponible</span>`;
@@ -5439,19 +5437,6 @@ function selContinuerVersMatiere() {
   }
   renderMatiereList(cfgsFiltres);
   selShowStep(7);
-}
-
-// Conservé pour compatibilité (ex: rafraîchissement après l'écran d'attente
-// sur une matière programmée) : recharge les configurations et ré-affiche la
-// liste filtrée pour le candidat déjà identifié.
-async function selLoadEpreuve() {
-  try {
-    await chargerCfgsPourFiliere();
-    selContinuerVersMatiere();
-  } catch(e) {
-    console.error("Erreur chargement épreuve:", e);
-    toast("Erreur chargement épreuve: " + e.message, "error");
-  }
 }
 
 // Fonction pour sélectionner une matière
