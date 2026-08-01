@@ -4302,7 +4302,11 @@ async function createNewEpreuve() {
       ALL_EPREUVES.push(res[0]);
       CFG = res[0];
       QUESTIONS = []; COPIES = [];
-      CANDIDATS = await DB.select("candidats", "admin_id=eq." + currentAdmin.id + "&order=nom.asc") || [];
+      // Une épreuve nouvellement créée n'a encore aucun candidat qui lui
+      // soit propre — ne pas charger tous les candidats de l'enseignant
+      // toutes épreuves confondues (bug précédent : filtrait par admin_id
+      // au lieu de exam_config_id, mélangeant les listes entre épreuves).
+      CANDIDATS = [];
       renderEpreuveSelector();
       loadConfigFormNew();
       renderQBuilder();
@@ -5336,15 +5340,18 @@ async function chargerCfgsPourFiliere() {
   if (!adminIds.length) { _lastLoadedCfgs = []; return []; }
 
   let allCfgs = [];
-  for (const pId of parcoursIds) {
-    const cfgsParParcours = await DB.select("exam_config", "parcours_id=eq." + pId + "&select=*") || [];
-    allCfgs = allCfgs.concat(cfgsParParcours);
-  }
-  if (!allCfgs.length) {
-    for (const aId of adminIds) {
-      const cfgs = await DB.select("exam_config", "admin_id=eq." + aId + "&select=*") || [];
-      allCfgs = allCfgs.concat(cfgs);
+  for (const p of matchedParcours) {
+    let cfgsParParcours = await DB.select("exam_config", "parcours_id=eq." + p.id + "&select=*") || [];
+    // Repli PAR PARCOURS (et non global) : si aucune épreuve n'est liée via
+    // parcours_id pour CE parcours précis, chercher par admin_id de CE
+    // parcours — utile pour les épreuves créées avant l'auto-liaison. Un
+    // repli global aurait pu masquer entièrement les épreuves d'un
+    // enseignant si un AUTRE enseignant du même parcours/filière avait déjà
+    // des épreuves correctement liées par parcours_id.
+    if (!cfgsParParcours.length && p.admin_id) {
+      cfgsParParcours = await DB.select("exam_config", "admin_id=eq." + p.admin_id + "&select=*") || [];
     }
+    allCfgs = allCfgs.concat(cfgsParParcours);
   }
   allCfgs = allCfgs.filter((c, i, arr) => arr.findIndex(x => x.id === c.id) === i);
   await Promise.all(allCfgs.map(cfg => autoFermerSiExpiree(cfg)));
@@ -5425,17 +5432,14 @@ function renderMatiereList(cfgs) {
 // matières où le candidat identifié a réellement été importé par un enseignant.
 function selContinuerVersMatiere() {
   if (!currentCandidat) { toast("Veuillez d'abord sélectionner votre nom.", "warn"); return; }
-  let cfgsFiltres;
-  if (currentCandidat.matricule === "TEST") {
-    // Compte TEST virtuel : pas de filtrage, toutes les matières du parcours sont proposées
-    cfgsFiltres = _lastLoadedCfgs || [];
-  } else {
-    const idsCandidat = CANDIDATS_FILIERE
-      .filter(c => c.matricule === currentCandidat.matricule)
-      .map(c => c.exam_config_id);
-    cfgsFiltres = (_lastLoadedCfgs || []).filter(cfg => idsCandidat.includes(cfg.id));
-  }
-  renderMatiereList(cfgsFiltres);
+  // Toutes les matières du parcours sont affichées (plus de filtrage
+  // préalable par appartenance stricte à un exam_config précis, qui
+  // provoquait un "Matière non disponible" incorrect si l'étudiant avait
+  // été importé dans une épreuve différente — parfois en doublon — de
+  // celle réellement ouverte). La vérification d'inscription réelle se
+  // fait désormais au moment du clic sur une matière précise, dans
+  // chargerConfigMatiere(), avec le bon enregistrement du candidat.
+  renderMatiereList(_lastLoadedCfgs || []);
   selShowStep(7);
 }
 
@@ -5474,6 +5478,29 @@ async function chargerConfigMatiere(configId) {
         c.matricule !== "TEST" &&
         (c.filiere||"").toUpperCase() !== "TEST"
       );
+
+      // Vérifier que l'étudiant identifié est bien inscrit à CETTE matière
+      // précise (et pas seulement à une autre épreuve du même parcours) —
+      // et repartir de SON enregistrement exact pour cette épreuve (email/
+      // filière à jour), plutôt que de l'enregistrement trouvé lors de
+      // l'identification qui peut provenir d'une épreuve différente.
+      const isTestCandidat = currentCandidat && currentCandidat.matricule === "TEST";
+      if (!isTestCandidat) {
+        const inscrit = CANDIDATS.find(c => c.matricule === currentCandidat.matricule);
+        if (!inscrit) {
+          const infoEl = document.getElementById("sel-exam-info");
+          if (infoEl) {
+            infoEl.innerHTML = `<strong style="color:var(--red)">⚠️ Vous n'êtes pas inscrit(e) à la matière "${escH(cfg.matiere || "")}". Vérifiez votre sélection ou contactez votre enseignant.</strong>`;
+            infoEl.style.display = "block";
+          }
+          const btnValider = document.getElementById("btn-valider-sel");
+          if (btnValider) btnValider.disabled = true;
+          selectedMatiereId = null;
+          return;
+        }
+        // Repartir de l'enregistrement exact de cette épreuve (email/filière à jour)
+        currentCandidat = inscrit;
+      }
 
       // Charger les questions de CETTE épreuve
       const qs = await DB.select("questions", "exam_config_id=eq." + cfg.id + "&order=ordre.asc") || [];
@@ -5956,7 +5983,7 @@ function buildInvitationEmail(candidat, cfg) {
 
 // Envoie (ou renvoie) l'invitation à UN candidat et met à jour l'historique.
 // force=true → envoie même si une invitation existe déjà (renvoi manuel).
-async function envoyerInvitationCandidat(candidat, cfg) {
+async function envoyerInvitationCandidat(candidat, cfg, force) {
   if (!candidat.email) {
     await DB.upsert('invitations', {
       exam_config_id: cfg.id, candidat_id: candidat.id || null,
@@ -5985,11 +6012,15 @@ async function envoyerInvitationCandidat(candidat, cfg) {
 }
 
 // Envoie les invitations en arrière-plan, par lots, sans bloquer l'UI.
-// Aucune restriction : chaque candidat reçoit une invitation à chaque appel
-// (ouverture d'épreuve, import d'étudiants, renvoi manuel), même s'il en a
-// déjà reçu une précédemment.
+// - Par défaut (pas de "force") : n'envoie qu'aux candidats jamais invités
+//   avec succès, ou dont l'email a changé depuis la dernière invitation
+//   réussie (dédoublonnage) — évite d'épuiser le quota d'envoi (Resend) en
+//   cas de réouverture répétée d'une épreuve (tests) ou de doublons
+//   d'adresses email entre plusieurs comptes étudiants.
+// - Avec "force" (bouton "Renvoyer" explicite) : renvoie sans restriction.
 async function envoyerInvitationsPourEpreuve(examId, opts) {
   opts = opts || {};
+  const force = !!opts.force;
   const cibleMatricules = opts.matricules || null;
 
   const cfg = (CFG && CFG.id === examId) ? CFG : (await DB.select('exam_config', 'id=eq.' + examId))[0];
@@ -6000,12 +6031,19 @@ async function envoyerInvitationsPourEpreuve(examId, opts) {
   if (cibleMatricules) candidats = candidats.filter(c => cibleMatricules.includes(c.matricule));
   if (!candidats.length) return;
 
-  // Aucune restriction : chaque appel de cette fonction (ouverture de
-  // l'épreuve, import d'étudiants, renvoi manuel...) envoie systématiquement
-  // l'invitation à tous les candidats concernés, même s'ils en ont déjà
-  // reçu une — un étudiant peut recevoir le message autant de fois que
-  // nécessaire (email perdu/non reçu), et cela facilite aussi les tests.
-  const aTraiter = candidats;
+  let aTraiter = candidats;
+  if (!force) {
+    const existantes = await DB.select('invitations', 'exam_config_id=eq.' + examId) || [];
+    const parMatricule = new Map(existantes.map(i => [i.matricule, i]));
+    aTraiter = candidats.filter(c => {
+      const inv = parMatricule.get(c.matricule);
+      if (!inv) return true;                                   // jamais invité
+      if (inv.statut !== 'envoye') return true;                 // dernier envoi en échec : retenter
+      if ((inv.email || '') !== (c.email || '')) return true;   // email corrigé depuis
+      return false;                                             // déjà invité avec succès : ne pas renvoyer automatiquement
+    });
+  }
+  if (!aTraiter.length) return;
 
   window._invitationsEnCours = (window._invitationsEnCours || 0) + aTraiter.length;
   let succes = 0, echecs = 0;
@@ -6013,7 +6051,7 @@ async function envoyerInvitationsPourEpreuve(examId, opts) {
   // Envoi par lots (concurrence limitée) pour rester fluide même sur de gros effectifs
   for (let i = 0; i < aTraiter.length; i += INVITATIONS_CONCURRENCE) {
     const lot = aTraiter.slice(i, i + INVITATIONS_CONCURRENCE);
-    const resultats = await Promise.allSettled(lot.map(c => envoyerInvitationCandidat(c, cfg, true)));
+    const resultats = await Promise.allSettled(lot.map(c => envoyerInvitationCandidat(c, cfg, force)));
     resultats.forEach(r => {
       if (r.status === 'fulfilled' && r.value.ok) succes++; else echecs++;
     });
@@ -6028,13 +6066,14 @@ async function envoyerInvitationsPourEpreuve(examId, opts) {
   }
 }
 
-// Renvoi manuel à UN étudiant (bouton "Renvoyer" dans l'historique)
+// Renvoi manuel à UN étudiant (bouton "Renvoyer" dans l'historique) — force
+// toujours l'envoi, c'est une demande explicite de l'enseignant.
 async function resendInvitation(matricule) {
   if (!CFG || !CFG.id) return;
   const candidat = (CANDIDATS || []).find(c => c.matricule === matricule);
   if (!candidat) { toast("\u00C9tudiant introuvable", "error"); return; }
   toast("Envoi en cours\u2026", "info");
-  const r = await envoyerInvitationCandidat(candidat, CFG);
+  const r = await envoyerInvitationCandidat(candidat, CFG, true);
   toast(r.ok ? "\u2705 Invitation renvoy\u00e9e" : "\u274C \u00C9chec de l'envoi", r.ok ? "success" : "error");
   renderInvitationsTable();
 }
