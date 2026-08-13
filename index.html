@@ -493,274 +493,9 @@ textarea{resize:vertical;min-height:80px}
 -- ════ ExamPlatform — Script SQL complet avec RLS ════
 -- À exécuter dans Supabase → SQL Editor
 
--- ══ 1. TABLES ══
 
-create table if not exists admins (
-  id uuid primary key default gen_random_uuid(),
-  identifiant text unique not null,
-  nom text, email text, pwd text,
-  role text default 'enseignant',
-  valide boolean default false,
-  created_at timestamptz default now()
-);
 
-create table if not exists universites (
-  id uuid primary key default gen_random_uuid(),
-  nom text not null,
-  entites jsonb default '[]',
-  logo_url text
-);
 
-create table if not exists entites (
-  id uuid primary key default gen_random_uuid(),
-  nom text not null,
-  universite_id uuid references universites(id) on delete cascade,
-  logo_url text
-);
-
-create table if not exists departements (
-  id uuid primary key default gen_random_uuid(),
-  nom text not null,
-  entite_id uuid references entites(id) on delete cascade
-);
-
-create table if not exists niveaux (
-  id uuid primary key default gen_random_uuid(),
-  nom text not null,
-  ordre int default 0,
-  departement_id uuid references departements(id) on delete cascade
-);
-
-create table if not exists filieres (
-  id uuid primary key default gen_random_uuid(),
-  nom text not null,
-  code text not null,
-  ordre int default 0,
-  departement_id uuid references departements(id) on delete cascade,
-  niveau_id uuid references niveaux(id) on delete cascade
-);
-
-create table if not exists parcours (
-  id uuid primary key default gen_random_uuid(),
-  universite_id uuid references universites(id) on delete cascade,
-  entite_id uuid references entites(id) on delete cascade,
-  departement_id uuid references departements(id) on delete cascade,
-  niveau_id uuid references niveaux(id) on delete cascade,
-  admin_id uuid references admins(id) on delete cascade,
-  created_at timestamptz default now()
-);
-
-create table if not exists parcours_filieres (
-  parcours_id uuid references parcours(id) on delete cascade,
-  filiere_id uuid references filieres(id) on delete cascade,
-  primary key (parcours_id, filiere_id)
-);
-
-create table if not exists exam_config (
-  id uuid primary key default gen_random_uuid(),
-  admin_id uuid references admins(id) on delete cascade,
-  parcours_id uuid references parcours(id) on delete set null,
-  ecole text, institut text, matiere text, niveau text,
-  annee text, date_exam date, heure time default '08:00',
-  heure_fin time,
-  duree int default 90, duree_individuelle int, session text default 'Normale',
-  bareme int default 20, consigne text, enseignant text,
-  statut text default 'ferme',
-  email_verification boolean default false,
-  resend_key text, smtp_from text, reclamation_email text,
-  logo_universite text, logo_entite text,
-  -- pwd_admin text, (vestige supprime - utiliser admins.pwd)
-  created_at timestamptz default now()
-);
-
-create table if not exists candidats (
-  id uuid primary key default gen_random_uuid(),
-  admin_id uuid references admins(id) on delete cascade,
-  exam_config_id uuid references exam_config(id) on delete cascade,
-  matricule text not null,
-  nom text, prenom text,
-  filiere text, filiere_id uuid references filieres(id) on delete set null,
-  email text, date_naissance date,
-  unique(exam_config_id, matricule)
-);
-
-create table if not exists questions (
-  id uuid primary key default gen_random_uuid(),
-  admin_id uuid references admins(id) on delete cascade,
-  exam_config_id uuid references exam_config(id) on delete cascade,
-  num int, ordre int, texte text,
-  image_url text, html_content text
-);
-
-create table if not exists sous_questions (
-  id text primary key,
-  question_id uuid references questions(id) on delete cascade,
-  ordre int, texte text, correct boolean default false
-);
-
-create table if not exists copies (
-  id uuid primary key default gen_random_uuid(),
-  admin_id uuid references admins(id) on delete cascade,
-  exam_config_id uuid references exam_config(id) on delete cascade,
-  matricule text, nom text, prenom text,
-  filiere text, reponses jsonb, note numeric,
-  note_brute numeric, note_sur_bareme numeric,
-  date_depot timestamptz default now()
-);
-
-create table if not exists tokens_composition (
-  token uuid primary key default gen_random_uuid(),
-  matricule text, admin_id uuid,
-  exam_config_id uuid references exam_config(id) on delete cascade,
-  expires_at timestamptz, used boolean default false
-);
-
--- Utilisée uniquement par composition-directe.html (version allégée) pour
--- le mécanisme de durée individuelle par étudiant (voir duree_individuelle
--- ci-dessus). Sans effet sur la version principale.
-create table if not exists sessions_composition (
-  id uuid primary key default gen_random_uuid(),
-  exam_config_id uuid references exam_config(id) on delete cascade,
-  matricule text not null,
-  admin_id uuid,
-  started_at timestamptz not null default now(),
-  unique (exam_config_id, matricule)
-);
-
-create table if not exists reset_tokens (
-  id uuid primary key default gen_random_uuid(),
-  token text, admin_id uuid,
-  expires_at timestamptz, used boolean default false
-);
-
-create table if not exists invitations (
-  id uuid primary key default gen_random_uuid(),
-  exam_config_id uuid references exam_config(id) on delete cascade,
-  candidat_id uuid references candidats(id) on delete cascade,
-  matricule text not null,
-  email text not null,
-  statut text default 'en_attente',
-  erreur text,
-  sent_at timestamptz,
-  created_at timestamptz default now(),
-  unique(exam_config_id, matricule)
-);
-
--- ══ 2. SUPER ADMIN PAR DÉFAUT ══
-insert into admins (identifiant, nom, email, pwd, role, valide)
-values ('admin', 'Super Administrateur', 'admin@examplatform.com', 'admin123', 'superadmin', true)
-on conflict (identifiant) do nothing;
-
--- ══ 3. GRANTs (obligatoire Supabase mai 2025+) ══
-do $$
-declare t text;
-tables text[] := array[
-  'admins','exam_config','candidats','questions','sous_questions',
-  'copies','tokens_composition','reset_tokens','invitations',
-  'universites','entites','departements','niveaux','filieres',
-  'parcours','parcours_filieres'
-];
-begin
-  foreach t in array tables loop
-    execute format('grant select, insert, update, delete on public.%I to anon', t);
-    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
-    execute format('grant select, insert, update, delete on public.%I to service_role', t);
-  end loop;
-end $$;
-
--- ══ 4. ACTIVATION RLS ══
-do $$
-declare t text;
-tables text[] := array[
-  'admins','exam_config','candidats','questions','sous_questions',
-  'copies','tokens_composition','reset_tokens','invitations',
-  'universites','entites','departements','niveaux','filieres',
-  'parcours','parcours_filieres'
-];
-begin
-  foreach t in array tables loop
-    execute format('alter table public.%I enable row level security', t);
-  end loop;
-end $$;
-
--- ══ 5. POLICIES RLS ══
--- Architecture : pas d'auth Supabase, login custom via table admins.
--- Stratégie : anon peut tout faire (l'app gère elle-même les droits),
--- MAIS on bloque la colonne pwd dans admins pour la lecture externe.
-
--- Tables publiques en lecture (hiérarchie universitaire — visible par étudiants)
-create policy "public_read" on universites for select to anon using (true);
-create policy "public_read" on entites      for select to anon using (true);
-create policy "public_read" on departements for select to anon using (true);
-create policy "public_read" on niveaux      for select to anon using (true);
-create policy "public_read" on filieres     for select to anon using (true);
-create policy "public_read" on parcours          for select to anon using (true);
-create policy "public_read" on parcours_filieres for select to anon using (true);
-create policy "public_read" on exam_config       for select to anon using (true);
-create policy "public_read" on candidats         for select to anon using (true);
-create policy "public_read" on questions         for select to anon using (true);
-create policy "public_read" on sous_questions    for select to anon using (true);
-create policy "public_read" on copies            for select to anon using (true);
-create policy "public_read" on tokens_composition for select to anon using (true);
-create policy "public_read" on reset_tokens       for select to anon using (true);
-create policy "public_read" on invitations        for select to anon using (true);
-
--- Écriture autorisée pour toutes les tables (l'app gère les droits)
-create policy "anon_write" on universites  for all to anon using (true) with check (true);
-create policy "anon_write" on entites      for all to anon using (true) with check (true);
-create policy "anon_write" on departements for all to anon using (true) with check (true);
-create policy "anon_write" on niveaux      for all to anon using (true) with check (true);
-create policy "anon_write" on filieres     for all to anon using (true) with check (true);
-create policy "anon_write" on parcours          for all to anon using (true) with check (true);
-create policy "anon_write" on parcours_filieres for all to anon using (true) with check (true);
-create policy "anon_write" on exam_config  for all to anon using (true) with check (true);
-create policy "anon_write" on candidats    for all to anon using (true) with check (true);
-create policy "anon_write" on questions    for all to anon using (true) with check (true);
-create policy "anon_write" on sous_questions    for all to anon using (true) with check (true);
-create policy "anon_write" on copies            for all to anon using (true) with check (true);
-create policy "anon_write" on tokens_composition for all to anon using (true) with check (true);
-create policy "anon_write" on reset_tokens       for all to anon using (true) with check (true);
-create policy "anon_write" on invitations        for all to anon using (true) with check (true);
-
--- Table admins : lecture restreinte (pas de select * depuis l'extérieur)
--- Seul le login (select par identifiant) est autorisé — la colonne pwd
--- ne peut pas être masquée par RLS seul, donc on hache les mots de passe
--- dans la prochaine étape (voir note ci-dessous)
-create policy "admins_read"  on admins for select to anon using (true);
-create policy "admins_write" on admins for all    to anon using (true) with check (true);
-
--- ══ NOTE SÉCURITÉ ══
--- Les mots de passe dans admins sont en clair actuellement.
--- Pour renforcer : activer le hachage bcrypt côté app (à faire en priorité).
--- Protection immédiate : Supabase Dashboard → Settings → API → Allowed origins
--- → ajouter uniquement l'URL de production (ex: https://votre-app.vercel.app)
-
--- ══ 6. MIGRATION colonnes manquantes (projets existants) ══
-alter table if exists entites      add column if not exists logo_url text;
-alter table if exists universites  add column if not exists logo_url text;
-alter table if exists copies       add column if not exists note_brute numeric;
-alter table if exists copies       add column if not exists note_sur_bareme numeric;
-alter table if exists sous_questions add column if not exists pts_v numeric default 0.25;
-alter table if exists sous_questions add column if not exists pts_f numeric default -0.25;
-alter table if exists sous_questions add column if not exists correcte boolean;
-update sous_questions set correcte = correct where correcte is null and correct is not null;
--- ══ Migration v7 : lier questions/candidats/copies à exam_config ══
-alter table if exists questions add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
-alter table if exists candidats add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
-alter table if exists copies    add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
--- Ajouter exam_config_id à tokens_composition si manquant
-alter table if exists tokens_composition add column if not exists exam_config_id uuid references exam_config(id) on delete cascade;
--- Peupler exam_config_id pour les données existantes
-update questions q set exam_config_id = (select id from exam_config ec where ec.admin_id = q.admin_id limit 1) where q.exam_config_id is null;
-update candidats c set exam_config_id = (select id from exam_config ec where ec.admin_id = c.admin_id limit 1) where c.exam_config_id is null;
-update copies c   set exam_config_id = (select id from exam_config ec where ec.admin_id = c.admin_id limit 1) where c.exam_config_id is null;
--- Nouvelle contrainte unique candidats par épreuve (supprimer l'ancienne si elle existe)
-alter table if exists candidats drop constraint if exists candidats_admin_id_matricule_key;
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'candidats_exam_config_id_matricule_key') then
-    alter table candidats add constraint candidats_exam_config_id_matricule_key unique(exam_config_id, matricule);
-  end if;
-end $$;
 
 -- ══ 7. Créer le bucket Storage "logos" (public) dans Dashboard → Storage ══</div>
           <button class="btn btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
@@ -918,7 +653,7 @@ end $$;
           </div>
           <div class="field"><label class="lbl">📊 Barème total</label><input id="c-bareme" type="number" value="20"></div>
           <div class="field">
-            <label class="lbl">⏳ Durée individuelle (min) — version allégée uniquement</label>
+           
             <input id="c-duree-individuelle" type="number" placeholder="Laisser vide si non utilisé">
           </div>
           <div class="field"><label class="lbl">📋 Session</label>
@@ -927,7 +662,7 @@ end $$;
         </div>
       </div>
       <div class="alert alert-info" style="font-size:12px;margin:-6px 0 16px">
-        ⏳ <strong>Durée individuelle</strong> : si renseignée, chaque étudiant démarrant depuis <em>composition-directe.html</em> dispose de ce nombre de minutes à partir de <strong>son propre clic sur « Démarrer »</strong>, plutôt que d'une heure de fin commune à tous. La fermeture automatique à l'heure de fin ci-dessus reste malgré tout active en filet de sécurité si elle est définie. N'affecte jamais la version principale (index.html), qui continue d'utiliser exclusivement l'heure de début/fin commune.
+        
       </div>
       <div class="field"><label class="lbl">📝 Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
       <div class="field"><label class="lbl">👨‍🏫 Nom de l'Enseignant</label><input id="c-enseignant" placeholder="Votre nom complet"></div>
@@ -1384,7 +1119,7 @@ end $$;
         <p id="res-detail" style="font-size:13px;color:var(--text-muted);margin-top:.25rem"></p>
         <div class="sep"></div>
         <div class="alert alert-info" style="text-align:left;font-size:13px;line-height:1.6">
-          <strong>Note :</strong> Sous réserve de conformité avec la version papier.
+      
         </div>
         <p style="font-size:12px;color:var(--text-muted);margin-top:10px">Un mail de confirmation vous sera envoyé à l'adresse enregistrée.</p>
         <div class="sep"></div>
@@ -1443,6 +1178,22 @@ end $$;
     </p>
     <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="fermerAvertissement()">
       🖥️ Je reviens sur l'examen
+    </button>
+  </div>
+</div>
+
+<!-- Écran de blocage TOTAL tant que le plein écran n'est pas confirmé actif
+     (contrairement à l'overlay d'infraction : pas de décompte, pas de dépôt
+     automatique — juste un blocage strict jusqu'à confirmation) -->
+<div id="fullscreen-required-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:10000;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem">
+  <div style="background:#fff;border-radius:16px;padding:2rem;max-width:440px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div style="font-size:48px;margin-bottom:.75rem">🖥️</div>
+    <div style="font-size:19px;font-weight:700;color:#991B1B;margin-bottom:.5rem">Plein écran obligatoire</div>
+    <p style="font-size:14px;color:#374151;margin-bottom:1.25rem;line-height:1.6">
+      Le mode plein écran n'est pas actif. Vous ne pouvez pas continuer votre composition tant qu'il n'est pas rétabli.
+    </p>
+    <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="reessayerPleinEcran()">
+      ▶ Réactiver le plein écran
     </button>
   </div>
 </div>
@@ -2693,7 +2444,8 @@ async function deposerCopie() {
       note_brute: sur20,
       note_sur_bareme: sur20,
       admin_id: selAdminId || (currentAdmin ? currentAdmin.id : null),
-      exam_config_id: CFG ? CFG.id : null
+      exam_config_id: CFG ? CFG.id : null,
+      nb_infractions: acInfractions || 0
     });
     document.getElementById('res-note').innerHTML = `${sur20.toFixed(2)}<span style="font-size:32px;color:var(--text-muted);font-weight:400">/${CFG.bareme||20}</span>`;
     document.getElementById('res-mention').textContent = getMention(sur20);
@@ -2888,11 +2640,12 @@ function renderResultatsTable() {
   if (!filteredCopies.length) {
     document.getElementById('results-matrix-wrap').innerHTML='<div class="alert alert-warning">Aucune copie déposée.</div>'; return;
   }
-  // Tableau simplifié : Matricule, Étudiant, Filière, Note, Mention
+  // Tableau simplifié : Matricule, Étudiant, Filière, Note, Mention, Surveillance
   let html=`<div class="tbl-wrap"><table class="tbl"><thead><tr>
     <th>Matricule</th><th>Étudiant</th><th>Filière</th>
     <th style="text-align:center">Note /${CFG.bareme||20}</th>
     <th style="text-align:center">Mention</th>
+    <th style="text-align:center">Surveillance</th>
   </tr></thead><tbody>`;
   filteredCopies.forEach(cop=>{
     const cand=CANDIDATS.find(c=>c.matricule===cop.matricule)||{};
@@ -2902,12 +2655,17 @@ function renderResultatsTable() {
     const fil = cand.filiere || '';
     const _filBadges=['badge-blue','badge-green','badge-amber','badge-purple'];
     const _filIdx = FILIERES.indexOf(fil); const filBadge = _filIdx>=0?_filBadges[_filIdx%_filBadges.length]:'badge-gray';
+    const nbInf = cop.nb_infractions || 0;
+    const infBadge = nbInf === 0
+      ? '<span class="badge badge-green" style="font-size:11px">✓ RAS</span>'
+      : `<span class="badge ${nbInf >= 3 ? 'badge-red' : 'badge-amber'}" style="font-size:11px" title="Changements d'onglet / sorties du plein écran détectés pendant la composition">⚠ ${nbInf}</span>`;
     html+=`<tr>
       <td><code style="font-size:12px">${cop.matricule}</code></td>
       <td><strong>${cand.nom||'?'}</strong> ${cand.prenom||''}</td>
       <td><span class="badge ${filBadge}">${fil||'—'}</span></td>
       <td style="text-align:center;font-weight:700;font-size:15px;color:var(--blue)">${note.toFixed(2)}</td>
       <td style="text-align:center"><span class="badge ${mentionClass}" style="font-size:12px;padding:4px 10px">${mention.replace(/^[^\s]+\s/,'')}</span></td>
+      <td style="text-align:center">${infBadge}</td>
     </tr>`;
   });
   html+='</tbody></table></div>';
@@ -3939,20 +3697,24 @@ function startExamNow() {
   if (_startExamCallback) { const fn = _startExamCallback; _startExamCallback = null; fn(); }
 }
 
+const AC_MAX_INFRACTIONS = 3; // au-delà : dépôt forcé immédiat (plus de grâce)
+let acWatchdogInt = null;
+
 function activerAntiTriche() {
   anticheatActive = true;
   acInfractions   = 0;
-  requestFullscreenSilent();
+  _acEngagerPleinEcran();
 
   // ── PC : fullscreen + clavier
   document.addEventListener('fullscreenchange',       _acFS);
   document.addEventListener('webkitfullscreenchange', _acFS);
   document.addEventListener('keydown',                _acKeydown, true);
+  document.addEventListener('contextmenu',             _acContextMenu);
 
   // ── PC + Mobile : visibilitychange (le plus fiable)
   document.addEventListener('visibilitychange',       _acVisibility);
 
-  // ── PC : blur fenêtre (alt+tab)
+  // ── PC : blur fenêtre (alt+tab, nouvel onglet, nouvelle fenêtre)
   window.addEventListener('blur',                     _acBlur);
 
   // ── Mobile : pagehide/pageshow (home button, changement d'app)
@@ -3961,23 +3723,106 @@ function activerAntiTriche() {
 
   // ── Mobile : focus retrouvé (reprise après changement d'app)
   window.addEventListener('focus',                    _acFocus);
+
+  // ── Dissuasion à la fermeture/rechargement de la page
+  window.addEventListener('beforeunload',              _acBeforeUnload);
+
+  // ── Filet de sécurité : surveillance périodique, indépendante des
+  // événements (qui peuvent être manqués sur certains navigateurs) —
+  // notamment pour rattraper un plein écran jamais réellement activé.
+  acWatchdogInt = setInterval(_acWatchdog, 3000);
 }
 
 function desactiverAntiTriche() {
   anticheatActive = false;
   _acClearTimer();
+  if (acWatchdogInt) { clearInterval(acWatchdogInt); acWatchdogInt = null; }
   document.removeEventListener('fullscreenchange',       _acFS);
   document.removeEventListener('webkitfullscreenchange', _acFS);
   document.removeEventListener('keydown',                _acKeydown, true);
+  document.removeEventListener('contextmenu',             _acContextMenu);
   document.removeEventListener('visibilitychange',       _acVisibility);
   window.removeEventListener('blur',                     _acBlur);
   window.removeEventListener('pagehide',                 _acPageHide);
   window.removeEventListener('pageshow',                 _acPageShow);
   window.removeEventListener('focus',                    _acFocus);
+  window.removeEventListener('beforeunload',              _acBeforeUnload);
+  const fsOv = document.getElementById('fullscreen-required-overlay');
+  if (fsOv) fsOv.style.display = 'none';
   exitFullscreen();
 }
 
+// ── Empêche une fermeture/rechargement accidentel ou volontaire sans
+// avertissement (le navigateur affiche sa propre boîte de dialogue native,
+// impossible à personnaliser ni à contourner par ce code) ──
+function _acBeforeUnload(e) {
+  if (!anticheatActive) return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+
+// ── Bloque le clic droit (réduit les vecteurs "ouvrir dans un nouvel onglet")
+function _acContextMenu(e) {
+  if (!anticheatActive) return;
+  e.preventDefault();
+}
+
+// ── Surveillance périodique (filet de sécurité, indépendant des événements)
+function _acWatchdog() {
+  if (!anticheatActive) return;
+  if (!AC_MOBILE && !(document.fullscreenElement || document.webkitFullscreenElement)) {
+    // Plein écran non actif alors qu'il devrait l'être : soit jamais engagé
+    // (échec silencieux initial), soit sorti sans que l'événement n'ait été
+    // capté. Dans les deux cas, on bloque et on force une nouvelle tentative.
+    _acShowFullscreenRequired();
+  }
+}
+
+// ── Demande le plein écran ET VÉRIFIE qu'il s'active réellement (contrairement
+// à l'ancienne version qui ne vérifiait jamais le résultat) ──
+function _acEngagerPleinEcran() {
+  if (AC_MOBILE) return;
+  const el = document.documentElement;
+  let p;
+  try {
+    if (el.requestFullscreen) p = el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); p = Promise.resolve(); }
+    else p = Promise.reject(new Error('API plein écran indisponible'));
+  } catch(e) { p = Promise.reject(e); }
+  Promise.resolve(p).catch(() => {}).finally(() => {
+    setTimeout(() => {
+      if (!anticheatActive) return;
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        _acHideFullscreenRequired();
+      } else {
+        _acShowFullscreenRequired();
+      }
+    }, 400);
+  });
+}
+
+// ── Écran de blocage TOTAL tant que le plein écran n'est pas confirmé actif.
+// Contrairement à l'overlay d'infraction, celui-ci n'a ni décompte ni dépôt
+// automatique : impossible de composer sans plein écran, un point c'est tout.
+function _acShowFullscreenRequired() {
+  const ov = document.getElementById('fullscreen-required-overlay');
+  if (ov) ov.style.display = 'flex';
+}
+function _acHideFullscreenRequired() {
+  const ov = document.getElementById('fullscreen-required-overlay');
+  if (ov) ov.style.display = 'none';
+}
+function reessayerPleinEcran() {
+  _acEngagerPleinEcran();
+}
+
 // ── Clavier (PC uniquement — bloque raccourcis dangereux)
+// NOTE IMPORTANTE : les navigateurs empêchent volontairement JavaScript de
+// bloquer réellement Ctrl+T / Ctrl+N / Alt+Tab (mesure de sécurité du
+// navigateur, aucun code ne peut la contourner). Ce blocage réduit certains
+// vecteurs annexes, mais la vraie protection contre l'ouverture d'un nouvel
+// onglet ou d'une autre fenêtre est la DÉTECTION de la perte de focus qui en
+// résulte (_acBlur/_acVisibility ci-dessous), pas la tentative de blocage.
 function _acKeydown(e) {
   if (!anticheatActive) return;
   const k = e.key; const ctrl = e.ctrlKey||e.metaKey; const alt = e.altKey;
@@ -3993,14 +3838,16 @@ function _acFS() {
   if (!anticheatActive) return;
   if (!(document.fullscreenElement||document.webkitFullscreenElement)) {
     _acShowOverlay('Sortie du plein écran détectée — revenez sur cette page !');
-    setTimeout(requestFullscreenSilent, 600);
+    setTimeout(_acEngagerPleinEcran, 600);
     _acStartTimer('fullscreen');
   } else {
     _acClearTimer();
+    _acHideFullscreenRequired();
   }
 }
 
-// ── Changement visibilité (PC + Mobile — PRINCIPAL détecteur mobile)
+// ── Changement visibilité (PC + Mobile — PRINCIPAL détecteur mobile ET détecteur
+// principal d'ouverture d'un nouvel onglet/nouvelle fenêtre sur PC)
 function _acVisibility() {
   if (!anticheatActive) return;
   if (document.hidden || document.visibilityState === 'hidden') {
@@ -4015,16 +3862,24 @@ function _acVisibility() {
     // Sur mobile : ne PAS annuler si le timer a déjà expiré (dépôt en cours)
     if (!acHiddenTimer && !anticheatActive) return; // dépôt déjà lancé
     if (acHiddenStart) {
-      // Enregistrer l'infraction même si l'étudiant revient
+      // Enregistrer l'infraction même si l'étudiant revient, et forcer le
+      // dépôt immédiat si le plafond est dépassé (plus de nouvelle grâce).
       acInfractions++;
+      if (acInfractions >= AC_MAX_INFRACTIONS) {
+        _acClearTimer();
+        document.getElementById('anticheat-overlay').style.display = 'none';
+        toast('Copie déposée automatiquement : trop de sorties détectées (' + acInfractions + ').', 'warn');
+        deposerCopie();
+        return;
+      }
     }
     _acClearTimer();
     document.getElementById('anticheat-overlay').style.display = 'none';
-    if (!AC_MOBILE) requestFullscreenSilent();
+    if (!AC_MOBILE) _acEngagerPleinEcran();
   }
 }
 
-// ── Perte focus fenêtre (PC : alt+tab)
+// ── Perte focus fenêtre (PC : alt+tab, nouvel onglet, nouvelle fenêtre)
 function _acBlur() {
   if (!anticheatActive || AC_MOBILE) return;
   // Délai 100ms pour ignorer les faux positifs (boîtes de dialogue)
@@ -4055,6 +3910,10 @@ function _acPageShow(e) {
     acInfractions++;
     _acClearTimer();
     document.getElementById('anticheat-overlay').style.display = 'none';
+    if (acInfractions >= AC_MAX_INFRACTIONS) {
+      toast('Copie déposée automatiquement : trop de sorties détectées (' + acInfractions + ').', 'warn');
+      deposerCopie();
+    }
   }
 }
 
@@ -4065,7 +3924,12 @@ function _acFocus() {
     acInfractions++;
     _acClearTimer();
     document.getElementById('anticheat-overlay').style.display = 'none';
-    if (!AC_MOBILE) requestFullscreenSilent();
+    if (acInfractions >= AC_MAX_INFRACTIONS) {
+      toast('Copie déposée automatiquement : trop de sorties détectées (' + acInfractions + ').', 'warn');
+      deposerCopie();
+      return;
+    }
+    if (!AC_MOBILE) _acEngagerPleinEcran();
   }
 }
 
@@ -4100,11 +3964,12 @@ function _acClearTimer() {
 function _acUpdateCountdown(ms) {
   const cd = document.getElementById('anticheat-countdown');
   if (!cd) return;
+  const infraTxt = ' (infraction ' + (acInfractions + 1) + '/' + AC_MAX_INFRACTIONS + ')';
   if (ms === undefined) {
-    cd.textContent = 'Dépôt automatique dans ' + (AC_GRACE_MS/1000) + 's si vous ne revenez pas.';
+    cd.textContent = 'Dépôt automatique dans ' + (AC_GRACE_MS/1000) + 's si vous ne revenez pas.' + infraTxt;
   } else {
     const s = Math.ceil(ms / 1000);
-    cd.textContent = s > 0 ? 'Dépôt automatique dans ' + s + 's...' : 'Dépôt en cours...';
+    cd.textContent = (s > 0 ? 'Dépôt automatique dans ' + s + 's...' : 'Dépôt en cours...') + infraTxt;
   }
 }
 
@@ -4124,18 +3989,21 @@ function fermerAvertissement() {
     // Timer encore actif → l'étudiant est revenu
     acInfractions++;
     _acClearTimer();
+    if (acInfractions >= AC_MAX_INFRACTIONS) {
+      document.getElementById('anticheat-overlay').style.display = 'none';
+      toast('Copie déposée automatiquement : trop de sorties détectées (' + acInfractions + ').', 'warn');
+      deposerCopie();
+      return;
+    }
   }
   document.getElementById('anticheat-overlay').style.display = 'none';
-  if (!AC_MOBILE) requestFullscreenSilent();
+  if (!AC_MOBILE) _acEngagerPleinEcran();
 }
 
 function requestFullscreenSilent() {
-  if (AC_MOBILE) return; // plein écran non disponible sur mobile
-  try {
-    const el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-  } catch(e) {}
+  // Conservée pour compatibilité (anciens appels) — redirige vers la
+  // version qui vérifie réellement le résultat.
+  _acEngagerPleinEcran();
 }
 
 function exitFullscreen() {
