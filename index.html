@@ -490,12 +490,6 @@ textarea{resize:vertical;min-height:80px}
           <div class="setup-step-title">Créer les tables (SQL Editor)</div>
           <p style="font-size:13px;color:var(--text-muted);margin:4px 0 10px">Dans Supabase → SQL Editor → copiez-collez ce script :</p>
           <div class="code-block" id="sql-block" style="max-height:260px;overflow-y:auto;font-size:11px">
--- ════ ExamPlatform — Script SQL complet avec RLS ════
--- À exécuter dans Supabase → SQL Editor
-
-
-
-
 
 -- ══ 7. Créer le bucket Storage "logos" (public) dans Dashboard → Storage ══</div>
           <button class="btn btn-sm" onclick="copySQL()">📋 Copier le SQL</button>
@@ -653,7 +647,7 @@ textarea{resize:vertical;min-height:80px}
           </div>
           <div class="field"><label class="lbl">📊 Barème total</label><input id="c-bareme" type="number" value="20"></div>
           <div class="field">
-           
+            <label class="lbl">⏳ Durée individuelle (min) </label>
             <input id="c-duree-individuelle" type="number" placeholder="Laisser vide si non utilisé">
           </div>
           <div class="field"><label class="lbl">📋 Session</label>
@@ -662,7 +656,7 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
       <div class="alert alert-info" style="font-size:12px;margin:-6px 0 16px">
-        
+    
       </div>
       <div class="field"><label class="lbl">📝 Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
       <div class="field"><label class="lbl">👨‍🏫 Nom de l'Enseignant</label><input id="c-enseignant" placeholder="Votre nom complet"></div>
@@ -1119,7 +1113,6 @@ textarea{resize:vertical;min-height:80px}
         <p id="res-detail" style="font-size:13px;color:var(--text-muted);margin-top:.25rem"></p>
         <div class="sep"></div>
         <div class="alert alert-info" style="text-align:left;font-size:13px;line-height:1.6">
-      
         </div>
         <p style="font-size:12px;color:var(--text-muted);margin-top:10px">Un mail de confirmation vous sera envoyé à l'adresse enregistrée.</p>
         <div class="sep"></div>
@@ -1496,12 +1489,7 @@ textarea{resize:vertical;min-height:80px}
 
 
 <script>
-// ════════════════════════════════════════
-// SUPABASE CLIENT
-// ════════════════════════════════════════
-// Clés publiques (anon/publishable) intégrées en dur — l'étudiant n'a JAMAIS
-// à configurer Supabase manuellement, peu importe le navigateur ou l'appareil.
-// Ce sont des clés "anon" conçues pour être exposées côté client (RLS gère la sécurité).
+
 const SB_URL_DEFAULT = "https://ucnxauigwhuiaxdgpwrt.supabase.co";
 const SB_KEY_DEFAULT = "sb_publishable_dYPeHWDgdzmhTrbxTKZjJw_vHbHKeLf";
 
