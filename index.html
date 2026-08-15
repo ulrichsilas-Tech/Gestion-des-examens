@@ -647,6 +647,14 @@ textarea{resize:vertical;min-height:80px}
           </div>
           <div class="field"><label class="lbl">📊 Barème total</label><input id="c-bareme" type="number" value="20"></div>
           <div class="field">
+            <label class="lbl">✅ Points par bonne réponse (par sous-question)</label>
+            <input id="c-pts-correcte" type="number" step="0.01" value="0.25" min="0.01">
+          </div>
+          <div class="field">
+            <label class="lbl">❌ Pénalité par mauvaise réponse cochée</label>
+            <input id="c-penalite-incorrecte" type="number" step="0.01" value="0" min="0">
+          </div>
+          <div class="field">
             <label class="lbl">⏳ Durée individuelle (min) </label>
             <input id="c-duree-individuelle" type="number" placeholder="Laisser vide si non utilisé">
           </div>
@@ -656,7 +664,7 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
       <div class="alert alert-info" style="font-size:12px;margin:-6px 0 16px">
-    
+        📐 <strong>Notation</strong> : chaque question vaut au maximum 1 point brut (quel que soit son nombre de sous-questions), réparti selon les points ci-dessus par bonne réponse cochée ou mauvaise réponse correctement laissée décochée. Une pénalité (optionnelle) peut être déduite pour chaque mauvaise réponse cochée à tort. Le total est ensuite ramené sur le barème général. <strong>Ces réglages sont figés définitivement avec chaque copie au moment du dépôt</strong> : les modifier n'affecte jamais les copies déjà déposées, seulement les futures.
       </div>
       <div class="field"><label class="lbl">📝 Consigne</label><textarea id="c-consigne" rows="3"></textarea></div>
       <div class="field"><label class="lbl">👨‍🏫 Nom de l'Enseignant</label><input id="c-enseignant" placeholder="Votre nom complet"></div>
@@ -2420,7 +2428,7 @@ async function deposerCopie() {
   closeModal();
   desactiverAntiTriche();
   if (timerInt) { clearInterval(timerInt); timerInt=null; }
-  const { noteFinale, noteParQuestion } = calculerNote();
+  const { noteFinale, noteParQuestion, cleCorrection } = calculerNote();
   const sur20 = parseFloat(noteFinale.toFixed(2));
   try {
     await DB.insert('copies', {
@@ -2433,7 +2441,8 @@ async function deposerCopie() {
       note_sur_bareme: sur20,
       admin_id: selAdminId || (currentAdmin ? currentAdmin.id : null),
       exam_config_id: CFG ? CFG.id : null,
-      nb_infractions: acInfractions || 0
+      nb_infractions: acInfractions || 0,
+      cle_correction: cleCorrection
     });
     document.getElementById('res-note').innerHTML = `${sur20.toFixed(2)}<span style="font-size:32px;color:var(--text-muted);font-weight:400">/${CFG.bareme||20}</span>`;
     document.getElementById('res-mention').textContent = getMention(sur20);
@@ -2508,28 +2517,41 @@ async function envoyerEmailResultat(noteSur20) {
 
 function calculerNote() {
   /*
-    Règles par sous-question :
-    1. Vraie  + cochée     → +0.25
-    2. Fausse + non cochée → +0.25
+    Règles par sous-question (points configurables par épreuve — voir
+    CFG.pts_correcte / CFG.penalite_incorrecte, réglables dans Configuration) :
+    1. Vraie  + cochée     → + pts_correcte
+    2. Fausse + non cochée → + pts_correcte
     3. Vraie  + non cochée → 0
-    4. Fausse + cochée     → 0
+    4. Fausse + cochée     → - penalite_incorrecte (0 par défaut)
 
     Règle spéciale : si l'étudiant ne coche RIEN sur une question → score question = 0
-    Score question = min(1, somme des sous-questions)
-    Note finale = somme des scores de toutes les questions
-    Puis ramenée sur le barème (ex: /20)
+    Score question = min(1, max(0, somme des sous-questions))
+    Note finale = somme des scores de toutes les questions, ramenée sur le barème.
+
+    IMPORTANT : cette fonction retourne aussi "cleCorrection", un instantané
+    figé de la grille utilisée (quelles réponses étaient correctes + quels
+    points ont servi). Cet instantané DOIT être enregistré avec la copie
+    (voir deposerCopie) pour que toute vérification ultérieure (export PDF,
+    recalcul) utilise TOUJOURS exactement la même grille que celle qui a
+    servi à noter l'étudiant — même si l'enseignant modifie une question
+    par la suite. C'est ce qui garantit qu'aucun écart n'est plus possible
+    entre la note enregistrée et n'importe quelle vérification manuelle.
   */
   const nbQuestions = QUESTIONS.length;
-  if (!nbQuestions) return { noteFinale: 0, noteParQuestion: {} };
+  if (!nbQuestions) return { noteFinale: 0, noteParQuestion: {}, cleCorrection: null };
 
-  const ptsParQuestion = 1; // chaque question vaut 1 point
-  const ptsSousQuestion = 0.25; // chaque sous-question vaut 0.25
+  const ptsSousQuestion    = parseFloat(CFG.pts_correcte) || 0.25;
+  const penaliteIncorrecte = parseFloat(CFG.penalite_incorrecte) || 0;
+  const ptsParQuestion = 1; // chaque question vaut 1 point brut, quel que soit son nb de sous-questions
   const noteParQuestion = {};
+  const cleReponses = {}; // instantané : {questionId: {sousQuestionId: correcte}}
   let totalBrut = 0;
 
   QUESTIONS.forEach(q => {
     const rq = repCand[q.id] || {};
     const aucunCoche = !Object.values(rq).some(v => v);
+    cleReponses[q.id] = {};
+    (q.sousQuestions || []).forEach(sq => { cleReponses[q.id][sq.id] = !!sq.correcte; });
 
     if (aucunCoche) {
       // Règle spéciale : rien coché → 0 pour toute la question
@@ -2540,10 +2562,10 @@ function calculerNote() {
     let scoreQ = 0;
     (q.sousQuestions || []).forEach(sq => {
       const checked = rq[sq.id] || false;
-      if (sq.correcte && checked)    scoreQ += ptsSousQuestion; // Vraie + cochée
-      if (!sq.correcte && !checked)  scoreQ += ptsSousQuestion; // Fausse + non cochée
+      if (sq.correcte && checked)    scoreQ += ptsSousQuestion;       // Vraie + cochée
+      if (!sq.correcte && !checked)  scoreQ += ptsSousQuestion;       // Fausse + non cochée
+      if (!sq.correcte && checked)   scoreQ -= penaliteIncorrecte;    // Fausse + cochée (pénalité optionnelle)
       // Vraie + non cochée → 0
-      // Fausse + cochée   → 0
     });
 
     // Plafonner à 1 point max par question, minimum 0
@@ -2557,7 +2579,14 @@ function calculerNote() {
     ? (totalBrut / nbQuestions) * bareme
     : 0;
 
-  return { noteFinale: Math.max(0, noteFinale), noteParQuestion };
+  const cleCorrection = {
+    ptsCorrecte: ptsSousQuestion,
+    penaliteIncorrecte: penaliteIncorrecte,
+    bareme: bareme,
+    reponses: cleReponses
+  };
+
+  return { noteFinale: Math.max(0, noteFinale), noteParQuestion, cleCorrection };
 }
 
 function getMention(n) {
@@ -3374,18 +3403,31 @@ function buildPDFCopie(doc, cop, corriger) {
 
   const nbQ = QUESTIONS.length;
 
+  // Grille de correction à utiliser : celle figée avec la copie en priorité
+  // (garantit une note PDF strictement identique à la note enregistrée,
+  // même si l'enseignant a modifié une question depuis). Repli sur les
+  // réglages actuels uniquement pour les copies déposées avant ce
+  // correctif (qui n'ont pas encore cet instantané).
+  const cleFigee = cop.cle_correction || null;
+  const ptsSQ_pdf   = cleFigee ? (cleFigee.ptsCorrecte ?? PTS_SQ) : PTS_SQ;
+  const penal_pdf   = cleFigee ? (cleFigee.penaliteIncorrecte || 0) : 0;
+
   QUESTIONS.forEach((q, qIdx) => {
     const rep = cop.reponses||{};
     const rq  = rep[q.id]||{};
     const isLast = (qIdx === nbQ-1);
+    // "correcte" figé si disponible, sinon valeur actuelle de la question
+    const correcteFigee = cleFigee && cleFigee.reponses && cleFigee.reponses[q.id];
 
     // Score
     let scoreQ = 0;
     if (Object.values(rq).some(v=>v)) {
       (q.sousQuestions||[]).forEach(sq => {
         const chk = rq[sq.id]||false;
-        if (sq.correcte && chk)   scoreQ += PTS_SQ;
-        if (!sq.correcte && !chk) scoreQ += PTS_SQ;
+        const estCorrecte = correcteFigee ? !!correcteFigee[sq.id] : !!sq.correcte;
+        if (estCorrecte && chk)    scoreQ += ptsSQ_pdf;
+        if (!estCorrecte && !chk)  scoreQ += ptsSQ_pdf;
+        if (!estCorrecte && chk)   scoreQ -= penal_pdf;
       });
       scoreQ = Math.min(1,Math.max(0,scoreQ));
     }
@@ -4408,6 +4450,7 @@ function loadConfigFormNew() {
     niveau:"c-niveau", annee:"c-annee", date_exam:"c-date",
     heure:"c-heure", session:"c-session",
     duree_individuelle:"c-duree-individuelle",
+    pts_correcte:"c-pts-correcte", penalite_incorrecte:"c-penalite-incorrecte",
     bareme:"c-bareme", consigne:"c-consigne", enseignant:"c-enseignant",
     logo_universite:"c-logo-univ", logo_entite:"c-logo-entite",
     resend_key:"c-resend-key", smtp_from:"c-smtp-from",
@@ -4497,6 +4540,8 @@ async function saveConfigNew() {
     duree_individuelle: v("c-duree-individuelle") ? parseInt(v("c-duree-individuelle")) : null,
     session:   v("c-session")  || CFG.session  || "Normale",
     bareme:    parseInt(v("c-bareme")) || CFG.bareme  || 20,
+    pts_correcte: parseFloat(v("c-pts-correcte")) || 0.25,
+    penalite_incorrecte: parseFloat(v("c-penalite-incorrecte")) || 0,
     consigne:  v("c-consigne"),
     enseignant: v("c-enseignant") || CFG.enseignant || "",
     statut:    CFG.statut || "ferme",
